@@ -1,0 +1,20 @@
+import { mkdir, cp, rm, readFile, writeFile, rename } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const run = promisify(execFile); const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+const stage = path.join(root, '.cache', `package-${Date.now()}`); const name = `html-to-figma-local-${pkg.version}`; const directory = path.join(stage, name);
+await mkdir(directory, { recursive: true }); await mkdir(path.join(root, 'artifacts'), { recursive: true });
+const paths = ['manifest.json', 'package.json', 'package-lock.json', 'tsconfig.json', 'README.md', 'src', 'scripts', 'dist', 'docs', 'examples', 'tests', 'vendor'];
+for (const entry of paths) await cp(path.join(root, entry), path.join(directory, entry), { recursive: true });
+await mkdir(path.join(directory, 'artifacts'), { recursive: true });
+const archive = path.join(root, 'artifacts', `${name}.zip`);
+const temporaryArchive = path.join(stage, `${name}.zip`);
+await run('/usr/bin/zip', ['-qr', temporaryArchive, name], { cwd: stage });
+await rename(temporaryArchive, archive);
+await writeFile(path.join(root, 'artifacts', 'package-info.json'), JSON.stringify({ version: pkg.version, archive, includes: paths, excludes: ['node_modules', '.cache', 'session tokens', 'test output'], builtAt: new Date().toISOString() }, null, 2));
+// Remove only the temporary staging directory created by this invocation.
+await rm(stage, { recursive: true, force: true });
+console.log(archive);

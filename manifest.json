@@ -1,0 +1,13 @@
+{
+  "name": "HTML to Figma · Local",
+  "id": "html-to-figma-local-dev",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "Load only the images, styles and fonts referenced by user-selected HTML, and connect to the user's local capture service at 127.0.0.1:3847. No analytics or document-upload service."
+  }
+}
