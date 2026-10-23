@@ -16,10 +16,10 @@ const inside = (root, target) => {
   const relative = path.relative(root, target);
   return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 };
-export function safeLocalRelative(relative, { filesystem = false, windows = process.platform === 'win32' } = {}) {
+export function safeLocalRelative(relative, { filesystem = false, windows = process.platform === 'win32', allowHidden = false } = {}) {
   if (relative.includes('\0') || (relative.includes('\\') && !(windows && filesystem))) return false;
   const parts = windows && filesystem ? relative.split(/[\\/]/) : relative.split('/');
-  return parts.every(part => !part.startsWith('.') && (!windows ||
+  return parts.every(part => part !== '.' && part !== '..' && (allowHidden || !part.startsWith('.')) && (!windows ||
     (!part.includes(':') && !/[. ]$/.test(part) && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))));
 }
 const safeRelative = (relative, filesystem = false) => safeLocalRelative(relative, { filesystem });
@@ -34,7 +34,7 @@ export function validateCaptureURL(value) {
     try { filename = fileURLToPath(url); } catch { throw new Error('本地地址无效，请使用 file:/// 开头的本机文件地址'); }
     if (url.hostname || !path.isAbsolute(filename) || filename.includes('\0') || (process.platform !== 'win32' && filename.includes('\\')))
       throw new Error('只支持本机的 file:/// 文件地址');
-    if (process.platform === 'win32' && !safeLocalRelative(filename.slice(path.parse(filename).root.length), { filesystem: true }))
+    if (process.platform === 'win32' && !safeLocalRelative(filename.slice(path.parse(filename).root.length), { filesystem: true, allowHidden: true }))
       throw new Error('本地 Windows 文件或目录名不受支持');
     if (!/\.html?$/i.test(filename)) throw new Error('本地入口必须是 .html 或 .htm 文件');
     if (path.basename(filename).startsWith('.')) throw new Error('不能捕获隐藏文件');

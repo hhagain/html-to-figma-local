@@ -12,7 +12,9 @@ const pkg = JSON.parse(await readFile('package.json','utf8'));
 const setup = path.join(out,`HTML-to-Figma-Capture-${pkg.version}-win-x64-Setup.exe`);
 const installDir = path.join(root,'.cache','windows-installed');
 await mkdir(path.dirname(installDir),{recursive:true});
+console.log('Installing Windows setup EXE.');
 await run(setup,['/S',`/D=${installDir}`],{timeout:180000,windowsHide:true});
+console.log('Installed; validating bundled service without a system runtime.');
 const executable = path.join(installDir,'HTML to Figma Capture.exe');
 const resources = path.join(installDir,'resources');
 await run(process.execPath,['scripts/desktop/smoke.mjs'],{timeout:180000,maxBuffer:1024*1024,env:{...process.env,
@@ -22,6 +24,7 @@ let instance;
 const failures=[];
 try {
   instance = await electron.launch({executablePath:executable,env,timeout:60000});
+  console.log('Launching the installed Windows desktop window.');
   const page = await instance.firstWindow(); page.setDefaultTimeout(30000);
   page.on('pageerror',e=>failures.push(e.message));
   await page.waitForURL(/\/desktop$/,{timeout:60000});
@@ -39,6 +42,7 @@ try {
   for(let n=0;n<40;n++){const status=await post('/api/desktop/pair/status',{...credentials,id:pair.id});if(status.status==='approved')break;await new Promise(r=>setTimeout(r,100));}
   assert.equal((await fetch(address+'/api/health',{headers:{'X-H2F-Token':credentials.credential}})).status,200);
   const userData = await instance.evaluate(({app})=>app.getPath('userData'));
+  console.log('Checking native pairing and plugin export.');
   await page.locator('#show-plugin').click();
   const manifest = path.join(userData,'Figma Plugin','manifest.json');
   for(let n=0;n<40;n++){try{await readFile(manifest);break;}catch{await new Promise(r=>setTimeout(r,100));}}
@@ -47,6 +51,7 @@ try {
   await page.locator('#show-plugin').click();await new Promise(r=>setTimeout(r,250));
   assert.equal(JSON.parse(await readFile(manifest,'utf8')).id,'test-preserved-id');
   assert.deepEqual(await readFile(path.join(userData,'Figma Plugin/dist/code.js')),await readFile('dist/code.js'));
+  console.log('Checking local capture and preview gestures.');
   await page.locator('#open-workbench').click();await page.waitForURL(address+'/');
   await page.locator('#url-tab').click();
   const localProject=path.join(root,'.cache','Windows Design 本地');
@@ -61,6 +66,7 @@ try {
   await page.keyboard.down('Space');await page.mouse.down();await page.mouse.move(box.x+70,box.y+60,{steps:8});await page.mouse.up();await page.keyboard.up('Space');
   const after=await stage.evaluate(el=>({x:el.scrollLeft,y:el.scrollTop}));assert.ok(after.x>before.x+40);assert.ok(after.y>before.y+30);
   await page.locator('#preview-zoom-fit').click();
+  console.log('Checking direct handoff and lifecycle.');
   const receiverId=randomBytes(16).toString('hex'),contextVersion=randomBytes(16).toString('hex');
   const heartbeat = () => post('/api/figma/receivers',{receiverId,contextVersion,documentName:'Windows 自动化接收端',pageName:'验收',pageId:'0:1',busy:false},true);
   const target=await heartbeat();const timer=setInterval(()=>heartbeat().catch(()=>{}),3000);
@@ -94,4 +100,7 @@ try {
     nativeWindowsPathCapture:true,ctrlWheel:true,spaceDrag:true,fitAndActualZoom:true,desktopDirectHandoff:true,
     receiver:'automated receiver; real Windows Figma not tested',trayCloseKeepsService:true,restartKeepsPairing:true,quitStopsService:true},null,2)+'\n');
   console.log('Installed Windows assistant end-to-end validation passed.');
+} catch(error) {
+  if(instance) { try { const page=await instance.firstWindow(); await page.screenshot({path:path.join(out,'windows-error.png'),fullPage:true}); console.error('Window URL:',page.url()); } catch {} }
+  throw error;
 } finally {if(instance)await instance.close().catch(()=>{});}
