@@ -8,7 +8,9 @@
 
 新增 Windows x64 的安装向导 EXE 与便携 ZIP，内置运行环境和浏览器，支持系统托盘、配对、插件导出、自动交互捕获及桌面一键导入。输入支持 `C:\…\index.html` 和 `file:///C:/…`，预览使用 Ctrl + 滚轮及空格 + 左键拖拽。
 
-安装与开发说明见 [Windows 助手指南](docs/WINDOWS-ASSISTANT.md)。Windows 包与配套插件版本为 0.8.0；已发布的 Mac 0.7.0 包继续保留。
+[Windows v0.8.0 发布页](https://github.com/hhagain/html-to-figma-local/releases/tag/v0.8.0) · [EXE 安装包](https://github.com/hhagain/html-to-figma-local/releases/download/v0.8.0/HTML-to-Figma-Capture-0.8.0-win-x64-Setup.exe) · [便携 ZIP](https://github.com/hhagain/html-to-figma-local/releases/download/v0.8.0/HTML-to-Figma-Capture-0.8.0-win-x64.zip) · [配套 Figma 插件](https://github.com/hhagain/html-to-figma-local/releases/download/v0.8.0/html-to-figma-local-0.8.0.zip)
+
+安装与开发说明见 [Windows 助手指南](docs/WINDOWS-ASSISTANT.md)。Windows 包与配套插件版本为 0.8.0；已发布的 Mac 0.7.0 包继续保留。已在 Windows Server 2022 x64 构建机完成安装后自动化验收，实际 Windows 11 用户桌面与 Figma 客户端联调仍需实机确认。
 
 ## 下载 v0.7.0
 

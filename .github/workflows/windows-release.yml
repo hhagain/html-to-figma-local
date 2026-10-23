@@ -1,0 +1,96 @@
+name: Publish verified Windows installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Windows desktop build run ID
+        required: true
+        type: string
+      tag:
+        description: Existing release tag
+        required: true
+        default: v0.8.0
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN: ${{ inputs.run_id }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Validate inputs
+        shell: bash
+        run: |
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
+          [[ "$RELEASE_TAG" =~ ^v0\.8\.[0-9]+$ ]]
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Verify successful build and unchanged runtime sources
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > /tmp/h2f-build.json
+          node --input-type=module <<'NODE'
+          import { readFile, appendFile } from 'node:fs/promises';
+          const build=JSON.parse(await readFile('/tmp/h2f-build.json','utf8'));
+          if(build.status!=='completed'||build.conclusion!=='success'||build.path!=='.github/workflows/windows-desktop.yml')throw new Error('Expected a successful Windows desktop build');
+          await appendFile(process.env.GITHUB_ENV,'BUILD_SHA='+build.head_sha+'\n');
+          NODE
+          BUILD_SHA=$(node -p "JSON.parse(require('fs').readFileSync('/tmp/h2f-build.json','utf8')).head_sha")
+          git diff --exit-code "$BUILD_SHA" HEAD -- desktop dist src scripts tests examples manifest.json package.json package-lock.json .github/workflows/windows-desktop.yml
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: html-to-figma-windows-x64
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: artifacts/windows-ci
+      - name: Verify installer checksums
+        working-directory: artifacts/windows-ci/artifacts/windows
+        run: sha256sum --check SHA256SUMS-windows.txt
+      - name: Build matching Figma plugin package
+        run: |
+          npm ci
+          npm run package
+      - name: Publish release with all packages
+        shell: bash
+        run: |
+          OUT=artifacts/windows-ci/artifacts/windows
+          VERSION=${RELEASE_TAG#v}
+          cp "$OUT/SHA256SUMS-windows.txt" "$OUT/SHA256SUMS.txt"
+          sha256sum "artifacts/html-to-figma-local-$VERSION.zip" | sed 's#  artifacts/#  #' >> "$OUT/SHA256SUMS.txt"
+          gh release create "$RELEASE_TAG" \
+            "$OUT/HTML-to-Figma-Capture-$VERSION-win-x64-Setup.exe" \
+            "$OUT/HTML-to-Figma-Capture-$VERSION-win-x64.zip" \
+            "artifacts/html-to-figma-local-$VERSION.zip" \
+            "$OUT/SHA256SUMS-windows.txt" "$OUT/SHA256SUMS.txt" "$OUT/WINDOWS-INSTALL.md" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
+            --title "HTML to Figma · Local $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$OUT/github-publication.json"
+      - name: Save small validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: html-to-figma-windows-release-evidence
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            artifacts/windows-ci/**/native-validation.json
+            artifacts/windows-ci/**/engine-validation.json
+            artifacts/windows-ci/**/windows-build.json
+            artifacts/windows-ci/**/github-publication.json
+            artifacts/windows-ci/**/*.png
+            artifacts/windows-ci/**/*.txt
+            artifacts/windows-ci/**/*.md

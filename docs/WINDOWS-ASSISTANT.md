@@ -41,3 +41,5 @@ node scripts/windows/checksums.mjs
 GitHub Actions 工作流 `.github/workflows/windows-desktop.yml` 在 Windows runner 上执行回归、构建 NSIS 安装包与 ZIP、静默安装并验收真实 Electron 应用。输出位于 `artifacts/windows/`。
 
 自动化验收包括内置服务、本地 HTML、交互探索、配对与插件导出、Ctrl 滚轮、空格拖拽、直接传输、关闭到托盘、重启与退出。导入接收端使用测试宿主，不把这项测试描述为真实 Windows Figma 文件验收。
+
+本次验证结果与边界见 [Windows 验证记录](WINDOWS-VALIDATION.md)。
