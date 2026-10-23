@@ -35,9 +35,11 @@ export function validateCaptureURL(value) {
     if (url.hostname || !path.isAbsolute(filename) || filename.includes('\0') || (process.platform !== 'win32' && filename.includes('\\')))
       throw new Error('只支持本机的 file:/// 文件地址');
     if (process.platform === 'win32' && !safeLocalRelative(filename.slice(path.parse(filename).root.length), { filesystem: true }))
-      throw new Error('本地 Windows 地址包含不支持的文件名');
+      throw new Error('本地 Windows 文件或目录名不受支持');
     if (!/\.html?$/i.test(filename)) throw new Error('本地入口必须是 .html 或 .htm 文件');
     if (path.basename(filename).startsWith('.')) throw new Error('不能捕获隐藏文件');
+    const canonical = pathToFileURL(filename); canonical.search = url.search; canonical.hash = url.hash;
+    return canonical;
   }
   return url;
 }

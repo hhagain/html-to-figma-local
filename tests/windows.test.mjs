@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import path from 'node:path';
+import os from 'node:os';
 import { normalizeCaptureAddress } from '../dist/lib/capture-address.js';
 import { safeLocalRelative, validateCaptureURL, resolveStateURL } from '../scripts/capture-source.mjs';
 const { nativeCommand, trustedOrigin } = createRequire(import.meta.url)('../desktop/windows/policy.cjs');
@@ -33,4 +36,11 @@ test('Windows native commands require the trusted main frame and exact pending p
   assert.equal(nativeCommand({action:'execute'},context),null);
   assert.equal(trustedOrigin('http://127.0.0.1.evil/desktop',context.serviceURL),false);
   assert.deepEqual(nativeCommand({action:'show-plugin'},context),{action:'show-plugin'});
+});
+
+test('local URLs canonicalize short-path and escaped aliases before discovery deduplication', () => {
+  const filename=path.join(os.tmpdir(),'Design~Project','index.html');
+  const expected=pathToFileURL(filename).href+'?mode=demo#/dashboard';
+  assert.equal(validateCaptureURL(filename+'?mode=demo#/dashboard').href,expected);
+  assert.equal(validateCaptureURL(expected.replaceAll('%7E','~')).href,expected);
 });

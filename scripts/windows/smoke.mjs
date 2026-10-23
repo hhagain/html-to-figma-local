@@ -1,5 +1,5 @@
 import { _electron as electron } from 'playwright';
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, cp } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
@@ -49,7 +49,9 @@ try {
   assert.deepEqual(await readFile(path.join(userData,'Figma Plugin/dist/code.js')),await readFile('dist/code.js'));
   await page.locator('#open-workbench').click();await page.waitForURL(address+'/');
   await page.locator('#url-tab').click();
-  await page.locator('#page-url').fill(path.join(resources,'engine/examples/dynamic-state-test.html')+'?windows=1#/dashboard');
+  const localProject=path.join(root,'.cache','Windows Design 本地');
+  await cp(path.join(resources,'engine/examples'),localProject,{recursive:true});
+  await page.locator('#page-url').fill(path.join(localProject,'dashboard.html')+'?windows=1#/dashboard');
   await page.locator('#prepare').click();await page.locator('#preview-zoom-controls').waitFor({state:'visible',timeout:60000});
   await page.locator('#preview-zoom-actual').click();assert.equal(await page.locator('#preview-zoom-value').textContent(),'100%');
   const stage=page.locator('#preview-stage'),box=await stage.boundingBox();
