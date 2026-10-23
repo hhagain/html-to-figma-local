@@ -73,7 +73,7 @@
       if (++nodes > LIMITS.nodes || depth > LIMITS.depth) fail("\u56FE\u5C42\u6570\u91CF\u6216\u5D4C\u5957\u6DF1\u5EA6\u8D85\u9650");
       if (!object(n) || !["frame", "text", "svg"].includes(n.kind) || typeof n.name !== "string" || n.name.length > 500 || typeof n.id !== "string" || nodeIds.has(n.id)) fail("\u56FE\u5C42\u7C7B\u578B\u3001\u540D\u79F0\u6216 ID \u65E0\u6548");
       nodeIds.add(n.id);
-      if (!number(n.x) || !number(n.y) || !number(n.width, LIMITS.dimension, 0.01) || !number(n.height, LIMITS.dimension, 0.01) || !number(n.opacity, 1, 0)) fail("\u56FE\u5C42\u5750\u6807\u6216\u5C3A\u5BF8\u65E0\u6548");
+      if (!number(n.x) || !number(n.y) || !number(n.width, LIMITS.dimension, 0.01) || !number(n.height, LIMITS.dimension, 0.01) || !number(n.opacity, 1, 0)) fail(`\u56FE\u5C42\u5750\u6807\u6216\u5C3A\u5BF8\u65E0\u6548\uFF1A${n.name} [${n.x}, ${n.y}, ${n.width}, ${n.height}]`);
       if (!Array.isArray(n.fills) || n.fills.length > 20) fail("\u586B\u5145\u65E0\u6548");
       for (const p of n.fills) {
         if (!object(p)) fail("\u586B\u5145\u683C\u5F0F\u65E0\u6548");
@@ -104,6 +104,89 @@
       (_a = n.children) == null ? void 0 : _a.forEach((child) => walk(child, depth + 1));
     };
     walk(doc.root, 0);
+  }
+
+  // src/auto-layout.ts
+  var TOLERANCE = 1.5;
+  var near = (actual, expected) => Math.abs(actual - expected) <= TOLERANCE;
+  function canApplyAutoLayout(spec) {
+    const l = spec.layout, children = spec.children || [];
+    if (!(l == null ? void 0 : l.eligible) || !children.length || children.some((child) => child.kind === "text")) return false;
+    const horizontal = l.direction === "HORIZONTAL";
+    const [top, right, bottom, left] = l.padding;
+    const start = horizontal ? left : top, end = horizontal ? right : bottom;
+    const size = horizontal ? spec.width : spec.height;
+    const sum = children.reduce((n, c) => n + (horizontal ? c.width : c.height), 0);
+    const free = size - start - end - sum;
+    if (free < -0.5) return false;
+    const gap = l.main === "SPACE_BETWEEN" && children.length > 1 ? free / (children.length - 1) : l.gap;
+    const remaining = free - gap * Math.max(0, children.length - 1);
+    let cursor = start + (l.main === "CENTER" ? remaining / 2 : l.main === "MAX" ? remaining : 0);
+    for (const child of children) {
+      if (!near(horizontal ? child.x : child.y, cursor)) return false;
+      const crossSize = horizontal ? spec.height : spec.width, crossStart = horizontal ? top : left, crossEnd = horizontal ? bottom : right;
+      const childCross = horizontal ? child.height : child.width;
+      const expected = l.cross === "CENTER" ? crossStart + (crossSize - crossStart - crossEnd - childCross) / 2 : l.cross === "MAX" ? crossSize - crossEnd - childCross : crossStart;
+      if (!near(horizontal ? child.y : child.x, expected)) return false;
+      cursor += (horizontal ? child.width : child.height) + gap;
+    }
+    return true;
+  }
+  function geometryMatches(frame, spec) {
+    var _a;
+    return near(frame.width, spec.width) && near(frame.height, spec.height) && frame.children.length === ((_a = spec.children) == null ? void 0 : _a.length) && frame.children.every((node, i) => {
+      const expected = spec.children[i];
+      return near(node.x, expected.x) && near(node.y, expected.y) && near(node.width, expected.width) && near(node.height, expected.height);
+    });
+  }
+  function applyAutoLayoutPreservingGeometry(frame, spec) {
+    if (!canApplyAutoLayout(spec) || !geometryMatches(frame, spec) || frame.children.some((child) => child.type !== "FRAME")) return "skipped";
+    const layout = spec.layout;
+    const before = {
+      width: frame.width,
+      height: frame.height,
+      clip: frame.clipsContent,
+      children: frame.children.map((node) => ({ node, x: node.x, y: node.y, width: node.width, height: node.height, primary: node.primaryAxisSizingMode, counter: node.counterAxisSizingMode }))
+    };
+    const restore = () => {
+      frame.layoutMode = "NONE";
+      frame.resizeWithoutConstraints(before.width, before.height);
+      frame.clipsContent = before.clip;
+      before.children.forEach((saved, i) => {
+        if (frame.children[i] !== saved.node) frame.insertChild(i, saved.node);
+        if (saved.node.layoutMode && saved.node.layoutMode !== "NONE") {
+          saved.node.primaryAxisSizingMode = saved.primary;
+          saved.node.counterAxisSizingMode = saved.counter;
+        }
+        saved.node.resizeWithoutConstraints(saved.width, saved.height);
+        saved.node.x = saved.x;
+        saved.node.y = saved.y;
+      });
+    };
+    try {
+      frame.layoutMode = layout.direction;
+      frame.primaryAxisSizingMode = "FIXED";
+      frame.counterAxisSizingMode = "FIXED";
+      frame.layoutWrap = "NO_WRAP";
+      frame.strokesIncludedInLayout = false;
+      [frame.paddingTop, frame.paddingRight, frame.paddingBottom, frame.paddingLeft] = layout.padding;
+      frame.itemSpacing = layout.gap;
+      frame.primaryAxisAlignItems = layout.main;
+      frame.counterAxisAlignItems = layout.cross;
+      for (const saved of before.children) {
+        saved.node.layoutGrow = 0;
+        saved.node.layoutAlign = "INHERIT";
+        saved.node.layoutSizingHorizontal = "FIXED";
+        saved.node.layoutSizingVertical = "FIXED";
+        saved.node.resizeWithoutConstraints(saved.width, saved.height);
+      }
+      frame.resizeWithoutConstraints(before.width, before.height);
+      frame.clipsContent = before.clip;
+      if (geometryMatches(frame, spec)) return "applied";
+    } catch (e) {
+    }
+    restore();
+    return "reverted";
   }
 
   // src/importer.ts
@@ -201,29 +284,6 @@
       }
       node.effects = (spec.effects || []).map((e) => ({ type: e.inner ? "INNER_SHADOW" : "DROP_SHADOW", color: __spreadProps(__spreadValues({}, rgb(e.color)), { a: e.color.a }), offset: { x: e.x, y: e.y }, radius: e.blur, spread: e.spread, visible: true, blendMode: "NORMAL" }));
     };
-    const safeLayout = (spec) => {
-      const l = spec.layout, children = spec.children || [];
-      if (!(l == null ? void 0 : l.eligible) || !children.length) return false;
-      const horizontal = l.direction === "HORIZONTAL";
-      const [top, right, bottom, left] = l.padding;
-      const start = horizontal ? left : top, end = horizontal ? right : bottom;
-      const size = horizontal ? spec.width : spec.height;
-      const sum = children.reduce((n, c) => n + (horizontal ? c.width : c.height), 0);
-      const free = size - start - end - sum;
-      if (free < -0.5) return false;
-      const gap = l.main === "SPACE_BETWEEN" && children.length > 1 ? free / (children.length - 1) : l.gap;
-      const remaining = free - gap * Math.max(0, children.length - 1);
-      let cursor = start + (l.main === "CENTER" ? remaining / 2 : l.main === "MAX" ? remaining : 0);
-      for (const child of children) {
-        if (Math.abs((horizontal ? child.x : child.y) - cursor) > 1.5) return false;
-        const crossSize = horizontal ? spec.height : spec.width, crossStart = horizontal ? top : left, crossEnd = horizontal ? bottom : right;
-        const childCross = horizontal ? child.height : child.width;
-        const expected = l.cross === "CENTER" ? crossStart + (crossSize - crossStart - crossEnd - childCross) / 2 : l.cross === "MAX" ? crossSize - crossEnd - childCross : crossStart;
-        if (Math.abs((horizontal ? child.y : child.x) - expected) > 1.5) return false;
-        cursor += (horizontal ? child.width : child.height) + gap;
-      }
-      return true;
-    };
     let done = 0, autoLayouts = 0;
     const total = countScene(document.root).nodes;
     const staging2 = api.createFrame();
@@ -254,7 +314,7 @@
           t.letterSpacing = { unit: "PIXELS", value: text.letterSpacing };
           t.textDecoration = text.decoration;
           t.textAutoResize = "WIDTH_AND_HEIGHT";
-          t.fills = [{ type: "SOLID", color: rgb(text.color), opacity: text.color.a }];
+          t.fills = spec.fills.length ? paints(spec.fills) : [{ type: "SOLID", color: rgb(text.color), opacity: text.color.a }];
           t.opacity = spec.opacity;
         } else {
           const f = api.createFrame();
@@ -277,19 +337,13 @@
           for (const child of spec.children || []) await build(child, f);
           if (spec.layout) {
             f.setPluginData("htmlFlex", JSON.stringify(spec.layout));
-            if (options.mode === "auto" && safeLayout(spec)) {
-              f.layoutMode = spec.layout.direction;
-              f.primaryAxisSizingMode = f.counterAxisSizingMode = "FIXED";
-              [f.paddingTop, f.paddingRight, f.paddingBottom, f.paddingLeft] = spec.layout.padding;
-              f.itemSpacing = spec.layout.gap;
-              f.primaryAxisAlignItems = spec.layout.main;
-              f.counterAxisAlignItems = spec.layout.cross;
-              for (const child of f.children) {
-                if ("layoutGrow" in child) child.layoutGrow = 0;
-                if ("layoutAlign" in child) child.layoutAlign = "INHERIT";
-              }
-              autoLayouts++;
-            } else if (options.mode === "auto") warn("AUTO_LAYOUT_SKIPPED", "\u90E8\u5206 Flex \u5BB9\u5668\u4FDD\u7559\u539F\u59CB\u4F4D\u7F6E\uFF0C\u4EE5\u907F\u514D\u5E03\u5C40\u53D1\u751F\u53D8\u5316", spec.name);
+            if (options.mode === "auto") {
+              const result = applyAutoLayoutPreservingGeometry(f, spec);
+              f.setPluginData("h2fAutoLayout", result);
+              if (result === "applied") autoLayouts++;
+              else if (result === "reverted") warn("AUTO_LAYOUT_REVERTED", "\u81EA\u52A8\u5E03\u5C40\u6539\u53D8\u4E86\u5C3A\u5BF8\u6216\u4F4D\u7F6E\uFF0C\u5DF2\u6062\u590D\u8BE5\u5BB9\u5668\u7684\u539F\u59CB\u5E03\u5C40", spec.name);
+              else warn("AUTO_LAYOUT_SKIPPED", "\u90E8\u5206 Flex \u5BB9\u5668\u4FDD\u7559\u539F\u59CB\u4F4D\u7F6E\uFF0C\u4EE5\u907F\u514D\u5E03\u5C40\u53D1\u751F\u53D8\u5316", spec.name);
+            }
           }
         }
         node.name = spec.name;
@@ -430,6 +484,11 @@
   var cancelled = false;
   var batch = null;
   var staging = null;
+  var currentContext = () => {
+    var _a;
+    return { documentName: ((_a = figma.root) == null ? void 0 : _a.name) || "\u5F53\u524D Figma \u6587\u4EF6", pageName: figma.currentPage.name || "\u5F53\u524D\u9875\u9762", pageId: figma.currentPage.id };
+  };
+  figma.on("currentpagechange", () => figma.ui.postMessage({ type: "CONTEXT", context: currentContext() }));
   figma.on("close", () => {
     cancelled = true;
     batch == null ? void 0 : batch.cleanupOnClose();
@@ -439,7 +498,12 @@
     var _a, _b;
     if (!message || typeof message.type !== "string") return;
     if (message.type === "READY") {
-      figma.ui.postMessage({ type: "SETTINGS", settings: await figma.clientStorage.getAsync("h2f-settings-v1") || {} });
+      figma.ui.postMessage({ type: "SETTINGS", settings: await figma.clientStorage.getAsync("h2f-settings-v1") || {}, assistant: await figma.clientStorage.getAsync("h2f-assistant-v1") || null, context: currentContext() });
+      return;
+    }
+    if (message.type === "ASSISTANT_SETTINGS") {
+      const a = message.assistant;
+      if (a && /^figma-[a-f0-9-]{16,100}$/.test(a.clientId) && /^[a-f0-9]{64}$/.test(a.credential) && /^http:\/\/127\.0\.0\.1:(384[7-9]|385[01])$/.test(a.serviceURL)) await figma.clientStorage.setAsync("h2f-assistant-v1", { clientId: a.clientId, credential: a.credential, serviceURL: a.serviceURL });
       return;
     }
     if (message.type === "SETTINGS") {
@@ -455,6 +519,10 @@
         batch = null;
         active = false;
       }
+      return;
+    }
+    if (["IMPORT", "BATCH_START"].includes(message.type) && message.expectedPageId && message.expectedPageId !== figma.currentPage.id) {
+      figma.ui.postMessage({ type: "ERROR", message: "\u76EE\u6807 Figma \u9875\u9762\u5DF2\u53D8\u5316\uFF0C\u672A\u6267\u884C\u5BFC\u5165\uFF0C\u8BF7\u4ECE\u52A9\u624B\u91CD\u65B0\u9009\u62E9\u76EE\u6807\u3002" });
       return;
     }
     if (message.type === "BATCH_START" && !active) {

@@ -49,7 +49,7 @@ function validateDocument(input) {
     if (++nodes > LIMITS.nodes || depth > LIMITS.depth) fail("\u56FE\u5C42\u6570\u91CF\u6216\u5D4C\u5957\u6DF1\u5EA6\u8D85\u9650");
     if (!object(n) || !["frame", "text", "svg"].includes(n.kind) || typeof n.name !== "string" || n.name.length > 500 || typeof n.id !== "string" || nodeIds.has(n.id)) fail("\u56FE\u5C42\u7C7B\u578B\u3001\u540D\u79F0\u6216 ID \u65E0\u6548");
     nodeIds.add(n.id);
-    if (!number(n.x) || !number(n.y) || !number(n.width, LIMITS.dimension, 0.01) || !number(n.height, LIMITS.dimension, 0.01) || !number(n.opacity, 1, 0)) fail("\u56FE\u5C42\u5750\u6807\u6216\u5C3A\u5BF8\u65E0\u6548");
+    if (!number(n.x) || !number(n.y) || !number(n.width, LIMITS.dimension, 0.01) || !number(n.height, LIMITS.dimension, 0.01) || !number(n.opacity, 1, 0)) fail(`\u56FE\u5C42\u5750\u6807\u6216\u5C3A\u5BF8\u65E0\u6548\uFF1A${n.name} [${n.x}, ${n.y}, ${n.width}, ${n.height}]`);
     if (!Array.isArray(n.fills) || n.fills.length > 20) fail("\u586B\u5145\u65E0\u6548");
     for (const p of n.fills) {
       if (!object(p)) fail("\u586B\u5145\u683C\u5F0F\u65E0\u6548");

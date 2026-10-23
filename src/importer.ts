@@ -1,4 +1,5 @@
 import { addDiagnostic, countScene, validateDocument, type CaptureDocument, type Color, type Diagnostic, type ImportMode, type Paint as SourcePaint, type SceneNode as SourceNode } from './schema';
+import { applyAutoLayoutPreservingGeometry } from './auto-layout';
 export interface ImportOptions { mode: ImportMode; cancelled?: () => boolean; progress?: (done: number, total: number) => void; context?: ImportContext; page?: PageNode; focus?: boolean; position?: { x: number; y: number }; onStaging?: (node: FrameNode | null) => void }
 export interface ImportContext { fonts: Promise<Font[]>; fontCache: Map<string, FontName>; loaded: Set<string>; imageHashes: Map<string, string> }
 export function createImportContext(api: PluginAPI): ImportContext { return { fonts: api.listAvailableFontsAsync(), fontCache: new Map(), loaded: new Set(), imageHashes: new Map() }; }
@@ -68,30 +69,6 @@ export async function importDocument(api: PluginAPI, document: CaptureDocument, 
     }
     node.effects = (spec.effects || []).map(e => ({ type: e.inner ? 'INNER_SHADOW' : 'DROP_SHADOW', color: { ...rgb(e.color), a: e.color.a }, offset: { x: e.x, y: e.y }, radius: e.blur, spread: e.spread, visible: true, blendMode: 'NORMAL' } as Effect));
   };
-  // Only upgrade Flex containers whose measured geometry matches the fixed-size Figma model.
-  const safeLayout = (spec: SourceNode): boolean => {
-    const l = spec.layout, children = spec.children || [];
-    if (!l?.eligible || !children.length) return false;
-    const horizontal = l.direction === 'HORIZONTAL';
-    const [top, right, bottom, left] = l.padding;
-    const start = horizontal ? left : top, end = horizontal ? right : bottom;
-    const size = horizontal ? spec.width : spec.height;
-    const sum = children.reduce((n, c) => n + (horizontal ? c.width : c.height), 0);
-    const free = size - start - end - sum;
-    if (free < -.5) return false;
-    const gap = l.main === 'SPACE_BETWEEN' && children.length > 1 ? free / (children.length - 1) : l.gap;
-    const remaining = free - gap * Math.max(0, children.length - 1);
-    let cursor = start + (l.main === 'CENTER' ? remaining / 2 : l.main === 'MAX' ? remaining : 0);
-    for (const child of children) {
-      if (Math.abs((horizontal ? child.x : child.y) - cursor) > 1.5) return false;
-      const crossSize = horizontal ? spec.height : spec.width, crossStart = horizontal ? top : left, crossEnd = horizontal ? bottom : right;
-      const childCross = horizontal ? child.height : child.width;
-      const expected = l.cross === 'CENTER' ? crossStart + (crossSize - crossStart - crossEnd - childCross) / 2 : l.cross === 'MAX' ? crossSize - crossEnd - childCross : crossStart;
-      if (Math.abs((horizontal ? child.y : child.x) - expected) > 1.5) return false;
-      cursor += (horizontal ? child.width : child.height) + gap;
-    }
-    return true;
-  };
   let done = 0, autoLayouts = 0;
   const total = countScene(document.root).nodes;
   const staging = api.createFrame(); staging.name = `${document.name} · 导入中`; staging.fills = []; staging.clipsContent = false; staging.visible = false;
@@ -107,7 +84,7 @@ export async function importDocument(api: PluginAPI, document: CaptureDocument, 
         const text = spec.text!; t.fontName = font; t.fontSize = text.size;
         t.characters = text.value; t.lineHeight = { unit: 'PIXELS', value: text.lineHeight };
         t.letterSpacing = { unit: 'PIXELS', value: text.letterSpacing }; t.textDecoration = text.decoration;
-        t.textAutoResize = 'WIDTH_AND_HEIGHT'; t.fills = [{ type: 'SOLID', color: rgb(text.color), opacity: text.color.a }]; t.opacity = spec.opacity;
+        t.textAutoResize = 'WIDTH_AND_HEIGHT'; t.fills = spec.fills.length ? paints(spec.fills) : [{ type: 'SOLID', color: rgb(text.color), opacity: text.color.a }]; t.opacity = spec.opacity;
       } else {
         const f = api.createFrame(); parent.appendChild(f); node = f;
         f.resize(spec.width, spec.height); setFrameStyle(f, spec);
@@ -121,13 +98,13 @@ export async function importDocument(api: PluginAPI, document: CaptureDocument, 
         for (const child of spec.children || []) await build(child, f);
         if (spec.layout) {
           f.setPluginData('htmlFlex', JSON.stringify(spec.layout));
-          if (options.mode === 'auto' && safeLayout(spec)) {
-            f.layoutMode = spec.layout.direction; f.primaryAxisSizingMode = f.counterAxisSizingMode = 'FIXED';
-            [f.paddingTop, f.paddingRight, f.paddingBottom, f.paddingLeft] = spec.layout.padding;
-            f.itemSpacing = spec.layout.gap; f.primaryAxisAlignItems = spec.layout.main; f.counterAxisAlignItems = spec.layout.cross;
-            for (const child of f.children) { if ('layoutGrow' in child) child.layoutGrow = 0; if ('layoutAlign' in child) child.layoutAlign = 'INHERIT'; }
-            autoLayouts++;
-          } else if (options.mode === 'auto') warn('AUTO_LAYOUT_SKIPPED', '部分 Flex 容器保留原始位置，以避免布局发生变化', spec.name);
+          if (options.mode === 'auto') {
+            const result = applyAutoLayoutPreservingGeometry(f, spec);
+            f.setPluginData('h2fAutoLayout', result);
+            if (result === 'applied') autoLayouts++;
+            else if (result === 'reverted') warn('AUTO_LAYOUT_REVERTED', '自动布局改变了尺寸或位置，已恢复该容器的原始布局', spec.name);
+            else warn('AUTO_LAYOUT_SKIPPED', '部分 Flex 容器保留原始位置，以避免布局发生变化', spec.name);
+          }
         }
       }
       node.name = spec.name; node.x = spec.x; node.y = spec.y; node.setPluginData('htmlNodeId', spec.id);

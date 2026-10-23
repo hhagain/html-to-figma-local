@@ -22,7 +22,7 @@ export class BundleBuilder {
       if (!common) {
         const bytes = (a.base64?.length || 0) * .75;
         if (this.bytes + bytes > BATCH_LIMITS.assetBytes || this.bundle.assets.length >= BATCH_LIMITS.assets) throw new Error('整批图片资源超限（去重后最多 64 MB、2000 个）');
-        common = { ...a, id: `asset-${this.bundle.assets.length + 1}`, url: a.url.startsWith('data:') ? 'embedded-image' : a.url };
+        common = { ...a, id: `asset-${this.bundle.assets.length + 1}`, url: a.base64 && a.url.startsWith('data:') ? 'embedded-image' : a.url };
         this.bundle.assets.push(common); this.bytes += bytes; this.buckets.set(key, [...(this.buckets.get(key) || []), common]);
       }
       mapping.set(a.id, common.id); if (!refs.some(ref => ref.id === common!.id)) refs.push({ id: common.id, url: `asset:${common.id}`, mime: common.mime });

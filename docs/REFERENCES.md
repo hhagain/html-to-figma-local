@@ -25,3 +25,6 @@ Node 开发依赖精确版本记录在 `package-lock.json`。本项目是独立�
 - Acorn：用于静态读取 Tailwind 配置，版本锁定在 package-lock.json；许可证保存在 `vendor/acorn-LICENSE.txt`。
 
 离线编译只执行随包审核的编译器，不执行导入 HTML 中的脚本。
+
+
+- Figma layoutMode 官方副作用说明：`https://developers.figma.com/docs/plugins/api/properties/nodes-layoutmode/`。启用自动布局会改变容器尺寸和子节点位置，仅切回 NONE 不会恢复原几何。v0.2.1 的尺寸恢复与原生检查依据此行为设计，并通过实际 Figma 验证。

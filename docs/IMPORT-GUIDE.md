@@ -2,11 +2,11 @@
 
 ## 已经安装过开发插件
 
-如果原插件指向本项目目录中的 `manifest.json`，关闭并重新运行 **HTML to Figma · Local** 即可。底部显示 **v0.2.0** 表示加载了新版。
+如果原插件指向本项目目录中的 `manifest.json`，关闭并重新运行 **HTML to Figma · Local** 即可。底部显示 **v0.4.0** 表示加载了新版。
 
 ## 使用 ZIP 安装
 
-1. 完整解压 `html-to-figma-local-0.2.0.zip` 到固定目录。
+1. 完整解压 `html-to-figma-local-0.4.0.zip` 到固定目录。
 2. 在 Figma 桌面端选择 **Plugins → Development → Import plugin from manifest…**。
 3. 选择解压目录中的 `manifest.json`。
 4. 从 **Plugins → Development → HTML to Figma · Local** 运行。
@@ -37,3 +37,20 @@
 - 进度状态只保留在当前插件会话；关闭插件后需要自行避开已完成页面，避免重复导入。
 - React / Vue 等需要执行 JavaScript 的页面使用“网页链接”入口和本地捕获服务。文件入口支持静态 HTML 与 Tailwind 3 静态配置。
 - 真实测试结果和更多限制见 `VALIDATION.md` 与根目录 `README.md`。
+
+
+## 从 v0.2.0 更新：自动布局问题
+
+如果旧版导入后出现按钮变矮、底部操作上移或弹窗贴到顶部，请使用 v0.2.1 从原 HTML 重新导入。已创建的旧图层不会自动调整。
+
+新版保留符合条件的原生 Auto Layout，但会恢复原始宽高并检查子图层几何。无法保持布局的容器自动回退到视觉位置，在转换说明中提示。复杂布局和直接文字容器不强制转为 Auto Layout。
+
+
+## 动态网页多个状态
+
+选择“网页链接 → 多状态捕获”，加载状态清单并连接本地服务；完成后可按状态选择导入。详见 `DYNAMIC-STATES.md`。
+
+
+## 不使用终端的网页捕获
+
+安装并打开 macOS 捕获助手，在 Figma 插件的“网页链接”中点击“连接桌面助手”。核对配对码并确认一次，后续自动重连。见 `DESKTOP-ASSISTANT.md`。

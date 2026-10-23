@@ -1,0 +1,1349 @@
+{
+  "schemaVersion": 1,
+  "name": "鸿蒙应用管理后台 · 静态状态稿",
+  "url": "https://hhagain.github.io/multi-app-admin/",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "selector": "body",
+  "captureMode": "viewport",
+  "snapshotDocument": true,
+  "notes": "覆盖登录、应用、业务用户、会员、订单、事件、后台账号、SQL 查询和可视化构建器的代表性页面与交互分支。每个状态在独立浏览器上下文中从头执行，公开演示账号仅用于此无后端原型。删除与密码修改只捕获确认界面，不提交。未穷举任意输入组合、网络异常、权限角色与全部分页记录。",
+  "setup": [
+    {
+      "type": "fill",
+      "selector": "#login-username",
+      "value": "admin"
+    },
+    {
+      "type": "fill",
+      "selector": "#login-password",
+      "value": "Admin123!"
+    },
+    {
+      "type": "click",
+      "selector": "#login-submit"
+    },
+    {
+      "type": "wait",
+      "selector": "#shell"
+    }
+  ],
+  "states": [
+    {
+      "id": "login-default",
+      "name": "默认登录页",
+      "group": "登录",
+      "steps": [],
+      "setup": false
+    },
+    {
+      "id": "login-required",
+      "name": "账号密码必填提示",
+      "group": "登录",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#login-submit"
+        },
+        {
+          "type": "wait",
+          "selector": "#login-error",
+          "text": "请输入"
+        }
+      ],
+      "setup": false
+    },
+    {
+      "id": "login-invalid",
+      "name": "账号密码错误提示",
+      "group": "登录",
+      "steps": [
+        {
+          "type": "fill",
+          "selector": "#login-username",
+          "value": "admin"
+        },
+        {
+          "type": "fill",
+          "selector": "#login-password",
+          "value": "WrongDemo123"
+        },
+        {
+          "type": "click",
+          "selector": "#login-submit"
+        },
+        {
+          "type": "wait",
+          "selector": "#login-error",
+          "text": "不正确"
+        }
+      ],
+      "setup": false
+    },
+    {
+      "id": "apps-list",
+      "name": "应用列表",
+      "group": "应用",
+      "steps": []
+    },
+    {
+      "id": "apps-page-two",
+      "name": "应用列表第二页",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#next-page"
+        },
+        {
+          "type": "wait",
+          "selector": "#results",
+          "text": "格式工坊"
+        }
+      ]
+    },
+    {
+      "id": "apps-filtered",
+      "name": "应用查询结果",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "fill",
+          "selector": "#app-search",
+          "value": "文档"
+        },
+        {
+          "type": "click",
+          "selector": "#app-filter button[type=\"submit\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#result-count",
+          "text": "1"
+        }
+      ]
+    },
+    {
+      "id": "apps-empty",
+      "name": "查询无结果",
+      "group": "应用",
+      "steps": [],
+      "url": "?page=apps&state=no-results"
+    },
+    {
+      "id": "app-detail",
+      "name": "应用详情抽屉",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "应用详情"
+        }
+      ],
+      "url": "?page=apps&state=app-detail"
+    },
+    {
+      "id": "app-create",
+      "name": "新增应用表单",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "新增应用"
+        }
+      ],
+      "url": "?page=apps&state=create"
+    },
+    {
+      "id": "app-create-errors",
+      "name": "新增应用必填错误",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#save-app"
+        },
+        {
+          "type": "wait",
+          "selector": "#error-name"
+        }
+      ],
+      "url": "?page=apps&state=create"
+    },
+    {
+      "id": "app-create-filled",
+      "name": "新增应用已填写",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "fill",
+          "selector": "#edit-name",
+          "value": "状态捕获示例"
+        },
+        {
+          "type": "fill",
+          "selector": "#edit-package_name",
+          "value": "com.example.capture.demo"
+        },
+        {
+          "type": "fill",
+          "selector": "#edit-app_id",
+          "value": "DEMO-CAPTURE-1001"
+        },
+        {
+          "type": "fill",
+          "selector": "#edit-note",
+          "value": "仅用于独立浏览器里的静态状态捕获。"
+        }
+      ],
+      "url": "?page=apps&state=create"
+    },
+    {
+      "id": "app-created",
+      "name": "新增应用成功提示",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "fill",
+          "selector": "#edit-name",
+          "value": "状态捕获示例"
+        },
+        {
+          "type": "fill",
+          "selector": "#edit-package_name",
+          "value": "com.example.capture.demo"
+        },
+        {
+          "type": "fill",
+          "selector": "#edit-app_id",
+          "value": "DEMO-CAPTURE-1001"
+        },
+        {
+          "type": "fill",
+          "selector": "#edit-note",
+          "value": "仅用于独立浏览器里的静态状态捕获。"
+        },
+        {
+          "type": "click",
+          "selector": "#save-app"
+        },
+        {
+          "type": "wait",
+          "selector": "#toast",
+          "text": "应用已新增"
+        }
+      ],
+      "url": "?page=apps&state=create"
+    },
+    {
+      "id": "app-edit",
+      "name": "编辑应用表单",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "编辑应用"
+        }
+      ],
+      "url": "?page=apps&state=edit"
+    },
+    {
+      "id": "app-delete-confirm",
+      "name": "删除应用确认（未执行删除）",
+      "group": "应用",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "删除应用"
+        }
+      ],
+      "url": "?page=apps&state=delete"
+    },
+    {
+      "id": "users-list",
+      "name": "用户列表",
+      "group": "用户",
+      "steps": [],
+      "url": "?page=users"
+    },
+    {
+      "id": "users-advanced",
+      "name": "高级查询展开",
+      "group": "用户",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#advanced-toggle"
+        },
+        {
+          "type": "wait",
+          "selector": "#advanced"
+        }
+      ],
+      "url": "?page=users"
+    },
+    {
+      "id": "users-empty",
+      "name": "用户查询无结果",
+      "group": "用户",
+      "steps": [],
+      "url": "?page=users&state=no-results"
+    },
+    {
+      "id": "user-normal",
+      "name": "正常用户详情",
+      "group": "用户",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "用户详情"
+        }
+      ],
+      "url": "?page=users&state=user-detail&record=DEMO-RECORD-0001"
+    },
+    {
+      "id": "user-guest",
+      "name": "游客详情",
+      "group": "用户",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "用户详情"
+        }
+      ],
+      "url": "?page=users&state=user-detail&record=DEMO-RECORD-0003"
+    },
+    {
+      "id": "user-closed",
+      "name": "已注销用户详情",
+      "group": "用户",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "用户详情"
+        }
+      ],
+      "url": "?page=users&state=user-detail&record=DEMO-RECORD-0004"
+    },
+    {
+      "id": "user-merged",
+      "name": "已合并用户详情",
+      "group": "用户",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "用户详情"
+        }
+      ],
+      "url": "?page=users&state=user-detail&record=DEMO-RECORD-0005"
+    },
+    {
+      "id": "user-detail-bottom",
+      "name": "用户生命周期与关联记录",
+      "group": "用户",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "用户详情"
+        },
+        {
+          "type": "scroll",
+          "selector": "#drawer-body",
+          "y": 1500
+        }
+      ],
+      "url": "?page=users&state=user-detail&record=DEMO-RECORD-0005"
+    },
+    {
+      "id": "user-related",
+      "name": "同用户跨应用关联查询",
+      "group": "用户",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#other-records"
+        },
+        {
+          "type": "wait",
+          "selector": "#q"
+        }
+      ],
+      "url": "?page=users&state=user-detail&record=DEMO-RECORD-0001"
+    },
+    {
+      "id": "users-merged-filter",
+      "name": "已合并用户筛选",
+      "group": "用户",
+      "steps": [
+        {
+          "type": "select",
+          "selector": "#status",
+          "value": "已合并"
+        },
+        {
+          "type": "click",
+          "selector": "#user-filter button[type=\"submit\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#results",
+          "text": "已合并"
+        }
+      ],
+      "url": "?page=users"
+    },
+    {
+      "id": "membership-list",
+      "name": "会员列表",
+      "group": "会员",
+      "steps": [],
+      "url": "?page=membership"
+    },
+    {
+      "id": "membership-advanced",
+      "name": "高级查询展开",
+      "group": "会员",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#money-toggle"
+        },
+        {
+          "type": "wait",
+          "selector": "#money-advanced"
+        }
+      ],
+      "url": "?page=membership"
+    },
+    {
+      "id": "membership-empty",
+      "name": "查询无结果",
+      "group": "会员",
+      "steps": [],
+      "url": "?page=membership&state=no-results"
+    },
+    {
+      "id": "membership-detail",
+      "name": "详情抽屉",
+      "group": "会员",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title"
+        }
+      ],
+      "url": "?page=membership&state=detail"
+    },
+    {
+      "id": "membership-detail-bottom",
+      "name": "详情后半部分",
+      "group": "会员",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title"
+        },
+        {
+          "type": "scroll",
+          "selector": "#drawer-body",
+          "y": 1500
+        }
+      ],
+      "url": "?page=membership&state=detail"
+    },
+    {
+      "id": "order_record-list",
+      "name": "订单列表",
+      "group": "订单",
+      "steps": [],
+      "url": "?page=order_record"
+    },
+    {
+      "id": "order_record-advanced",
+      "name": "高级查询展开",
+      "group": "订单",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#money-toggle"
+        },
+        {
+          "type": "wait",
+          "selector": "#money-advanced"
+        }
+      ],
+      "url": "?page=order_record"
+    },
+    {
+      "id": "order_record-empty",
+      "name": "查询无结果",
+      "group": "订单",
+      "steps": [],
+      "url": "?page=order_record&state=no-results"
+    },
+    {
+      "id": "order_record-detail",
+      "name": "详情抽屉",
+      "group": "订单",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title"
+        }
+      ],
+      "url": "?page=order_record&state=detail"
+    },
+    {
+      "id": "order_record-detail-bottom",
+      "name": "详情后半部分",
+      "group": "订单",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title"
+        },
+        {
+          "type": "scroll",
+          "selector": "#drawer-body",
+          "y": 1500
+        }
+      ],
+      "url": "?page=order_record&state=detail"
+    },
+    {
+      "id": "event_notification-list",
+      "name": "事件列表",
+      "group": "事件",
+      "steps": [],
+      "url": "?page=event_notification"
+    },
+    {
+      "id": "event_notification-advanced",
+      "name": "高级查询展开",
+      "group": "事件",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#money-toggle"
+        },
+        {
+          "type": "wait",
+          "selector": "#money-advanced"
+        }
+      ],
+      "url": "?page=event_notification"
+    },
+    {
+      "id": "event_notification-empty",
+      "name": "查询无结果",
+      "group": "事件",
+      "steps": [],
+      "url": "?page=event_notification&state=no-results"
+    },
+    {
+      "id": "event_notification-detail",
+      "name": "详情抽屉",
+      "group": "事件",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title"
+        }
+      ],
+      "url": "?page=event_notification&state=detail"
+    },
+    {
+      "id": "event_notification-detail-bottom",
+      "name": "详情后半部分",
+      "group": "事件",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title"
+        },
+        {
+          "type": "scroll",
+          "selector": "#drawer-body",
+          "y": 1500
+        }
+      ],
+      "url": "?page=event_notification&state=detail"
+    },
+    {
+      "id": "membership-active",
+      "name": "生效中订阅筛选",
+      "group": "会员",
+      "steps": [
+        {
+          "type": "select",
+          "selector": "#status",
+          "value": "1"
+        },
+        {
+          "type": "click",
+          "selector": "#money-filter button[type=\"submit\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#money-results"
+        }
+      ],
+      "url": "?page=membership"
+    },
+    {
+      "id": "event-pending",
+      "name": "待回填用户关联筛选",
+      "group": "事件",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#money-toggle"
+        },
+        {
+          "type": "select",
+          "selector": "#user_binding",
+          "value": "pending"
+        },
+        {
+          "type": "click",
+          "selector": "#money-filter button[type=\"submit\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#money-results"
+        }
+      ],
+      "url": "?page=event_notification"
+    },
+    {
+      "id": "account-menu",
+      "name": "当前账号菜单",
+      "group": "后台账号",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#account-trigger"
+        },
+        {
+          "type": "wait",
+          "selector": "#account-popover"
+        }
+      ]
+    },
+    {
+      "id": "admins-list",
+      "name": "后台账号列表",
+      "group": "后台账号",
+      "steps": [],
+      "url": "?page=admin_users"
+    },
+    {
+      "id": "admin-create",
+      "name": "新增后台账号表单",
+      "group": "后台账号",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "新增账号"
+        }
+      ],
+      "url": "?page=admin_users&state=create"
+    },
+    {
+      "id": "admin-validation",
+      "name": "账号格式校验",
+      "group": "后台账号",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#account-save"
+        },
+        {
+          "type": "wait",
+          "selector": "#account-error",
+          "text": "格式"
+        }
+      ],
+      "url": "?page=admin_users&state=create"
+    },
+    {
+      "id": "admin-edit",
+      "name": "编辑后台账号",
+      "group": "后台账号",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "[data-admin-edit]",
+          "index": 0
+        },
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "编辑账号"
+        }
+      ],
+      "url": "?page=admin_users"
+    },
+    {
+      "id": "admin-password",
+      "name": "重置密码表单（未提交）",
+      "group": "后台账号",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "[data-admin-reset]",
+          "index": 0
+        },
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "重置密码"
+        }
+      ],
+      "url": "?page=admin_users"
+    },
+    {
+      "id": "admins-empty",
+      "name": "后台账号无结果",
+      "group": "后台账号",
+      "steps": [
+        {
+          "type": "fill",
+          "selector": "#admin-query",
+          "value": "NO_MATCH_STATE"
+        },
+        {
+          "type": "click",
+          "selector": "#admin-filter button[type=\"submit\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "[data-od-id=\"admin-users-empty\"]"
+        }
+      ],
+      "url": "?page=admin_users"
+    },
+    {
+      "id": "data-workspace",
+      "name": "埋点查询工作台",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "wait",
+          "selector": ".dq-layout"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-sql",
+      "name": "手写 SQL 编辑器",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-result-table",
+      "name": "演示查询表格结果",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-results .dq-chart-toolbar"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-chart-line",
+      "name": "折线图结果",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-results .dq-chart-toolbar"
+        },
+        {
+          "type": "click",
+          "selector": "[data-chart-type=\"line\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-chart-dimension"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-chart-bar",
+      "name": "柱状图结果",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-results .dq-chart-toolbar"
+        },
+        {
+          "type": "click",
+          "selector": "[data-chart-type=\"bar\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-chart-dimension"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-chart-pie",
+      "name": "饼图结果",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-results .dq-chart-toolbar"
+        },
+        {
+          "type": "click",
+          "selector": "[data-chart-type=\"pie\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-chart-dimension"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-chart-funnel",
+      "name": "漏斗图结果",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-results .dq-chart-toolbar"
+        },
+        {
+          "type": "click",
+          "selector": "[data-chart-type=\"funnel\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-chart-dimension"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-plan",
+      "name": "演示执行计划",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-explain"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-results",
+          "text": "演示执行计划"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-template-empty",
+      "name": "我的模板空状态",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "[data-dq-library=\"templates\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-library-body"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-history-empty",
+      "name": "查询历史空状态",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "[data-dq-library=\"history\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-history-filter"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-history-record",
+      "name": "查询历史记录",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-results .dq-chart-toolbar"
+        },
+        {
+          "type": "click",
+          "selector": "[data-dq-library=\"history\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "[data-dq-history]"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-save-template",
+      "name": "保存脚本为模板表单",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-save"
+        },
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "保存脚本"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-tabs",
+      "name": "标签页管理",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-manage"
+        },
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "标签页管理"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "data-clear-confirm",
+      "name": "清空编辑器确认（未执行）",
+      "group": "埋点查询",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-editor-label",
+          "text": "SQL · Monaco Editor",
+          "timeoutMs": 15000
+        },
+        {
+          "type": "click",
+          "selector": "#dq-clear"
+        },
+        {
+          "type": "wait",
+          "selector": "#drawer-title",
+          "text": "清空编辑器"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "builder-default",
+      "name": "可视化查询构建器",
+      "group": "查询构建器",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add-builder"
+        },
+        {
+          "type": "wait",
+          "selector": ".qb-steps"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "builder-filters",
+      "name": "添加筛选条件",
+      "group": "查询构建器",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add-builder"
+        },
+        {
+          "type": "wait",
+          "selector": ".qb-steps"
+        },
+        {
+          "type": "click",
+          "selector": "[data-qb-add=\"filters\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#qb-form"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "builder-metrics",
+      "name": "添加统计指标",
+      "group": "查询构建器",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add-builder"
+        },
+        {
+          "type": "wait",
+          "selector": ".qb-steps"
+        },
+        {
+          "type": "click",
+          "selector": "[data-qb-add=\"metrics\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#qb-form"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "builder-groups",
+      "name": "添加分组字段",
+      "group": "查询构建器",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add-builder"
+        },
+        {
+          "type": "wait",
+          "selector": ".qb-steps"
+        },
+        {
+          "type": "click",
+          "selector": "[data-qb-add=\"groups\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#qb-form"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "builder-sorts",
+      "name": "添加排序",
+      "group": "查询构建器",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add-builder"
+        },
+        {
+          "type": "wait",
+          "selector": ".qb-steps"
+        },
+        {
+          "type": "click",
+          "selector": "[data-qb-add=\"sorts\"]"
+        },
+        {
+          "type": "wait",
+          "selector": "#qb-form"
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "builder-sql",
+      "name": "生成 SQL 预览",
+      "group": "查询构建器",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add-builder"
+        },
+        {
+          "type": "wait",
+          "selector": ".qb-steps"
+        },
+        {
+          "type": "click",
+          "selector": ".qb-sql summary"
+        },
+        {
+          "type": "scroll",
+          "selector": "#main",
+          "y": 2000
+        }
+      ],
+      "url": "?page=data_query"
+    },
+    {
+      "id": "builder-result",
+      "name": "可视化查询演示结果",
+      "group": "查询构建器",
+      "steps": [
+        {
+          "type": "click",
+          "selector": "#dq-add-builder"
+        },
+        {
+          "type": "wait",
+          "selector": ".qb-steps"
+        },
+        {
+          "type": "click",
+          "selector": "#dq-run"
+        },
+        {
+          "type": "wait",
+          "selector": "#dq-results .dq-chart-toolbar"
+        },
+        {
+          "type": "scroll",
+          "selector": "#dq-results",
+          "y": 0
+        }
+      ],
+      "url": "?page=data_query"
+    }
+  ]
+}

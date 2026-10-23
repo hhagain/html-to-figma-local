@@ -65,7 +65,7 @@ export function validateDocument(input: unknown): asserts input is CaptureDocume
     if (++nodes > LIMITS.nodes || depth > LIMITS.depth) fail('图层数量或嵌套深度超限');
     if (!object(n) || !['frame', 'text', 'svg'].includes(n.kind) || typeof n.name !== 'string' || n.name.length > 500 || typeof n.id !== 'string' || nodeIds.has(n.id)) fail('图层类型、名称或 ID 无效');
     nodeIds.add(n.id);
-    if (!number(n.x) || !number(n.y) || !number(n.width, LIMITS.dimension, .01) || !number(n.height, LIMITS.dimension, .01) || !number(n.opacity, 1, 0)) fail('图层坐标或尺寸无效');
+    if (!number(n.x) || !number(n.y) || !number(n.width, LIMITS.dimension, .01) || !number(n.height, LIMITS.dimension, .01) || !number(n.opacity, 1, 0)) fail(`图层坐标或尺寸无效：${n.name} [${n.x}, ${n.y}, ${n.width}, ${n.height}]`);
     if (!Array.isArray(n.fills) || n.fills.length > 20) fail('填充无效');
     for (const p of n.fills) {
       if (!object(p)) fail('填充格式无效');

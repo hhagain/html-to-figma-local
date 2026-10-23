@@ -123,3 +123,10 @@ test('multiple HTML files are captured independently in one batch', async () => 
   await page.locator('#file-input').setInputFiles(['examples/dashboard.html', 'examples/tailwind-export.html']); await page.locator('#prepare').click(); await page.locator('#ready-actions').waitFor({ state: 'visible', timeout: 30000 });
   assert.equal(await page.locator('.page-row').count(), 3); assert.ok((await page.locator('#page-list-title').textContent()).includes('3 / 3')); await context.close();
 });
+test('auto-layout regression captures fixed buttons, bottom footer and centered modal', async () => {
+  const { document: d } = await captureURL(browser, { url: `${app.address}/source/auto-layout-regression.html`, width: 1000 }); const nodes = flatten(d.root);
+  const button = nodes.find(n => n.name === '主按钮 · 52px'); assert.equal(button.height, 52); assert.equal(button.layout.eligible, true);
+  const footer = nodes.find(n => n.name === '底部操作 · 64px'); assert.equal(footer.y, 756); assert.equal(footer.height, 64);
+  const modal = nodes.find(n => n.name === '弹窗 · 342×220'); assert.equal(modal.x, 24); assert.equal(modal.y, 312); assert.equal(modal.height, 220);
+  await writeFile('artifacts/auto-layout-regression.h2f.json', JSON.stringify(d, null, 2));
+});

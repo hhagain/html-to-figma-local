@@ -3,8 +3,152 @@
 .is-plugin .app-shell{height:100vh}.is-plugin .panel{height:100%;overflow-y:auto}.is-plugin .action-footer{position:sticky;bottom:-22px;background:var(--bg);padding:12px 0 18px;z-index:5;border-top:1px solid var(--line);margin-bottom:-22px}.is-plugin .helper{font-size:11px}.is-plugin .footer-note{font-size:10px}
 
 .split-options{margin-top:13px}.check-label{display:flex;align-items:center;gap:7px;margin-bottom:10px}.check-label input{accent-color:var(--accent)}.check-label .muted{margin-left:auto}.page-list-section{margin-top:16px}.page-list{max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:8px}.page-row{display:flex;align-items:center;gap:7px;padding:9px;margin:0;border-bottom:1px solid var(--line);font-size:11px}.page-row:last-child{border-bottom:0}.page-row input{accent-color:var(--accent);flex:none}.page-row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.page-row small{font-size:9px;color:var(--muted);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.page-row small[data-state=complete]{color:var(--accent)}.page-row small[data-state=failed]{color:var(--error)}.page-row small[data-state=working]{color:#a66e16}
-</style></head><body><div class="app-shell"><main class="panel"><header class="app-header"><div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="brand-copy"><h1>HTML to Figma</h1><p>从页面，到可编辑的设计。</p></div><span class="local-badge"><i></i>LOCAL</span></header><section class="source-section"><div class="section-heading"><h2>导入内容</h2><button type="button" class="text-button" id="demo">试用示例 <span aria-hidden="true">↗</span></button></div><div class="tabs" role="tablist" aria-label="内容来源"><button class="tab active" role="tab" aria-selected="true" aria-controls="file-panel" id="file-tab" data-tab="file">文件</button><button class="tab" role="tab" aria-selected="false" aria-controls="code-panel" id="code-tab" data-tab="code" tabindex="-1">HTML 代码</button><button class="tab" role="tab" aria-selected="false" aria-controls="url-panel" id="url-tab" data-tab="url" tabindex="-1">网页链接</button></div><div id="file-panel" role="tabpanel" aria-labelledby="file-tab"><button type="button" id="drop-zone" class="drop-zone"><span class="upload-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><strong id="file-label">拖入文件，或批量选择</strong><span>支持 HTML / JSON，最多 200 页</span></button><input id="file-input" type="file" accept=".html,.htm,.json" multiple hidden><p class="helper">支持静态 HTML 与 Tailwind；动态页面请用网页链接。</p></div><div id="code-panel" role="tabpanel" aria-labelledby="code-tab" hidden><label class="sr-only" for="html-code">HTML 代码</label><textarea id="html-code" spellcheck="false" placeholder="<!doctype html>&#10;<html>&#10;  把完整 HTML 粘贴到这里…&#10;</html>"></textarea></div><div id="url-panel" role="tabpanel" aria-labelledby="url-tab" hidden><label for="page-url">页面地址</label><input id="page-url" type="url" placeholder="https://example.com 或本地页面地址"><div class="connection-box"><div class="connection-title"><span class="status-dot" id="connection-dot"></span><strong id="connection-label">连接本地捕获服务</strong><button id="connect" class="text-button" type="button">检测</button></div><p>先运行 <code>npm run serve</code>，再填写终端中的连接码。</p><label class="sr-only" for="service-token">本地服务连接码</label><input id="service-token" type="password" autocomplete="off" placeholder="粘贴本地服务连接码"><p class="helper">服务仅在本机运行。网页在独立浏览器中打开，不使用现有登录状态。</p></div></div></section><section class="options-section"><div class="section-heading"><h2>画布与布局</h2><span class="muted small">保留真实尺寸</span></div><div class="form-grid"><div><label for="viewport-width">浏览器宽度 <span class="muted">px</span></label><input id="viewport-width" type="number" value="1440" min="320" max="3840" step="1"></div><div><label for="selector">捕获区域 <span class="muted">CSS</span></label><input id="selector" value="body" placeholder="body 或 .container" spellcheck="false"></div></div><div id="split-options" class="split-options"><label class="check-label"><input id="split-pages" type="checkbox" checked>自动拆分多页面 <span class="muted">最多 200 页</span></label><label for="page-selector">页面选择器 <span class="muted">可选</span></label><input id="page-selector" placeholder="自动识别 Pencil / .page / .slide" spellcheck="false"></div><details id="advanced"><summary>资源基础地址</summary><label class="sr-only" for="base-url">资源基础地址</label><input id="base-url" type="url" placeholder="https://example.com/path/"><p class="helper">用于相对路径的图片和样式。本地资源建议通过本地服务捕获。</p></details><fieldset class="mode-group"><legend class="sr-only">布局模式</legend><label class="mode-card selected"><input type="radio" name="mode" value="visual" checked><span class="radio-mark"></span><span><strong>视觉还原</strong><small>保留页面中的实际位置与尺寸</small></span><span class="recommended">推荐</span></label><label class="mode-card"><input type="radio" name="mode" value="auto"><span class="radio-mark"></span><span><strong>智能 Auto Layout</strong><small>转换结构明确、几何一致的 Flex 容器</small></span></label></fieldset></section><section id="report" class="report" hidden aria-label="转换结果"><div class="report-top"><span class="report-icon" aria-hidden="true">✓</span><div><strong id="report-title">已准备好</strong><p id="report-summary"></p></div></div><div class="stat-row"><span><b id="stat-nodes">0</b> 图层</span><span><b id="stat-text">0</b> 文字</span><span><b id="stat-image">0</b> 图片</span><span><b id="stat-svg">0</b> SVG</span></div><details id="warnings" hidden><summary id="warning-title">转换说明</summary><ul id="warning-list"></ul></details></section><section id="page-list-section" class="page-list-section" hidden><div class="section-heading"><h2 id="page-list-title">页面列表</h2><div><button id="select-all-pages" class="text-button" type="button">全选</button><button id="select-no-pages" class="text-button" type="button">清空</button></div></div><div id="page-list" class="page-list"></div></section><div id="status" class="status" role="status" aria-live="polite"></div><div id="progress-wrap" class="progress-wrap" hidden><progress id="progress" max="100" value="0"></progress><button id="cancel" class="text-button" type="button">取消</button></div><footer class="action-footer"><button type="button" id="prepare" class="primary-button"><span id="prepare-label">解析并预览</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="ready-actions" id="ready-actions" hidden><button type="button" id="import" class="primary-button">导入到 Figma</button><button type="button" id="download" class="secondary-button">导出数据</button></div><p class="footer-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 2.5 4v4c0 3.2 5.5 6.5 5.5 6.5S13.5 11.2 13.5 8V4L8 1.5Z" stroke="currentColor" stroke-width="1.2"/><path d="m5.5 8 1.7 1.7L10.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>本地解析 · 无上传接口 · v0.2.0</p></footer></main><aside class="preview-panel"><header class="preview-header"><div><span class="eyebrow">CAPTURE STUDIO</span><h2>页面预览</h2></div><span class="preview-size" id="preview-size">等待内容</span></header><div class="preview-stage" id="preview-stage"><div id="preview-empty" class="preview-empty"><div class="empty-illustration" aria-hidden="true"><span class="mock-window"><i></i><i></i><i></i><b></b><em></em><em></em><em></em></span><span class="mock-cursor"><svg viewBox="0 0 32 32" fill="none"><path d="m5 3 21 15-11 2-5 10L5 3Z" fill="#2c5d48" stroke="white" stroke-width="2"/></svg></span></div><h3>让网页成为设计的起点</h3><p>导入 HTML 或试用示例，查看页面并生成 Figma 数据。</p><div class="feature-tags"><span>可编辑文字</span><span>图片与 SVG</span><span>真实布局</span></div></div><div id="frame-container" hidden></div><img id="remote-preview" alt="网页捕获预览" hidden></div><footer class="preview-footer"><span>01 / 在这里捕获页面</span><span>02 / 在 Figma 插件中导入数据</span></footer><details class="setup-help"><summary>在 Figma 中加载插件</summary><p>桌面端菜单 → Plugins → Development → Import plugin from manifest，选择项目目录中的 <code>manifest.json</code>。随后将导出的 .h2f.json 拖入插件。</p><p id="local-pairing" hidden>本次本地服务连接码：<code id="pairing-code"></code><button id="copy-token" type="button" class="text-button">复制</button></p></details></aside></div><div id="capture-host"></div><script>"use strict";
+
+#url-mode{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit}.url-label{margin-top:12px}.state-plan-panel{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:8px}.state-plan-panel strong{font-size:11px}.state-plan-panel textarea{height:160px}.state-plan-panel .secondary-button{width:100%}
+
+.assistant-connect{margin-top:10px;width:100%;min-height:38px}.pair-code{font:600 25px/1.6 ui-monospace,SFMono-Regular,monospace;letter-spacing:6px;text-align:center;background:white;border:1px solid #d5e4d9;border-radius:7px;padding:9px;margin:10px 0;color:var(--accent)}.manual-connection{border-top:1px solid var(--line);margin-top:9px;padding-top:3px}.manual-connection summary{font-size:10px}
+
+#state-input-mode{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px}select:focus-visible{outline:2px solid #3c805d;outline-offset:3px}.discovery-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:12px;color:var(--ink)}.discovery-list{max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:8px}.discovery-row{display:flex;align-items:flex-start;gap:9px;padding:10px;margin:0;border-bottom:1px solid var(--line);cursor:pointer;min-height:52px}.discovery-row:last-child{border-bottom:0}.discovery-row:hover{background:var(--accent-soft)}.discovery-row:has(input:checked){background:var(--accent-soft)}.discovery-row input{accent-color:var(--accent);width:16px;height:16px;flex:none;margin:3px 0 0}.discovery-copy{flex:1;min-width:0}.discovery-copy strong{display:block;font-size:12px!important;font-weight:550;overflow-wrap:anywhere}.discovery-copy small{display:block;font-size:11px;color:#586979;margin-top:3px;overflow-wrap:anywhere}.discovery-row[data-failed=true]{cursor:default;background:var(--surface)}.discovery-row[data-failed=true] small{color:var(--error)}#discovery-results{margin-top:10px}#discovery-summary{color:#586979}#state-recipe-panel{margin-top:8px}#state-plan-panel .helper{font-size:12px;line-height:1.6}button:disabled{cursor:default}
+
+.preview-controls{display:flex;gap:8px;align-items:center;margin:0 0 10px;min-width:0}.preview-controls button{flex:none;padding:8px 10px;min-height:36px;font-size:12px}.preview-controls select{flex:1;min-width:0;width:0;border:1px solid var(--line);border-radius:7px;padding:8px;background:var(--bg);color:var(--ink);font:inherit}.preview-caption{font-size:12px;color:#586979;margin:0 0 14px;overflow-wrap:anywhere}.preview-message{min-height:320px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;color:#586979;font-size:13px}.preview-message p{max-width:340px;overflow-wrap:anywhere}.page-row .page-select{display:flex;flex:1;min-width:0;align-items:center;gap:7px;margin:0;cursor:pointer}.page-row .page-preview{flex:none;min-height:30px;padding:4px 7px;font-size:11px;white-space:nowrap}.page-row[data-preview-active=true]{background:var(--accent-soft)}.page-row[data-preview-active=true] .page-preview{font-weight:650;background:#dfeee2}.preview-panel:has(#preview-controls:not([hidden])) .preview-header{margin-bottom:14px}.preview-controls button:disabled{cursor:default}.preview-stage[aria-busy=true]{cursor:progress}
+
+#exploration-depth{width:100%;padding:8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);font:inherit;color:var(--ink)}#exploration-options{margin:10px 0}#download-discovery-report,#download-generated-plan{font-size:12px;margin-right:8px}
+
+.handoff-inbox{margin:18px 0;padding:14px;background:var(--accent-soft);border:1px solid #cbded0;border-radius:9px}.handoff-inbox strong{font-size:13px}.handoff-inbox p{margin:7px 0;font-size:12px;overflow-wrap:anywhere}.handoff-inbox .primary-button{width:100%;font-size:12px}.handoff-send-status{font-size:12px;line-height:1.6;color:var(--accent);margin-top:10px;overflow-wrap:anywhere}.handoff-send-status.error{color:var(--error)}.ready-actions:has(#send-handoff:not([hidden])){display:flex;flex-wrap:wrap}.ready-actions #send-handoff{flex:1 0 100%;width:100%}.ready-actions:has(#send-handoff:not([hidden])) #import{background:var(--bg);color:var(--accent);border:1px solid var(--line);font-size:12px;width:100%}.preview-zoom-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 12px}.preview-zoom-controls .secondary-button{min-width:34px;min-height:34px;padding:4px 8px;font-size:16px}.preview-zoom-controls output{min-width:56px;text-align:center;font:12px ui-monospace,monospace;color:var(--ink)}.preview-zoom-controls .text-button{font-size:12px;min-height:34px;padding:5px 10px}.preview-zoom-controls button[aria-pressed=true]{background:#e2eee4}.preview-stage.zoomable{height:clamp(300px,68vh,900px);min-height:300px;flex:none;overflow:auto}#remote-preview{max-width:none;margin-inline:auto}#frame-container{max-width:none;margin-inline:auto}
+
+.direct-target{margin:12px 0}.direct-target select{width:100%;padding:9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);font:inherit;color:var(--ink)}.ready-actions #direct-import{flex:1 0 100%;width:100%}.ready-actions #send-handoff{background:var(--bg);color:var(--accent);border:1px solid var(--line);font-size:12px}.preview-shortcuts{font-size:11px;color:#586979;margin:0 0 10px}.preview-stage.pan-ready{cursor:grab;user-select:none;-webkit-user-select:none}.preview-stage.panning{cursor:grabbing}.preview-stage.pan-ready iframe,.preview-stage.pan-ready img{pointer-events:none}#remote-preview{user-select:none;-webkit-user-drag:none}
+</style></head><body><div class="app-shell"><main class="panel"><header class="app-header"><div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="brand-copy"><h1>HTML to Figma</h1><p>从页面，到可编辑的设计。</p></div><span class="local-badge"><i></i>LOCAL</span></header><section class="source-section"><div class="section-heading"><h2>导入内容</h2><button type="button" class="text-button" id="demo">试用示例 <span aria-hidden="true">↗</span></button></div><div class="tabs" role="tablist" aria-label="内容来源"><button class="tab active" role="tab" aria-selected="true" aria-controls="file-panel" id="file-tab" data-tab="file">文件</button><button class="tab" role="tab" aria-selected="false" aria-controls="code-panel" id="code-tab" data-tab="code" tabindex="-1">HTML 代码</button><button class="tab" role="tab" aria-selected="false" aria-controls="url-panel" id="url-tab" data-tab="url" tabindex="-1">网页链接</button></div><div id="file-panel" role="tabpanel" aria-labelledby="file-tab"><button type="button" id="drop-zone" class="drop-zone"><span class="upload-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><strong id="file-label">拖入文件，或批量选择</strong><span>支持 HTML / JSON，最多 200 页</span></button><input id="file-input" type="file" accept=".html,.htm,.json" multiple hidden><p class="helper">支持静态 HTML 与 Tailwind；动态页面请用网页链接。</p></div><div id="code-panel" role="tabpanel" aria-labelledby="code-tab" hidden><label class="sr-only" for="html-code">HTML 代码</label><textarea id="html-code" spellcheck="false" placeholder="<!doctype html>&#10;<html>&#10;  把完整 HTML 粘贴到这里…&#10;</html>"></textarea></div><div id="url-panel" role="tabpanel" aria-labelledby="url-tab" hidden><label for="url-mode">捕获方式</label><select id="url-mode"><option value="single">当前页面</option><option value="states">多状态捕获</option></select><label for="page-url" class="url-label">页面地址</label><input id="page-url" type="text" autocomplete="off" spellcheck="false" placeholder="https://… 或 Users/你的用户名/项目/index.html"><p class="helper">支持 /Users/…、Users/… 和 file:/// 路径，可保留 %20 与 #/ 路由。</p>
+<div id="state-plan-panel" class="state-plan-panel" hidden>
+<label for="state-input-mode">页面来源</label><select id="state-input-mode"><option value="explore">自动探索交互（推荐）</option><option value="auto">仅发现导航页面</option><option value="recipe">状态清单（高级）</option></select>
+<div id="state-auto-panel">
+<p id="discovery-intro" class="helper">自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。</p><div id="exploration-options"><label for="exploration-depth">探索深度</label><select id="exploration-depth"><option value="3">3 层 · 较快</option><option value="4" selected>4 层 · 推荐</option><option value="6">6 层 · 更深入</option></select><p class="helper">每批最多 200 个状态、300 次尝试、3 分钟。不会穷举全部输入组合。</p></div>
+<div id="discovery-results" hidden>
+<div class="section-heading"><strong id="discovery-title" aria-live="polite">发现的页面</strong><button id="rediscover-pages" type="button" class="text-button">重新发现</button></div>
+<div class="discovery-toolbar"><span id="discovery-count" aria-live="polite"></span><div><button id="discovery-select-all" type="button" class="text-button">全选</button><button id="discovery-clear" type="button" class="text-button">清空</button></div></div>
+<div id="discovery-list" class="discovery-list" role="group" aria-label="选择需要捕获的页面"></div>
+<p id="discovery-summary" class="helper"></p><button id="download-discovery-report" type="button" class="text-button">下载探索报告</button><button id="download-generated-plan" type="button" class="text-button">导出已选状态清单</button>
+</div>
+<p class="helper">文件选择、设备权限、远程登录和已填写表单的提交会跳过；请查看探索报告中的未覆盖项。</p>
+</div>
+<div id="state-recipe-panel" hidden>
+<div class="section-heading"><strong id="state-plan-label">交互状态清单</strong><button id="choose-state-plan" type="button" class="text-button">选择清单</button></div><input id="state-plan-file" type="file" accept=".json" hidden><button id="load-demo-states" type="button" class="secondary-button">载入 multi-app-admin 示例</button><details><summary>编辑状态清单 JSON</summary><label for="state-plan" class="sr-only">状态清单 JSON</label><textarea id="state-plan" spellcheck="false" placeholder="载入清单后可调整每个状态的操作步骤"></textarea></details><p class="helper">每个状态独立运行，捕获可见页面后转为静态图层。</p>
+</div></div><div class="connection-box"><div class="connection-title"><span class="status-dot" id="connection-dot"></span><strong id="connection-label">连接本地捕获助手</strong></div><button id="connect-assistant" class="secondary-button assistant-connect" type="button">连接桌面助手</button><p id="assistant-help">双击打开捕获助手。首次配对确认一次，之后自动重连。</p><div id="assistant-pair-code" class="pair-code" role="status" hidden></div><details class="manual-connection"><summary>手动连接（开发模式）</summary><label class="sr-only" for="service-token">本地服务连接码</label><input id="service-token" type="password" autocomplete="off" placeholder="粘贴本地服务连接码"><button id="connect" class="text-button" type="button">检测连接</button><p class="helper">兼容命令行服务。助手用户无需使用此项。</p></details></div></div></section><section id="handoff-inbox" class="handoff-inbox" hidden aria-label="桌面助手捕获结果"><strong id="handoff-title">桌面助手有新的捕获结果</strong><p id="handoff-description"></p><button id="receive-handoff" class="primary-button" type="button">接收并导入当前页面</button><p class="helper">接收后按桌面助手中的勾选与布局设置导入。</p></section><section class="options-section"><div class="section-heading"><h2>画布与布局</h2><span class="muted small">保留真实尺寸</span></div><div class="form-grid"><div><label for="viewport-width">浏览器宽度 <span class="muted">px</span></label><input id="viewport-width" type="number" value="1440" min="320" max="3840" step="1"></div><div><label for="selector">捕获区域 <span class="muted">CSS</span></label><input id="selector" value="body" placeholder="body 或 .container" spellcheck="false"></div></div><div id="split-options" class="split-options"><label class="check-label"><input id="split-pages" type="checkbox" checked>自动拆分多页面 <span class="muted">最多 200 页</span></label><label for="page-selector">页面选择器 <span class="muted">可选</span></label><input id="page-selector" placeholder="自动识别 Pencil / .page / .slide" spellcheck="false"></div><details id="advanced"><summary>资源基础地址</summary><label class="sr-only" for="base-url">资源基础地址</label><input id="base-url" type="url" placeholder="https://example.com/path/"><p class="helper">用于相对路径的图片和样式。本地资源建议通过本地服务捕获。</p></details><fieldset class="mode-group"><legend class="sr-only">布局模式</legend><label class="mode-card selected"><input type="radio" name="mode" value="visual" checked><span class="radio-mark"></span><span><strong>视觉还原</strong><small>保留页面中的实际位置与尺寸</small></span><span class="recommended">推荐</span></label><label class="mode-card"><input type="radio" name="mode" value="auto"><span class="radio-mark"></span><span><strong>智能 Auto Layout</strong><small>保持原始尺寸，仅转换布局一致的容器</small></span></label></fieldset></section><section id="report" class="report" hidden aria-label="转换结果"><div class="report-top"><span class="report-icon" aria-hidden="true">✓</span><div><strong id="report-title">已准备好</strong><p id="report-summary"></p></div></div><div class="stat-row"><span><b id="stat-nodes">0</b> 图层</span><span><b id="stat-text">0</b> 文字</span><span><b id="stat-image">0</b> 图片</span><span><b id="stat-svg">0</b> SVG</span></div><details id="warnings" hidden><summary id="warning-title">转换说明</summary><ul id="warning-list"></ul></details></section><section id="page-list-section" class="page-list-section" hidden><div class="section-heading"><h2 id="page-list-title">页面列表</h2><div><button id="select-all-pages" class="text-button" type="button">全选</button><button id="select-no-pages" class="text-button" type="button">清空</button></div></div><div id="page-list" class="page-list"></div></section><div id="status" class="status" role="status" aria-live="polite"></div><button id="download-state-report" class="text-button" type="button" hidden>下载状态覆盖报告</button><div id="progress-wrap" class="progress-wrap" hidden><progress id="progress" max="100" value="0"></progress><button id="cancel" class="text-button" type="button">取消</button></div><footer class="action-footer"><button type="button" id="prepare" class="primary-button"><span id="prepare-label">解析并预览</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div id="direct-target" class="direct-target" hidden><label for="figma-target">导入目标</label><select id="figma-target"></select><p id="figma-target-help" class="helper">在 Figma 中打开插件后，目标文件与页面会显示在这里。</p></div><div class="ready-actions" id="ready-actions" hidden><button id="direct-import" class="primary-button" type="button" hidden>直接导入 Figma</button><button id="send-handoff" class="primary-button" type="button" hidden>发送到 Figma 插件</button><button type="button" id="import" class="primary-button">导入到 Figma</button><button type="button" id="download" class="secondary-button">导出数据</button></div><p id="handoff-send-status" class="handoff-send-status" role="status" hidden></p><p class="footer-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 2.5 4v4c0 3.2 5.5 6.5 5.5 6.5S13.5 11.2 13.5 8V4L8 1.5Z" stroke="currentColor" stroke-width="1.2"/><path d="m5.5 8 1.7 1.7L10.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>本地解析 · 无上传接口 · v0.7.0</p></footer></main><aside class="preview-panel"><header class="preview-header"><div><span class="eyebrow">CAPTURE STUDIO</span><h2>页面预览</h2></div><span class="preview-size" id="preview-size">等待内容</span></header><div id="preview-controls" class="preview-controls" hidden><button id="preview-prev" type="button" class="secondary-button" aria-label="预览上一页">上一页</button><label for="preview-page" class="sr-only">选择预览页面</label><select id="preview-page" aria-label="选择预览页面"></select><button id="preview-next" type="button" class="secondary-button" aria-label="预览下一页">下一页</button></div><div id="preview-zoom-controls" class="preview-zoom-controls" role="group" aria-label="预览缩放" hidden><button id="preview-zoom-out" class="secondary-button" type="button" aria-label="缩小预览">−</button><output id="preview-zoom-value" aria-live="polite">100%</output><button id="preview-zoom-in" class="secondary-button" type="button" aria-label="放大预览">＋</button><button id="preview-zoom-actual" class="text-button" type="button">100%</button><button id="preview-zoom-fit" class="text-button" type="button">适应窗口</button></div><p id="preview-caption" class="preview-caption" aria-live="polite" hidden></p><p id="preview-shortcuts" class="preview-shortcuts" hidden>⌘ + 滚轮缩放 · 按住空格并用左键拖拽</p><div class="preview-stage" id="preview-stage" tabindex="0" aria-label="页面预览，按住空格可拖拽"><div id="preview-empty" class="preview-empty"><div class="empty-illustration" aria-hidden="true"><span class="mock-window"><i></i><i></i><i></i><b></b><em></em><em></em><em></em></span><span class="mock-cursor"><svg viewBox="0 0 32 32" fill="none"><path d="m5 3 21 15-11 2-5 10L5 3Z" fill="#2c5d48" stroke="white" stroke-width="2"/></svg></span></div><h3>让网页成为设计的起点</h3><p>导入 HTML 或试用示例，查看页面并生成 Figma 数据。</p><div class="feature-tags"><span>可编辑文字</span><span>图片与 SVG</span><span>真实布局</span></div></div><div id="preview-message" class="preview-message" hidden><p id="preview-message-text" role="status"></p><button id="preview-retry" type="button" class="secondary-button" hidden>重新加载预览</button></div><div id="frame-container" hidden></div><img draggable="false" id="remote-preview" alt="网页捕获预览" hidden></div><footer class="preview-footer"><span>01 / 在这里捕获页面</span><span>02 / 在 Figma 插件中导入数据</span></footer><details class="setup-help"><summary>在 Figma 中加载插件</summary><p>桌面端菜单 → Plugins → Development → Import plugin from manifest，选择项目目录中的 <code>manifest.json</code>。随后将导出的 .h2f.json 拖入插件。</p><p id="local-pairing" hidden>本次本地服务连接码：<code id="pairing-code"></code><button id="copy-token" type="button" class="text-button">复制</button></p></details></aside></div><div id="capture-host"></div><script>"use strict";
 (() => {
+  // src/capture-address.ts
+  function normalizeCaptureAddress(input2) {
+    if (typeof input2 !== "string" || !input2.trim()) throw new Error("\u8BF7\u8F93\u5165\u7F51\u9875\u5730\u5740\u6216\u672C\u5730 HTML \u8DEF\u5F84");
+    let value = input2.trim();
+    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) value = value.slice(1, -1).trim();
+    if (/^Users\//.test(value)) value = "/" + value;
+    if (value.startsWith("/") && !value.startsWith("//")) {
+      const parts = value.match(/^(.+?\.html?)([?#].*)?$/i);
+      if (!parts) throw new Error("\u672C\u5730\u8DEF\u5F84\u9700\u8981\u6307\u5411 .html \u6216 .htm \u6587\u4EF6");
+      if (/%(?:2f|5c|00)/i.test(parts[1])) throw new Error("\u672C\u5730\u8DEF\u5F84\u5305\u542B\u65E0\u6548\u7684\u7F16\u7801\u5206\u9694\u7B26");
+      let pathname;
+      try {
+        pathname = decodeURIComponent(parts[1].replace(/%(?![\da-f]{2})/gi, "%25"));
+      } catch {
+        throw new Error("\u672C\u5730\u8DEF\u5F84\u7684\u767E\u5206\u53F7\u7F16\u7801\u65E0\u6548");
+      }
+      value = "file://" + pathname.split("/").map(encodeURIComponent).join("/") + (parts[2] || "");
+    }
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new Error("\u8BF7\u8F93\u5165 http / https \u5730\u5740\uFF0C\u6216 /Users/\u2026/index.html \u672C\u5730\u8DEF\u5F84");
+    }
+    if (!["http:", "https:", "file:"].includes(url.protocol) || url.username || url.password) throw new Error("\u4EC5\u652F\u6301\u7F51\u9875\u5730\u5740\u548C\u672C\u5730 HTML \u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B\u8D26\u53F7\u5BC6\u7801");
+    return url.href;
+  }
+
+  // src/gradient.ts
+  function tokens(value, separator) {
+    const result = [];
+    let depth = 0, start = 0;
+    for (let i2 = 0; i2 < value.length; i2++) {
+      if (value[i2] === "(") depth++;
+      else if (value[i2] === ")") depth--;
+      if (depth === 0 && (separator === "," ? value[i2] === "," : /\s/.test(value[i2]))) {
+        if (value.slice(start, i2).trim()) result.push(value.slice(start, i2).trim());
+        start = i2 + 1;
+      }
+    }
+    if (value.slice(start).trim()) result.push(value.slice(start).trim());
+    return result;
+  }
+  function linearGradient(value, width, height, readColor) {
+    var _a, _b;
+    const match = value.match(/^linear-gradient\((.*)\)$/s);
+    if (!match) return null;
+    const parts = tokens(match[1], ",");
+    let angle = Math.PI, direction = parts[0];
+    const unit = direction.match(/^(-?[\d.]+)(deg|turn|rad|grad)$/);
+    if (unit) {
+      parts.shift();
+      angle = Number(unit[1]) * { deg: Math.PI / 180, turn: Math.PI * 2, rad: 1, grad: Math.PI / 200 }[unit[2]];
+    } else if (/^to /.test(direction)) {
+      parts.shift();
+      const horizontal = /right/.test(direction) ? 1 : /left/.test(direction) ? -1 : 0;
+      const vertical = /bottom/.test(direction) ? 1 : /top/.test(direction) ? -1 : 0;
+      if (!horizontal && !vertical) return null;
+      angle = Math.atan2(horizontal * (vertical ? height : 1), -vertical * (horizontal ? width : 1));
+    }
+    const dx = Math.sin(angle), dy = -Math.cos(angle), length = Math.abs(width * dx) + Math.abs(height * dy) || 1;
+    const position = (token) => {
+      const value2 = token.trim();
+      if (value2 === "0") return 0;
+      const m = value2.match(/^(-?(?:\d*\.)?\d+)(%|px)$/);
+      if (m) return Number(m[1]) / (m[2] === "%" ? 100 : length);
+      if (/^calc\(/.test(value2)) {
+        const inner = value2.slice(5, -1).replace(/\s+/g, "");
+        const terms = inner.match(/[+-]?(?:\d*\.)?\d+(?:%|px)/g);
+        if (terms?.join("") === inner) return terms.reduce((sum, t) => sum + Number(t.replace(/%|px/g, "")) / (t.endsWith("%") ? 100 : length), 0);
+      }
+      return null;
+    };
+    const stops = [];
+    for (const part of parts) {
+      const pieces = tokens(part, " "), offsets = [];
+      while (pieces.length > 1 && offsets.length < 2) {
+        const offset2 = position(pieces[pieces.length - 1]);
+        if (offset2 === null) break;
+        pieces.pop();
+        offsets.unshift(offset2);
+      }
+      const color = readColor(pieces.join(" "));
+      if (!color) return null;
+      for (const offset2 of offsets.length ? offsets : [null]) stops.push({ color, position: offset2 });
+    }
+    if (stops.length < 2 || stops.length > 50) return null;
+    (_a = stops[0]).position ?? (_a.position = 0);
+    (_b = stops[stops.length - 1]).position ?? (_b.position = 1);
+    let previous = 0;
+    for (let i2 = 1; i2 < stops.length; i2++) {
+      if (stops[i2].position === null) continue;
+      stops[i2].position = Math.max(stops[previous].position, stops[i2].position);
+      for (let j = previous + 1; j < i2; j++) stops[j].position = stops[previous].position + (stops[i2].position - stops[previous].position) * (j - previous) / (i2 - previous);
+      previous = i2;
+    }
+    const resolved = stops;
+    const sample = (p) => {
+      if (p < resolved[0].position) return resolved[0].color;
+      for (let i2 = 1; i2 < resolved.length; i2++) if (p < resolved[i2].position) {
+        const left = resolved[i2 - 1], right = resolved[i2], t = (p - left.position) / (right.position - left.position);
+        const a2 = left.color.a * (1 - t) + right.color.a * t;
+        const channel = (key) => a2 ? (left.color[key] * left.color.a * (1 - t) + right.color[key] * right.color.a * t) / a2 : 0;
+        return { r: channel("r"), g: channel("g"), b: channel("b"), a: a2 };
+      }
+      return resolved[resolved.length - 1].color;
+    };
+    const clipped = resolved.filter((stop) => stop.position >= 0 && stop.position <= 1);
+    if (!clipped.length || clipped[0].position > 0) clipped.unshift({ position: 0, color: sample(0) });
+    if (clipped[clipped.length - 1].position < 1) clipped.push({ position: 1, color: sample(1) });
+    if (clipped.length > 50) return null;
+    const a = width * dx / length, b = height * dy / length;
+    return { type: "linear", stops: clipped, transform: [[a, b, 0.5 - (a + b) / 2], [-b, a, 0.5 - (a - b) / 2]] };
+  }
+
   // src/schema.ts
   var SCHEMA_VERSION = 1;
   var LIMITS = { nodes: 6e3, depth: 64, text: 25e4, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 1e5 };
@@ -56,7 +200,7 @@
       if (++nodes > LIMITS.nodes || depth > LIMITS.depth) fail("\u56FE\u5C42\u6570\u91CF\u6216\u5D4C\u5957\u6DF1\u5EA6\u8D85\u9650");
       if (!object(n) || !["frame", "text", "svg"].includes(n.kind) || typeof n.name !== "string" || n.name.length > 500 || typeof n.id !== "string" || nodeIds.has(n.id)) fail("\u56FE\u5C42\u7C7B\u578B\u3001\u540D\u79F0\u6216 ID \u65E0\u6548");
       nodeIds.add(n.id);
-      if (!number(n.x) || !number(n.y) || !number(n.width, LIMITS.dimension, 0.01) || !number(n.height, LIMITS.dimension, 0.01) || !number(n.opacity, 1, 0)) fail("\u56FE\u5C42\u5750\u6807\u6216\u5C3A\u5BF8\u65E0\u6548");
+      if (!number(n.x) || !number(n.y) || !number(n.width, LIMITS.dimension, 0.01) || !number(n.height, LIMITS.dimension, 0.01) || !number(n.opacity, 1, 0)) fail(`\u56FE\u5C42\u5750\u6807\u6216\u5C3A\u5BF8\u65E0\u6548\uFF1A${n.name} [${n.x}, ${n.y}, ${n.width}, ${n.height}]`);
       if (!Array.isArray(n.fills) || n.fills.length > 20) fail("\u586B\u5145\u65E0\u6548");
       for (const p of n.fills) {
         if (!object(p)) fail("\u586B\u5145\u683C\u5F0F\u65E0\u6548");
@@ -158,38 +302,6 @@
       }
       return a.id;
     };
-    const gradient = (value, width, height) => {
-      var _a, _b;
-      const match = value.match(/^linear-gradient\((.*)\)$/s);
-      if (!match) return null;
-      const parts = splitCSS(match[1]);
-      let angle = 180;
-      if (/deg$/.test(parts[0])) angle = px(parts.shift());
-      else if (/^to /.test(parts[0])) {
-        const dir = parts.shift().slice(3).trim();
-        const map = { top: 0, right: 90, bottom: 180, left: 270, "top right": 45, "right top": 45, "bottom right": 135, "right bottom": 135, "bottom left": 225, "left bottom": 225, "top left": 315, "left top": 315 };
-        angle = map[dir] ?? 180;
-      }
-      const provisional = parts.map((p) => {
-        const m = p.match(/^(.*?)\s+(-?[\d.]+)%$/);
-        return { color: color(m ? m[1] : p), position: m ? Math.max(0, Math.min(1, Number(m[2]) / 100)) : null };
-      });
-      if (provisional.length < 2 || provisional.length > 50) return null;
-      (_a = provisional[0]).position ?? (_a.position = 0);
-      (_b = provisional[provisional.length - 1]).position ?? (_b.position = 1);
-      let previous = 0;
-      for (let i2 = 1; i2 < provisional.length; i2++) {
-        if (provisional[i2].position == null) continue;
-        const end = Math.max(provisional[previous].position, provisional[i2].position);
-        provisional[i2].position = end;
-        for (let j = previous + 1; j < i2; j++) provisional[j].position = provisional[previous].position + (end - provisional[previous].position) * (j - previous) / (i2 - previous);
-        previous = i2;
-      }
-      const rad = angle * Math.PI / 180, dx = Math.sin(rad), dy = -Math.cos(rad);
-      const length = Math.abs(width * dx) + Math.abs(height * dy) || 1;
-      const a = width * dx / length, b = height * dy / length;
-      return { type: "linear", stops: provisional, transform: [[a, b, 0.5 - (a + b) / 2], [-b, a, 0.5 - (a - b) / 2]] };
-    };
     const effects = (value) => {
       if (value === "none") return [];
       return splitCSS(value).slice(0, 10).flatMap((part) => {
@@ -201,7 +313,24 @@
         return [{ inner: /\binset\b/.test(rest), color: c, x: numbers[0], y: numbers[1], blur: Math.max(0, numbers[2] || 0), spread: numbers[3] || 0 }];
       });
     };
-    const textNodes = (node, parentRect, cs) => {
+    const scaleCache = /* @__PURE__ */ new WeakMap();
+    const uniformScale = (el) => {
+      if (!el) return 1;
+      const cached = scaleCache.get(el);
+      if (cached !== void 0) return cached;
+      let scale = uniformScale(el.parentElement);
+      const transform = win.getComputedStyle(el).transform;
+      if (transform && transform !== "none") {
+        try {
+          const matrix = new DOMMatrixReadOnly(transform);
+          if (Math.abs(matrix.b) < 1e-5 && Math.abs(matrix.c) < 1e-5 && Math.abs(matrix.a - matrix.d) < 1e-5 && matrix.a > 0) scale *= matrix.a;
+        } catch {
+        }
+      }
+      scaleCache.set(el, scale);
+      return scale;
+    };
+    const textNodes = (node, parentRect, cs, textPaints) => {
       const value = node.nodeValue || "";
       if (!value.trim() && !/pre|break-spaces/.test(cs.whiteSpace)) return [];
       textChars += value.length;
@@ -236,9 +365,15 @@
         if (cs.textTransform === "uppercase") text = text.toUpperCase();
         if (cs.textTransform === "lowercase") text = text.toLowerCase();
         if (cs.textTransform === "capitalize") text = text.replace(/(^|\s)(\S)/g, (_, space, ch) => space + ch.toUpperCase());
-        const lineHeight = px(cs.lineHeight) || px(cs.fontSize) * 1.2;
+        const scale = uniformScale(node.parentElement);
+        const lineHeight = (px(cs.lineHeight) || px(cs.fontSize) * 1.2) * scale;
         const n = base("text", text.trim().slice(0, 45) || "\u6587\u5B57", { ...line, y: line.y - (lineHeight - line.height) / 2, height: lineHeight }, parentRect);
-        n.text = { value: text, families: splitCSS(cs.fontFamily).map((f) => f.replace(/^['"]|['"]$/g, "")), size: px(cs.fontSize) || 16, weight: px(cs.fontWeight) || 400, italic: cs.fontStyle !== "normal", lineHeight, letterSpacing: px(cs.letterSpacing), color: color(cs.color), decoration: cs.textDecorationLine.includes("line-through") ? "STRIKETHROUGH" : cs.textDecorationLine.includes("underline") ? "UNDERLINE" : "NONE" };
+        n.text = { value: text, families: splitCSS(cs.fontFamily).map((f) => f.replace(/^['"]|['"]$/g, "")), size: (px(cs.fontSize) || 16) * scale, weight: px(cs.fontWeight) || 400, italic: cs.fontStyle !== "normal", lineHeight, letterSpacing: px(cs.letterSpacing) * scale, color: color(cs.getPropertyValue("-webkit-text-fill-color") || cs.color), decoration: cs.textDecorationLine.includes("line-through") ? "STRIKETHROUGH" : cs.textDecorationLine.includes("underline") ? "UNDERLINE" : "NONE" };
+        if (textPaints?.length) n.fills = textPaints.map((paint) => {
+          if (paint.type !== "linear") return paint;
+          const [a, b] = paint.transform, sx = n.width / parentRect.width, sy = n.height / parentRect.height, x = n.x / parentRect.width, y = n.y / parentRect.height;
+          return { ...paint, transform: [[a[0] * sx, a[1] * sy, a[0] * x + a[1] * y + a[2]], [b[0] * sx, b[1] * sy, b[0] * x + b[1] * y + b[2]]] };
+        });
         return n;
       });
     };
@@ -271,12 +406,21 @@
       clone.setAttribute("opacity", "1");
       return new XMLSerializer().serializeToString(clone);
     };
-    const walk = (el, parent, depth) => {
+    const clips = (value) => ["hidden", "clip", "scroll", "auto"].includes(value);
+    const walk = (el, parent, depth, inheritedClip) => {
       if (depth > LIMITS.depth) throw new Error("\u9875\u9762\u5D4C\u5957\u8FC7\u6DF1\uFF0C\u8BF7\u7F29\u5C0F\u6355\u83B7\u533A\u57DF");
       if (["SCRIPT", "STYLE", "LINK", "META", "HEAD", "NOSCRIPT", "TEMPLATE"].includes(el.tagName) || el.hasAttribute("data-h2f-ignore")) return null;
       const cs = win.getComputedStyle(el);
       if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) return null;
-      const rect = el.getBoundingClientRect();
+      let rect = el.getBoundingClientRect();
+      if (rect.width > LIMITS.dimension || rect.height > LIMITS.dimension || Math.abs(rect.x - parent.x) > LIMITS.dimension || Math.abs(rect.y - parent.y) > LIMITS.dimension) {
+        if (inheritedClip) {
+          const left = Math.max(rect.left, inheritedClip.left), top = Math.max(rect.top, inheritedClip.top), right = Math.min(rect.right, inheritedClip.right), bottom = Math.min(rect.bottom, inheritedClip.bottom);
+          if (right <= left || bottom <= top) return null;
+          rect = new DOMRect(left, top, right - left, bottom - top);
+          warn("VIRTUAL_CANVAS_CLIPPED", "\u8D85\u5927\u865A\u62DF\u5E03\u5C40\u5BB9\u5668\u5DF2\u6309\u5B9E\u9645\u53EF\u89C1\u533A\u57DF\u88C1\u526A", el.id || el.tagName.toLowerCase());
+        }
+      }
       if (rect.width <= 0 && rect.height <= 0 && cs.display !== "contents") return null;
       const name = el.getAttribute("aria-label") || el.getAttribute("data-pencil-name") || el.id || `${el.tagName.toLowerCase()}${el.classList.length ? "." + el.classList[0] : ""}`;
       const n = base(el.tagName.toLowerCase() === "svg" ? "svg" : "frame", name, rect, parent);
@@ -288,7 +432,7 @@
       for (let i2 = backgrounds.length - 1; i2 >= 0; i2--) {
         const layer = backgrounds[i2];
         if (layer === "none") continue;
-        const g = gradient(layer, rect.width, rect.height);
+        const g = linearGradient(layer, el.offsetWidth || rect.width, el.offsetHeight || rect.height, (value) => win.CSS.supports("color", value) ? color(value) : null);
         if (g) n.fills.push(g);
         else if (/^url\(/.test(layer)) {
           const url = layer.replace(/^url\(["']?/, "").replace(/["']?\)$/, "");
@@ -296,6 +440,7 @@
           if (!["cover", "contain", "auto"].includes(sizes[i2] || sizes[0])) warn("BACKGROUND_SIZE", "\u81EA\u5B9A\u4E49\u80CC\u666F\u56FE\u7247\u5C3A\u5BF8\u4EE5\u586B\u5145\u6A21\u5F0F\u5BFC\u5165", name);
         } else warn("BACKGROUND_UNSUPPORTED", "\u90E8\u5206\u80CC\u666F\u6548\u679C\u672A\u8F6C\u6362\uFF08\u652F\u6301\u7EAF\u8272\u548C\u7EBF\u6027\u6E10\u53D8\uFF09", name);
       }
+      const textPaints = /(?:^|,\s*)text(?:,|$)/.test(cs.backgroundClip || cs.getPropertyValue("-webkit-background-clip")) ? n.fills.splice(0) : void 0;
       const radius = (value) => value.includes("%") ? Math.min(rect.width, rect.height) * px(value) / 100 : px(value);
       n.radius = [cs.borderTopLeftRadius, cs.borderTopRightRadius, cs.borderBottomRightRadius, cs.borderBottomLeftRadius].map((v) => Math.min(radius(v), Math.min(rect.width, rect.height) / 2));
       const widths = [px(cs.borderTopWidth), px(cs.borderRightWidth), px(cs.borderBottomWidth), px(cs.borderLeftWidth)];
@@ -306,7 +451,8 @@
         if (colors.some((c, i2) => widths[i2] && c !== colors[first])) warn("BORDER_COLORS", "\u591A\u8272\u8FB9\u6846\u91C7\u7528\u7B2C\u4E00\u4E2A\u53EF\u89C1\u8FB9\u7684\u989C\u8272", name);
       }
       n.effects = effects(cs.boxShadow);
-      n.clip = ["hidden", "clip", "scroll", "auto"].includes(cs.overflowX) || ["hidden", "clip", "scroll", "auto"].includes(cs.overflowY);
+      n.clip = clips(cs.overflowX) || clips(cs.overflowY);
+      const childClip = n.clip ? { left: Math.max(inheritedClip?.left ?? -Infinity, clips(cs.overflowX) ? rect.left : -Infinity), right: Math.min(inheritedClip?.right ?? Infinity, clips(cs.overflowX) ? rect.right : Infinity), top: Math.max(inheritedClip?.top ?? -Infinity, clips(cs.overflowY) ? rect.top : -Infinity), bottom: Math.min(inheritedClip?.bottom ?? Infinity, clips(cs.overflowY) ? rect.bottom : Infinity) } : inheritedClip;
       if (cs.transform !== "none") warn("TRANSFORM", "CSS \u53D8\u6362\u6309\u5C4F\u5E55\u5305\u56F4\u76D2\u6355\u83B7\uFF0C\u65CB\u8F6C\u548C\u503E\u659C\u53EF\u80FD\u6709\u5DEE\u5F02", name);
       if (cs.filter !== "none" || cs.backdropFilter !== "none" || cs.clipPath !== "none") warn("VISUAL_EFFECT", "\u6EE4\u955C\u3001\u80CC\u666F\u6A21\u7CCA\u548C clip-path \u672A\u8F6C\u6362", name);
       for (const pseudo of ["::before", "::after"]) {
@@ -340,6 +486,7 @@
       }
       if (["canvas", "video", "iframe"].includes(tag)) {
         if (tag === "canvas") {
+          if (!el.width || !el.height) return n;
           try {
             n.fills.push({ type: "image", assetId: asset(el.toDataURL("image/png")), fit: "FILL" });
             warn("CANVAS_RASTER", "Canvas \u4EE5\u4F4D\u56FE\u5BFC\u5165\uFF0C\u5185\u90E8\u5185\u5BB9\u4E0D\u53EF\u5355\u72EC\u7F16\u8F91", name);
@@ -349,21 +496,41 @@
         } else warn("EMBED_UNSUPPORTED", "\u89C6\u9891\u548C iframe \u4EC5\u4FDD\u7559\u5BB9\u5668", name);
         return n;
       }
+      if (tag === "input" && ["checkbox", "radio"].includes(el.type)) {
+        const control = el, radio = control.type === "radio", checked = control.checked;
+        const accent = color(cs.accentColor === "auto" ? "#2563eb" : cs.accentColor);
+        const ink = `rgb(${Math.round(accent.r * 255)},${Math.round(accent.g * 255)},${Math.round(accent.b * 255)})`;
+        n.kind = "svg";
+        n.fills = [];
+        n.svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${n.width}" height="${n.height}" viewBox="0 0 16 16">${radio ? `<circle cx="8" cy="8" r="6.5" fill="white" stroke="${checked ? ink : "#8a94a3"}"/>${checked ? `<circle cx="8" cy="8" r="3.5" fill="${ink}"/>` : ""}` : `<rect x="1" y="1" width="14" height="14" rx="3" fill="${checked ? ink : "white"}" stroke="${checked ? ink : "#8a94a3"}"/>${checked ? '<path d="m4 8 2.5 2.5L12 5" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round"/>' : ""}`}</svg>`;
+        return n;
+      }
       if (el.shadowRoot) warn("SHADOW_DOM", "Shadow DOM \u7684\u5185\u90E8\u5185\u5BB9\u672A\u6355\u83B7", name);
       n.children = [];
-      for (const child of Array.from(el.childNodes)) {
-        if (child.nodeType === 3) n.children.push(...textNodes(child, rect, cs));
+      for (const child of ["input", "textarea", "select"].includes(tag) ? [] : Array.from(el.childNodes)) {
+        if (child.nodeType === 3) n.children.push(...textNodes(child, rect, cs, textPaints));
         else if (child.nodeType === 1) {
-          const childNode = walk(child, rect, depth + 1);
+          const childNode = walk(child, rect, depth + 1, childClip);
           if (childNode) n.children.push(childNode);
         }
       }
-      if (["input", "textarea"].includes(tag)) {
-        const value = el.value || el.placeholder;
+      if (["input", "textarea", "select"].includes(tag)) {
+        const value = tag === "select" ? Array.from(el.selectedOptions).map((o) => o.textContent || "").join(", ") : el.value || el.placeholder;
         if (value) {
+          const placeholder = tag !== "select" && !el.value && !!el.placeholder;
+          const textColor = color(placeholder ? win.getComputedStyle(el, "::placeholder").color || cs.color : cs.color);
+          if (placeholder) {
+            const alpha = Number(win.getComputedStyle(el, "::placeholder").opacity);
+            if (Number.isFinite(alpha)) textColor.a *= alpha;
+          }
           const t = base("text", "\u8868\u5355\u6587\u5B57", { x: rect.x + px(cs.paddingLeft) + widths[3], y: rect.y + px(cs.paddingTop) + widths[0], width: Math.max(1, rect.width - px(cs.paddingLeft) - px(cs.paddingRight)), height: px(cs.lineHeight) || px(cs.fontSize) * 1.2 }, rect);
-          t.text = { value: el.type === "password" ? "\u2022".repeat(Math.min(value.length, 20)) : value, families: splitCSS(cs.fontFamily).map((f) => f.replace(/^['"]|['"]$/g, "")), size: px(cs.fontSize) || 16, weight: px(cs.fontWeight) || 400, italic: cs.fontStyle !== "normal", lineHeight: px(cs.lineHeight) || px(cs.fontSize) * 1.2, letterSpacing: px(cs.letterSpacing), color: color(cs.color), decoration: "NONE" };
+          t.text = { value: el.type === "password" && !placeholder ? "\u2022".repeat(Math.min(value.length, 20)) : value, families: splitCSS(cs.fontFamily).map((f) => f.replace(/^['"]|['"]$/g, "")), size: px(cs.fontSize) || 16, weight: px(cs.fontWeight) || 400, italic: cs.fontStyle !== "normal", lineHeight: px(cs.lineHeight) || px(cs.fontSize) * 1.2, letterSpacing: px(cs.letterSpacing), color: textColor, decoration: "NONE" };
           n.children.push(t);
+        }
+        if (tag === "select" && !el.multiple) {
+          const arrow = base("svg", "\u4E0B\u62C9\u7BAD\u5934", { x: rect.right - 22, y: rect.y + rect.height / 2 - 5, width: 12, height: 10 }, rect);
+          arrow.svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 10" width="12" height="10"><path d="m2 3 4 4 4-4" fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/></svg>';
+          n.children.push(arrow);
         }
       }
       if (cs.display === "flex" || cs.display === "inline-flex") {
@@ -379,7 +546,7 @@
       return n;
     };
     const rootRect = rootEl.getBoundingClientRect();
-    const root = walk(rootEl, rootRect, 0);
+    const root = walk(rootEl, rootRect, 0, options.clipToViewport ? { left: 0, top: 0, right: win.innerWidth, bottom: win.innerHeight } : void 0);
     if (!root) throw new Error("\u6355\u83B7\u533A\u57DF\u4E0D\u53EF\u89C1\u6216\u6CA1\u6709\u53EF\u5BFC\u5165\u5185\u5BB9");
     root.x = root.y = 0;
     if (rootEl === doc.body || rootEl === doc.documentElement) {
@@ -836,9 +1003,9 @@
       options.allowHashBang = options.ecmaVersion >= 14;
     }
     if (isArray(options.onToken)) {
-      var tokens = options.onToken;
+      var tokens2 = options.onToken;
       options.onToken = function(token) {
-        return tokens.push(token);
+        return tokens2.push(token);
       };
     }
     if (isArray(options.onComment)) {
@@ -6284,6 +6451,1409 @@
     }
   }
 
+  // examples/multi-app-admin.states.json
+  var multi_app_admin_states_default = {
+    schemaVersion: 1,
+    name: "\u9E3F\u8499\u5E94\u7528\u7BA1\u7406\u540E\u53F0 \xB7 \u9759\u6001\u72B6\u6001\u7A3F",
+    url: "https://hhagain.github.io/multi-app-admin/",
+    viewport: {
+      width: 1440,
+      height: 1e3
+    },
+    selector: "body",
+    captureMode: "viewport",
+    snapshotDocument: true,
+    notes: "\u8986\u76D6\u767B\u5F55\u3001\u5E94\u7528\u3001\u4E1A\u52A1\u7528\u6237\u3001\u4F1A\u5458\u3001\u8BA2\u5355\u3001\u4E8B\u4EF6\u3001\u540E\u53F0\u8D26\u53F7\u3001SQL \u67E5\u8BE2\u548C\u53EF\u89C6\u5316\u6784\u5EFA\u5668\u7684\u4EE3\u8868\u6027\u9875\u9762\u4E0E\u4EA4\u4E92\u5206\u652F\u3002\u6BCF\u4E2A\u72B6\u6001\u5728\u72EC\u7ACB\u6D4F\u89C8\u5668\u4E0A\u4E0B\u6587\u4E2D\u4ECE\u5934\u6267\u884C\uFF0C\u516C\u5F00\u6F14\u793A\u8D26\u53F7\u4EC5\u7528\u4E8E\u6B64\u65E0\u540E\u7AEF\u539F\u578B\u3002\u5220\u9664\u4E0E\u5BC6\u7801\u4FEE\u6539\u53EA\u6355\u83B7\u786E\u8BA4\u754C\u9762\uFF0C\u4E0D\u63D0\u4EA4\u3002\u672A\u7A77\u4E3E\u4EFB\u610F\u8F93\u5165\u7EC4\u5408\u3001\u7F51\u7EDC\u5F02\u5E38\u3001\u6743\u9650\u89D2\u8272\u4E0E\u5168\u90E8\u5206\u9875\u8BB0\u5F55\u3002",
+    setup: [
+      {
+        type: "fill",
+        selector: "#login-username",
+        value: "admin"
+      },
+      {
+        type: "fill",
+        selector: "#login-password",
+        value: "Admin123!"
+      },
+      {
+        type: "click",
+        selector: "#login-submit"
+      },
+      {
+        type: "wait",
+        selector: "#shell"
+      }
+    ],
+    states: [
+      {
+        id: "login-default",
+        name: "\u9ED8\u8BA4\u767B\u5F55\u9875",
+        group: "\u767B\u5F55",
+        steps: [],
+        setup: false
+      },
+      {
+        id: "login-required",
+        name: "\u8D26\u53F7\u5BC6\u7801\u5FC5\u586B\u63D0\u793A",
+        group: "\u767B\u5F55",
+        steps: [
+          {
+            type: "click",
+            selector: "#login-submit"
+          },
+          {
+            type: "wait",
+            selector: "#login-error",
+            text: "\u8BF7\u8F93\u5165"
+          }
+        ],
+        setup: false
+      },
+      {
+        id: "login-invalid",
+        name: "\u8D26\u53F7\u5BC6\u7801\u9519\u8BEF\u63D0\u793A",
+        group: "\u767B\u5F55",
+        steps: [
+          {
+            type: "fill",
+            selector: "#login-username",
+            value: "admin"
+          },
+          {
+            type: "fill",
+            selector: "#login-password",
+            value: "WrongDemo123"
+          },
+          {
+            type: "click",
+            selector: "#login-submit"
+          },
+          {
+            type: "wait",
+            selector: "#login-error",
+            text: "\u4E0D\u6B63\u786E"
+          }
+        ],
+        setup: false
+      },
+      {
+        id: "apps-list",
+        name: "\u5E94\u7528\u5217\u8868",
+        group: "\u5E94\u7528",
+        steps: []
+      },
+      {
+        id: "apps-page-two",
+        name: "\u5E94\u7528\u5217\u8868\u7B2C\u4E8C\u9875",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "click",
+            selector: "#next-page"
+          },
+          {
+            type: "wait",
+            selector: "#results",
+            text: "\u683C\u5F0F\u5DE5\u574A"
+          }
+        ]
+      },
+      {
+        id: "apps-filtered",
+        name: "\u5E94\u7528\u67E5\u8BE2\u7ED3\u679C",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "fill",
+            selector: "#app-search",
+            value: "\u6587\u6863"
+          },
+          {
+            type: "click",
+            selector: '#app-filter button[type="submit"]'
+          },
+          {
+            type: "wait",
+            selector: "#result-count",
+            text: "1"
+          }
+        ]
+      },
+      {
+        id: "apps-empty",
+        name: "\u67E5\u8BE2\u65E0\u7ED3\u679C",
+        group: "\u5E94\u7528",
+        steps: [],
+        url: "?page=apps&state=no-results"
+      },
+      {
+        id: "app-detail",
+        name: "\u5E94\u7528\u8BE6\u60C5\u62BD\u5C49",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u5E94\u7528\u8BE6\u60C5"
+          }
+        ],
+        url: "?page=apps&state=app-detail"
+      },
+      {
+        id: "app-create",
+        name: "\u65B0\u589E\u5E94\u7528\u8868\u5355",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u65B0\u589E\u5E94\u7528"
+          }
+        ],
+        url: "?page=apps&state=create"
+      },
+      {
+        id: "app-create-errors",
+        name: "\u65B0\u589E\u5E94\u7528\u5FC5\u586B\u9519\u8BEF",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "click",
+            selector: "#save-app"
+          },
+          {
+            type: "wait",
+            selector: "#error-name"
+          }
+        ],
+        url: "?page=apps&state=create"
+      },
+      {
+        id: "app-create-filled",
+        name: "\u65B0\u589E\u5E94\u7528\u5DF2\u586B\u5199",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "fill",
+            selector: "#edit-name",
+            value: "\u72B6\u6001\u6355\u83B7\u793A\u4F8B"
+          },
+          {
+            type: "fill",
+            selector: "#edit-package_name",
+            value: "com.example.capture.demo"
+          },
+          {
+            type: "fill",
+            selector: "#edit-app_id",
+            value: "DEMO-CAPTURE-1001"
+          },
+          {
+            type: "fill",
+            selector: "#edit-note",
+            value: "\u4EC5\u7528\u4E8E\u72EC\u7ACB\u6D4F\u89C8\u5668\u91CC\u7684\u9759\u6001\u72B6\u6001\u6355\u83B7\u3002"
+          }
+        ],
+        url: "?page=apps&state=create"
+      },
+      {
+        id: "app-created",
+        name: "\u65B0\u589E\u5E94\u7528\u6210\u529F\u63D0\u793A",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "fill",
+            selector: "#edit-name",
+            value: "\u72B6\u6001\u6355\u83B7\u793A\u4F8B"
+          },
+          {
+            type: "fill",
+            selector: "#edit-package_name",
+            value: "com.example.capture.demo"
+          },
+          {
+            type: "fill",
+            selector: "#edit-app_id",
+            value: "DEMO-CAPTURE-1001"
+          },
+          {
+            type: "fill",
+            selector: "#edit-note",
+            value: "\u4EC5\u7528\u4E8E\u72EC\u7ACB\u6D4F\u89C8\u5668\u91CC\u7684\u9759\u6001\u72B6\u6001\u6355\u83B7\u3002"
+          },
+          {
+            type: "click",
+            selector: "#save-app"
+          },
+          {
+            type: "wait",
+            selector: "#toast",
+            text: "\u5E94\u7528\u5DF2\u65B0\u589E"
+          }
+        ],
+        url: "?page=apps&state=create"
+      },
+      {
+        id: "app-edit",
+        name: "\u7F16\u8F91\u5E94\u7528\u8868\u5355",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u7F16\u8F91\u5E94\u7528"
+          }
+        ],
+        url: "?page=apps&state=edit"
+      },
+      {
+        id: "app-delete-confirm",
+        name: "\u5220\u9664\u5E94\u7528\u786E\u8BA4\uFF08\u672A\u6267\u884C\u5220\u9664\uFF09",
+        group: "\u5E94\u7528",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u5220\u9664\u5E94\u7528"
+          }
+        ],
+        url: "?page=apps&state=delete"
+      },
+      {
+        id: "users-list",
+        name: "\u7528\u6237\u5217\u8868",
+        group: "\u7528\u6237",
+        steps: [],
+        url: "?page=users"
+      },
+      {
+        id: "users-advanced",
+        name: "\u9AD8\u7EA7\u67E5\u8BE2\u5C55\u5F00",
+        group: "\u7528\u6237",
+        steps: [
+          {
+            type: "click",
+            selector: "#advanced-toggle"
+          },
+          {
+            type: "wait",
+            selector: "#advanced"
+          }
+        ],
+        url: "?page=users"
+      },
+      {
+        id: "users-empty",
+        name: "\u7528\u6237\u67E5\u8BE2\u65E0\u7ED3\u679C",
+        group: "\u7528\u6237",
+        steps: [],
+        url: "?page=users&state=no-results"
+      },
+      {
+        id: "user-normal",
+        name: "\u6B63\u5E38\u7528\u6237\u8BE6\u60C5",
+        group: "\u7528\u6237",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u7528\u6237\u8BE6\u60C5"
+          }
+        ],
+        url: "?page=users&state=user-detail&record=DEMO-RECORD-0001"
+      },
+      {
+        id: "user-guest",
+        name: "\u6E38\u5BA2\u8BE6\u60C5",
+        group: "\u7528\u6237",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u7528\u6237\u8BE6\u60C5"
+          }
+        ],
+        url: "?page=users&state=user-detail&record=DEMO-RECORD-0003"
+      },
+      {
+        id: "user-closed",
+        name: "\u5DF2\u6CE8\u9500\u7528\u6237\u8BE6\u60C5",
+        group: "\u7528\u6237",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u7528\u6237\u8BE6\u60C5"
+          }
+        ],
+        url: "?page=users&state=user-detail&record=DEMO-RECORD-0004"
+      },
+      {
+        id: "user-merged",
+        name: "\u5DF2\u5408\u5E76\u7528\u6237\u8BE6\u60C5",
+        group: "\u7528\u6237",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u7528\u6237\u8BE6\u60C5"
+          }
+        ],
+        url: "?page=users&state=user-detail&record=DEMO-RECORD-0005"
+      },
+      {
+        id: "user-detail-bottom",
+        name: "\u7528\u6237\u751F\u547D\u5468\u671F\u4E0E\u5173\u8054\u8BB0\u5F55",
+        group: "\u7528\u6237",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u7528\u6237\u8BE6\u60C5"
+          },
+          {
+            type: "scroll",
+            selector: "#drawer-body",
+            y: 1500
+          }
+        ],
+        url: "?page=users&state=user-detail&record=DEMO-RECORD-0005"
+      },
+      {
+        id: "user-related",
+        name: "\u540C\u7528\u6237\u8DE8\u5E94\u7528\u5173\u8054\u67E5\u8BE2",
+        group: "\u7528\u6237",
+        steps: [
+          {
+            type: "click",
+            selector: "#other-records"
+          },
+          {
+            type: "wait",
+            selector: "#q"
+          }
+        ],
+        url: "?page=users&state=user-detail&record=DEMO-RECORD-0001"
+      },
+      {
+        id: "users-merged-filter",
+        name: "\u5DF2\u5408\u5E76\u7528\u6237\u7B5B\u9009",
+        group: "\u7528\u6237",
+        steps: [
+          {
+            type: "select",
+            selector: "#status",
+            value: "\u5DF2\u5408\u5E76"
+          },
+          {
+            type: "click",
+            selector: '#user-filter button[type="submit"]'
+          },
+          {
+            type: "wait",
+            selector: "#results",
+            text: "\u5DF2\u5408\u5E76"
+          }
+        ],
+        url: "?page=users"
+      },
+      {
+        id: "membership-list",
+        name: "\u4F1A\u5458\u5217\u8868",
+        group: "\u4F1A\u5458",
+        steps: [],
+        url: "?page=membership"
+      },
+      {
+        id: "membership-advanced",
+        name: "\u9AD8\u7EA7\u67E5\u8BE2\u5C55\u5F00",
+        group: "\u4F1A\u5458",
+        steps: [
+          {
+            type: "click",
+            selector: "#money-toggle"
+          },
+          {
+            type: "wait",
+            selector: "#money-advanced"
+          }
+        ],
+        url: "?page=membership"
+      },
+      {
+        id: "membership-empty",
+        name: "\u67E5\u8BE2\u65E0\u7ED3\u679C",
+        group: "\u4F1A\u5458",
+        steps: [],
+        url: "?page=membership&state=no-results"
+      },
+      {
+        id: "membership-detail",
+        name: "\u8BE6\u60C5\u62BD\u5C49",
+        group: "\u4F1A\u5458",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title"
+          }
+        ],
+        url: "?page=membership&state=detail"
+      },
+      {
+        id: "membership-detail-bottom",
+        name: "\u8BE6\u60C5\u540E\u534A\u90E8\u5206",
+        group: "\u4F1A\u5458",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title"
+          },
+          {
+            type: "scroll",
+            selector: "#drawer-body",
+            y: 1500
+          }
+        ],
+        url: "?page=membership&state=detail"
+      },
+      {
+        id: "order_record-list",
+        name: "\u8BA2\u5355\u5217\u8868",
+        group: "\u8BA2\u5355",
+        steps: [],
+        url: "?page=order_record"
+      },
+      {
+        id: "order_record-advanced",
+        name: "\u9AD8\u7EA7\u67E5\u8BE2\u5C55\u5F00",
+        group: "\u8BA2\u5355",
+        steps: [
+          {
+            type: "click",
+            selector: "#money-toggle"
+          },
+          {
+            type: "wait",
+            selector: "#money-advanced"
+          }
+        ],
+        url: "?page=order_record"
+      },
+      {
+        id: "order_record-empty",
+        name: "\u67E5\u8BE2\u65E0\u7ED3\u679C",
+        group: "\u8BA2\u5355",
+        steps: [],
+        url: "?page=order_record&state=no-results"
+      },
+      {
+        id: "order_record-detail",
+        name: "\u8BE6\u60C5\u62BD\u5C49",
+        group: "\u8BA2\u5355",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title"
+          }
+        ],
+        url: "?page=order_record&state=detail"
+      },
+      {
+        id: "order_record-detail-bottom",
+        name: "\u8BE6\u60C5\u540E\u534A\u90E8\u5206",
+        group: "\u8BA2\u5355",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title"
+          },
+          {
+            type: "scroll",
+            selector: "#drawer-body",
+            y: 1500
+          }
+        ],
+        url: "?page=order_record&state=detail"
+      },
+      {
+        id: "event_notification-list",
+        name: "\u4E8B\u4EF6\u5217\u8868",
+        group: "\u4E8B\u4EF6",
+        steps: [],
+        url: "?page=event_notification"
+      },
+      {
+        id: "event_notification-advanced",
+        name: "\u9AD8\u7EA7\u67E5\u8BE2\u5C55\u5F00",
+        group: "\u4E8B\u4EF6",
+        steps: [
+          {
+            type: "click",
+            selector: "#money-toggle"
+          },
+          {
+            type: "wait",
+            selector: "#money-advanced"
+          }
+        ],
+        url: "?page=event_notification"
+      },
+      {
+        id: "event_notification-empty",
+        name: "\u67E5\u8BE2\u65E0\u7ED3\u679C",
+        group: "\u4E8B\u4EF6",
+        steps: [],
+        url: "?page=event_notification&state=no-results"
+      },
+      {
+        id: "event_notification-detail",
+        name: "\u8BE6\u60C5\u62BD\u5C49",
+        group: "\u4E8B\u4EF6",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title"
+          }
+        ],
+        url: "?page=event_notification&state=detail"
+      },
+      {
+        id: "event_notification-detail-bottom",
+        name: "\u8BE6\u60C5\u540E\u534A\u90E8\u5206",
+        group: "\u4E8B\u4EF6",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title"
+          },
+          {
+            type: "scroll",
+            selector: "#drawer-body",
+            y: 1500
+          }
+        ],
+        url: "?page=event_notification&state=detail"
+      },
+      {
+        id: "membership-active",
+        name: "\u751F\u6548\u4E2D\u8BA2\u9605\u7B5B\u9009",
+        group: "\u4F1A\u5458",
+        steps: [
+          {
+            type: "select",
+            selector: "#status",
+            value: "1"
+          },
+          {
+            type: "click",
+            selector: '#money-filter button[type="submit"]'
+          },
+          {
+            type: "wait",
+            selector: "#money-results"
+          }
+        ],
+        url: "?page=membership"
+      },
+      {
+        id: "event-pending",
+        name: "\u5F85\u56DE\u586B\u7528\u6237\u5173\u8054\u7B5B\u9009",
+        group: "\u4E8B\u4EF6",
+        steps: [
+          {
+            type: "click",
+            selector: "#money-toggle"
+          },
+          {
+            type: "select",
+            selector: "#user_binding",
+            value: "pending"
+          },
+          {
+            type: "click",
+            selector: '#money-filter button[type="submit"]'
+          },
+          {
+            type: "wait",
+            selector: "#money-results"
+          }
+        ],
+        url: "?page=event_notification"
+      },
+      {
+        id: "account-menu",
+        name: "\u5F53\u524D\u8D26\u53F7\u83DC\u5355",
+        group: "\u540E\u53F0\u8D26\u53F7",
+        steps: [
+          {
+            type: "click",
+            selector: "#account-trigger"
+          },
+          {
+            type: "wait",
+            selector: "#account-popover"
+          }
+        ]
+      },
+      {
+        id: "admins-list",
+        name: "\u540E\u53F0\u8D26\u53F7\u5217\u8868",
+        group: "\u540E\u53F0\u8D26\u53F7",
+        steps: [],
+        url: "?page=admin_users"
+      },
+      {
+        id: "admin-create",
+        name: "\u65B0\u589E\u540E\u53F0\u8D26\u53F7\u8868\u5355",
+        group: "\u540E\u53F0\u8D26\u53F7",
+        steps: [
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u65B0\u589E\u8D26\u53F7"
+          }
+        ],
+        url: "?page=admin_users&state=create"
+      },
+      {
+        id: "admin-validation",
+        name: "\u8D26\u53F7\u683C\u5F0F\u6821\u9A8C",
+        group: "\u540E\u53F0\u8D26\u53F7",
+        steps: [
+          {
+            type: "click",
+            selector: "#account-save"
+          },
+          {
+            type: "wait",
+            selector: "#account-error",
+            text: "\u683C\u5F0F"
+          }
+        ],
+        url: "?page=admin_users&state=create"
+      },
+      {
+        id: "admin-edit",
+        name: "\u7F16\u8F91\u540E\u53F0\u8D26\u53F7",
+        group: "\u540E\u53F0\u8D26\u53F7",
+        steps: [
+          {
+            type: "click",
+            selector: "[data-admin-edit]",
+            index: 0
+          },
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u7F16\u8F91\u8D26\u53F7"
+          }
+        ],
+        url: "?page=admin_users"
+      },
+      {
+        id: "admin-password",
+        name: "\u91CD\u7F6E\u5BC6\u7801\u8868\u5355\uFF08\u672A\u63D0\u4EA4\uFF09",
+        group: "\u540E\u53F0\u8D26\u53F7",
+        steps: [
+          {
+            type: "click",
+            selector: "[data-admin-reset]",
+            index: 0
+          },
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u91CD\u7F6E\u5BC6\u7801"
+          }
+        ],
+        url: "?page=admin_users"
+      },
+      {
+        id: "admins-empty",
+        name: "\u540E\u53F0\u8D26\u53F7\u65E0\u7ED3\u679C",
+        group: "\u540E\u53F0\u8D26\u53F7",
+        steps: [
+          {
+            type: "fill",
+            selector: "#admin-query",
+            value: "NO_MATCH_STATE"
+          },
+          {
+            type: "click",
+            selector: '#admin-filter button[type="submit"]'
+          },
+          {
+            type: "wait",
+            selector: '[data-od-id="admin-users-empty"]'
+          }
+        ],
+        url: "?page=admin_users"
+      },
+      {
+        id: "data-workspace",
+        name: "\u57CB\u70B9\u67E5\u8BE2\u5DE5\u4F5C\u53F0",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "wait",
+            selector: ".dq-layout"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-sql",
+        name: "\u624B\u5199 SQL \u7F16\u8F91\u5668",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-result-table",
+        name: "\u6F14\u793A\u67E5\u8BE2\u8868\u683C\u7ED3\u679C",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-results .dq-chart-toolbar"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-chart-line",
+        name: "\u6298\u7EBF\u56FE\u7ED3\u679C",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-results .dq-chart-toolbar"
+          },
+          {
+            type: "click",
+            selector: '[data-chart-type="line"]'
+          },
+          {
+            type: "wait",
+            selector: "#dq-chart-dimension"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-chart-bar",
+        name: "\u67F1\u72B6\u56FE\u7ED3\u679C",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-results .dq-chart-toolbar"
+          },
+          {
+            type: "click",
+            selector: '[data-chart-type="bar"]'
+          },
+          {
+            type: "wait",
+            selector: "#dq-chart-dimension"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-chart-pie",
+        name: "\u997C\u56FE\u7ED3\u679C",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-results .dq-chart-toolbar"
+          },
+          {
+            type: "click",
+            selector: '[data-chart-type="pie"]'
+          },
+          {
+            type: "wait",
+            selector: "#dq-chart-dimension"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-chart-funnel",
+        name: "\u6F0F\u6597\u56FE\u7ED3\u679C",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-results .dq-chart-toolbar"
+          },
+          {
+            type: "click",
+            selector: '[data-chart-type="funnel"]'
+          },
+          {
+            type: "wait",
+            selector: "#dq-chart-dimension"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-plan",
+        name: "\u6F14\u793A\u6267\u884C\u8BA1\u5212",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-explain"
+          },
+          {
+            type: "wait",
+            selector: "#dq-results",
+            text: "\u6F14\u793A\u6267\u884C\u8BA1\u5212"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-template-empty",
+        name: "\u6211\u7684\u6A21\u677F\u7A7A\u72B6\u6001",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: '[data-dq-library="templates"]'
+          },
+          {
+            type: "wait",
+            selector: "#dq-library-body"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-history-empty",
+        name: "\u67E5\u8BE2\u5386\u53F2\u7A7A\u72B6\u6001",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: '[data-dq-library="history"]'
+          },
+          {
+            type: "wait",
+            selector: "#dq-history-filter"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-history-record",
+        name: "\u67E5\u8BE2\u5386\u53F2\u8BB0\u5F55",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-results .dq-chart-toolbar"
+          },
+          {
+            type: "click",
+            selector: '[data-dq-library="history"]'
+          },
+          {
+            type: "wait",
+            selector: "[data-dq-history]"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-save-template",
+        name: "\u4FDD\u5B58\u811A\u672C\u4E3A\u6A21\u677F\u8868\u5355",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-save"
+          },
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u4FDD\u5B58\u811A\u672C"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-tabs",
+        name: "\u6807\u7B7E\u9875\u7BA1\u7406",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-manage"
+          },
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u6807\u7B7E\u9875\u7BA1\u7406"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "data-clear-confirm",
+        name: "\u6E05\u7A7A\u7F16\u8F91\u5668\u786E\u8BA4\uFF08\u672A\u6267\u884C\uFF09",
+        group: "\u57CB\u70B9\u67E5\u8BE2",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add"
+          },
+          {
+            type: "wait",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-editor-label",
+            text: "SQL \xB7 Monaco Editor",
+            timeoutMs: 15e3
+          },
+          {
+            type: "click",
+            selector: "#dq-clear"
+          },
+          {
+            type: "wait",
+            selector: "#drawer-title",
+            text: "\u6E05\u7A7A\u7F16\u8F91\u5668"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "builder-default",
+        name: "\u53EF\u89C6\u5316\u67E5\u8BE2\u6784\u5EFA\u5668",
+        group: "\u67E5\u8BE2\u6784\u5EFA\u5668",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add-builder"
+          },
+          {
+            type: "wait",
+            selector: ".qb-steps"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "builder-filters",
+        name: "\u6DFB\u52A0\u7B5B\u9009\u6761\u4EF6",
+        group: "\u67E5\u8BE2\u6784\u5EFA\u5668",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add-builder"
+          },
+          {
+            type: "wait",
+            selector: ".qb-steps"
+          },
+          {
+            type: "click",
+            selector: '[data-qb-add="filters"]'
+          },
+          {
+            type: "wait",
+            selector: "#qb-form"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "builder-metrics",
+        name: "\u6DFB\u52A0\u7EDF\u8BA1\u6307\u6807",
+        group: "\u67E5\u8BE2\u6784\u5EFA\u5668",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add-builder"
+          },
+          {
+            type: "wait",
+            selector: ".qb-steps"
+          },
+          {
+            type: "click",
+            selector: '[data-qb-add="metrics"]'
+          },
+          {
+            type: "wait",
+            selector: "#qb-form"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "builder-groups",
+        name: "\u6DFB\u52A0\u5206\u7EC4\u5B57\u6BB5",
+        group: "\u67E5\u8BE2\u6784\u5EFA\u5668",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add-builder"
+          },
+          {
+            type: "wait",
+            selector: ".qb-steps"
+          },
+          {
+            type: "click",
+            selector: '[data-qb-add="groups"]'
+          },
+          {
+            type: "wait",
+            selector: "#qb-form"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "builder-sorts",
+        name: "\u6DFB\u52A0\u6392\u5E8F",
+        group: "\u67E5\u8BE2\u6784\u5EFA\u5668",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add-builder"
+          },
+          {
+            type: "wait",
+            selector: ".qb-steps"
+          },
+          {
+            type: "click",
+            selector: '[data-qb-add="sorts"]'
+          },
+          {
+            type: "wait",
+            selector: "#qb-form"
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "builder-sql",
+        name: "\u751F\u6210 SQL \u9884\u89C8",
+        group: "\u67E5\u8BE2\u6784\u5EFA\u5668",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add-builder"
+          },
+          {
+            type: "wait",
+            selector: ".qb-steps"
+          },
+          {
+            type: "click",
+            selector: ".qb-sql summary"
+          },
+          {
+            type: "scroll",
+            selector: "#main",
+            y: 2e3
+          }
+        ],
+        url: "?page=data_query"
+      },
+      {
+        id: "builder-result",
+        name: "\u53EF\u89C6\u5316\u67E5\u8BE2\u6F14\u793A\u7ED3\u679C",
+        group: "\u67E5\u8BE2\u6784\u5EFA\u5668",
+        steps: [
+          {
+            type: "click",
+            selector: "#dq-add-builder"
+          },
+          {
+            type: "wait",
+            selector: ".qb-steps"
+          },
+          {
+            type: "click",
+            selector: "#dq-run"
+          },
+          {
+            type: "wait",
+            selector: "#dq-results .dq-chart-toolbar"
+          },
+          {
+            type: "scroll",
+            selector: "#dq-results",
+            y: 0
+          }
+        ],
+        url: "?page=data_query"
+      }
+    ]
+  };
+
+  // src/desktop-connection.ts
+  var PORTS = [3847, 3848, 3849, 3850, 3851];
+  function validAssistantURL(value) {
+    return /^http:\/\/127\.0\.0\.1:384[7-9]$|^http:\/\/127\.0\.0\.1:385[01]$/.test(value);
+  }
+  function newAssistantCredentials() {
+    const hex = (bytes) => Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (value) => value.toString(16).padStart(2, "0")).join("");
+    return { clientId: `figma-${hex(16)}`, credential: hex(32) };
+  }
+  async function discoverAssistant(preferred) {
+    const urls = [...preferred && validAssistantURL(preferred) ? [preferred] : [], ...PORTS.map((port) => `http://127.0.0.1:${port}`)].filter((url, i2, list2) => list2.indexOf(url) === i2);
+    const results = await Promise.allSettled(urls.map(async (url) => {
+      const response = await fetch(`${url}/api/desktop/discovery`, { signal: AbortSignal.timeout(1200) });
+      if (!response.ok) throw new Error("Unavailable");
+      const data2 = await response.json();
+      if (data2.product !== "html-to-figma-capture" || !data2.desktop) throw new Error("Different service");
+      return url;
+    }));
+    for (const result of results) if (result.status === "fulfilled") return result.value;
+    return null;
+  }
+  async function verifyAssistant(url, credential) {
+    if (!validAssistantURL(url)) return false;
+    try {
+      const r = await fetch(`${url}/api/health`, { headers: { "X-H2F-Token": credential }, signal: AbortSignal.timeout(1800) });
+      return r.ok && (await r.json()).desktop === true;
+    } catch {
+      return false;
+    }
+  }
+  async function pairAssistant(url, credentials, onCode) {
+    if (!validAssistantURL(url)) throw new Error("\u52A9\u624B\u5730\u5740\u65E0\u6548");
+    const post = async (route, body) => {
+      const r = await fetch(`${url}${route}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(5e3) });
+      const data2 = await r.json();
+      if (!r.ok) throw new Error(data2.error || "\u8FDE\u63A5\u8BF7\u6C42\u5931\u8D25");
+      return data2;
+    };
+    const started = await post("/api/desktop/pair/start", { clientId: credentials.clientId, credential: credentials.credential, clientName: "HTML to Figma \u63D2\u4EF6" });
+    if (started.status === "approved") return { url, credential: credentials.credential, clientId: credentials.clientId };
+    if (typeof started.id !== "string" || typeof started.code !== "string") throw new Error("\u52A9\u624B\u8FD4\u56DE\u4E86\u65E0\u6548\u7684\u914D\u5BF9\u8BF7\u6C42");
+    onCode(started.code);
+    for (let i2 = 0; i2 < 120; i2++) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      const result = await post("/api/desktop/pair/status", { id: started.id, credential: credentials.credential });
+      if (result.status === "approved") return { url, credential: credentials.credential, clientId: credentials.clientId };
+      if (result.status === "rejected") throw new Error("\u8FDE\u63A5\u672A\u83B7\u5141\u8BB8\uFF0C\u53EF\u4EE5\u91CD\u65B0\u53D1\u8D77\u914D\u5BF9");
+      if (result.status === "expired") throw new Error("\u914D\u5BF9\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u91CD\u65B0\u8FDE\u63A5");
+    }
+    throw new Error("\u7B49\u5F85\u914D\u5BF9\u786E\u8BA4\u8D85\u65F6\uFF0C\u8BF7\u5728\u684C\u9762\u52A9\u624B\u4E2D\u6838\u5BF9\u914D\u5BF9\u7801");
+  }
+
   // src/bundle.ts
   var BATCH_LIMITS = { pages: 200, nodes: 12e4, assets: 2e3, assetBytes: 64 * 1024 * 1024 };
   function isBundle(value) {
@@ -6325,7 +7895,7 @@
         if (!common) {
           const bytes = (a.base64?.length || 0) * 0.75;
           if (this.bytes + bytes > BATCH_LIMITS.assetBytes || this.bundle.assets.length >= BATCH_LIMITS.assets) throw new Error("\u6574\u6279\u56FE\u7247\u8D44\u6E90\u8D85\u9650\uFF08\u53BB\u91CD\u540E\u6700\u591A 64 MB\u30012000 \u4E2A\uFF09");
-          common = { ...a, id: `asset-${this.bundle.assets.length + 1}`, url: a.url.startsWith("data:") ? "embedded-image" : a.url };
+          common = { ...a, id: `asset-${this.bundle.assets.length + 1}`, url: a.base64 && a.url.startsWith("data:") ? "embedded-image" : a.url };
           this.bundle.assets.push(common);
           this.bytes += bytes;
           this.buckets.set(key, [...this.buckets.get(key) || [], common]);
@@ -6426,7 +7996,66 @@
   var queue = [];
   var queuePosition = 0;
   var batchId = "";
-  var service = "http://127.0.0.1:3847";
+  var previewPageIndex = 0;
+  var previewRevision = 0;
+  var previewController = null;
+  var previewSession = null;
+  var previewImages = /* @__PURE__ */ new Map();
+  var restoredPreviews = null;
+  var hasRemotePreview = false;
+  var previewZoom = 1;
+  var previewFit = true;
+  var previewHovered = false;
+  var previewSpace = false;
+  var previewPan = null;
+  var randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (n) => n.toString(16).padStart(2, "0")).join("");
+  var receiverId = randomId();
+  var handoffCandidate = null;
+  var handoffPolling = false;
+  var handoffReceiving = false;
+  var handoffSending = false;
+  var outgoingHandoff = null;
+  var sendRequestId = "";
+  var sendSignature = "";
+  var outgoingPhase = "";
+  var figmaContext = null;
+  var figmaTargets = [];
+  var targetOptionsKey = "";
+  var incomingHandoff = null;
+  var service = !plugin && /^https?:$/.test(location.protocol) && ["127.0.0.1", "localhost"].includes(location.hostname) ? location.origin : "http://127.0.0.1:3847";
+  var activeStateJob = null;
+  var activeJobKind = "states";
+  var stateReport = null;
+  var discovery = null;
+  var discoveryKey = "";
+  var discoverySelection = [];
+  var autoStates = () => tab === "url" && $("url-mode").value === "states" && $("state-input-mode").value !== "recipe";
+  function requestKey() {
+    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value, $("exploration-depth").value]);
+  }
+  function refreshPrepareAction() {
+    const label = busy ? "\u5904\u7406\u4E2D\u2026" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} \u9875\uFF09` : $("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
+    $("prepare-label").textContent = label;
+    $("prepare").disabled = busy || autoStates() && !!discovery && !discoverySelection.some(Boolean);
+  }
+  function clearDiscovery() {
+    discovery = null;
+    discoveryKey = "";
+    discoverySelection = [];
+    $("discovery-results").hidden = true;
+    $("discovery-intro").hidden = false;
+    refreshPrepareAction();
+  }
+  function syncStateInput() {
+    const automatic = $("state-input-mode").value !== "recipe";
+    $("state-auto-panel").hidden = !automatic;
+    $("state-recipe-panel").hidden = automatic;
+    $("exploration-options").hidden = $("state-input-mode").value !== "explore";
+    $("discovery-intro").textContent = $("state-input-mode").value === "explore" ? "\u81EA\u52A8\u6253\u5F00\u8BE6\u60C5\u3001\u5F39\u7A97\u548C\u8868\u5355\uFF0C\u8BB0\u5F55\u53EF\u91CD\u653E\u7684\u4EA4\u4E92\u72B6\u6001\uFF0C\u518D\u52FE\u9009\u6355\u83B7\u3002\u65E0\u9700\u51C6\u5907 JSON\u3002" : "\u8BC6\u522B\u5BFC\u822A\u6807\u7B7E\u3001\u9875\u9762\u94FE\u63A5\u548C\u672C\u5730 HTML\u3002\u6B64\u6A21\u5F0F\u4E0D\u63A2\u7D22\u8BE6\u60C5\u548C\u5F39\u7A97\u3002";
+    refreshPrepareAction();
+  }
+  var assistantCredentials = null;
+  var assistantConnecting = false;
   var session = window.__LOCAL_SESSION__;
   if (session?.token) {
     input("service-token").value = session.token;
@@ -6447,22 +8076,35 @@
   }
   function setBusy(value, importing2 = false) {
     busy = value;
-    for (const el of document.querySelectorAll("button,input,textarea")) {
+    for (const el of document.querySelectorAll("button,input,textarea,select")) {
       if (el.id !== "cancel") el.disabled = value;
     }
     $("progress-wrap").hidden = !value;
-    $("cancel").hidden = !value;
+    $("cancel").hidden = !value || handoffSending || handoffReceiving;
     if (value) $("progress").removeAttribute("value");
-    $("prepare-label").textContent = value ? "\u5904\u7406\u4E2D\u2026" : "\u89E3\u6790\u5E76\u9884\u89C8";
+    $("state-plan-panel").setAttribute("aria-busy", String(value));
+    refreshPrepareAction();
+    refreshPreviewControls();
+    refreshZoomControls();
+    refreshHandoffControls();
   }
   function invalidate() {
+    outgoingHandoff = null;
+    sendRequestId = "";
+    sendSignature = "";
+    incomingHandoff = null;
+    $("handoff-send-status").hidden = true;
+    resetPreview();
     prepared = null;
     preparedBundle = null;
+    stateReport = null;
+    $("download-state-report").hidden = true;
     pageStates = [];
     $("page-list-section").hidden = true;
     $("report").hidden = true;
     $("ready-actions").hidden = true;
     $("prepare").hidden = false;
+    refreshPrepareAction();
   }
   function updateWarnings(diagnostics) {
     $("warnings").hidden = diagnostics.length === 0;
@@ -6504,16 +8146,26 @@
     renderPageList();
     $("import").textContent = plugin ? `\u5BFC\u5165\u5230 Figma${bundle.pages.length > 1 ? `\uFF08${bundle.pages.length} \u9875\uFF09` : ""}` : "\u4E0B\u8F7D Figma \u6570\u636E";
     $("download").hidden = !plugin;
+    $("send-handoff").hidden = plugin;
+    refreshHandoffControls();
     const missing = bundle.assets.filter((a) => !a.base64).length;
-    status(missing ? `${missing} \u4E2A\u5171\u4EAB\u56FE\u7247\u8D44\u6E90\u672A\u80FD\u8BFB\u53D6\uFF0C\u5BFC\u5165\u65F6\u5C06\u4FDD\u7559\u5360\u4F4D\u3002` : plugin ? "\u5185\u5BB9\u5DF2\u5C31\u7EEA\uFF0C\u591A\u9875\u4F1A\u9010\u9875\u5BFC\u5165\uFF1B\u53D6\u6D88\u65F6\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684\u9875\u9762\u3002" : "\u4E0B\u8F7D\u6570\u636E\u540E\uFF0C\u5C06\u6587\u4EF6\u62D6\u5165 Figma \u63D2\u4EF6\u5373\u53EF\u7EE7\u7EED\u3002");
+    status(missing ? `${missing} \u4E2A\u5171\u4EAB\u56FE\u7247\u8D44\u6E90\u672A\u80FD\u8BFB\u53D6\uFF0C\u5BFC\u5165\u65F6\u5C06\u4FDD\u7559\u5360\u4F4D\u3002` : plugin ? "\u5185\u5BB9\u5DF2\u5C31\u7EEA\uFF0C\u591A\u9875\u4F1A\u9010\u9875\u5BFC\u5165\uFF1B\u53D6\u6D88\u65F6\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684\u9875\u9762\u3002" : "\u9009\u62E9\u9875\u9762\u540E\u70B9\u51FB\u201C\u53D1\u9001\u5230 Figma \u63D2\u4EF6\u201D\uFF0C\u5728\u63D2\u4EF6\u5185\u63A5\u6536\u5E76\u5BFC\u5165\u3002\u4E5F\u53EF\u4EE5\u4E0B\u8F7D\u6570\u636E\u3002");
+    const restored = bundle.previewImages;
+    if (!plugin && restored !== void 0) {
+      if (!Array.isArray(restored) || restored.length !== bundle.pages.length || restored.some((value) => typeof value !== "string" || value.length > 6 * 1024 * 1024 || !/^data:image\/jpeg;base64,[\w+/=]+$/.test(value)) || restored.reduce((n, value) => n + value.length, 0) > 90 * 1024 * 1024) throw new Error("\u5907\u4EFD\u9884\u89C8\u6570\u636E\u65E0\u6548\u6216\u8FC7\u5927");
+      showRemotePreviews(restored[0], void 0, [], restored);
+    }
   }
   function renderPageList() {
     if (!preparedBundle) return;
     $("page-list-section").hidden = preparedBundle.pages.length < 2;
     $("page-list-title").textContent = `\u9875\u9762\u5217\u8868 \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
     $("page-list").replaceChildren(...preparedBundle.pages.map((page, i2) => {
+      const row = document.createElement("div");
+      row.className = "page-row";
+      row.dataset.previewActive = String(hasRemotePreview && previewPageIndex === i2);
       const label = document.createElement("label");
-      label.className = "page-row";
+      label.className = "page-select";
       const box = document.createElement("input");
       box.type = "checkbox";
       box.checked = pageStates[i2].selected;
@@ -6531,12 +8183,171 @@
       state.id = `page-state-${i2}`;
       state.textContent = pageStates[i2].detail || `${Math.round(page.root.width)} \xD7 ${Math.round(page.root.height)}`;
       state.dataset.state = pageStates[i2].state;
-      label.append(box, title, state);
-      return label;
+      label.append(box, title);
+      row.append(label, state);
+      if (hasRemotePreview && !plugin) {
+        const view = document.createElement("button");
+        view.type = "button";
+        view.className = "text-button page-preview";
+        view.disabled = busy;
+        view.textContent = previewPageIndex === i2 ? "\u5F53\u524D\u9884\u89C8" : "\u9884\u89C8";
+        view.setAttribute("aria-label", `\u9884\u89C8 ${page.name}`);
+        view.setAttribute("aria-pressed", String(previewPageIndex === i2));
+        view.addEventListener("click", () => {
+          void selectPreviewPage(i2);
+        });
+        row.append(view);
+      }
+      return row;
     }));
     refreshImportAction();
   }
+  function resetPreview() {
+    previewSpace = false;
+    releasePreviewPan();
+    $("preview-stage").classList.remove("pan-ready");
+    previewRevision++;
+    previewController?.abort();
+    previewController = null;
+    for (const url of previewImages.values()) if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+    previewImages.clear();
+    restoredPreviews = null;
+    previewSession = null;
+    previewPageIndex = 0;
+    hasRemotePreview = false;
+    previewFit = true;
+    previewZoom = 1;
+    $("preview-zoom-controls").hidden = true;
+    $("preview-stage").classList.remove("zoomable");
+    $("preview-controls").hidden = true;
+    $("preview-caption").hidden = true;
+    $("preview-message").hidden = true;
+    $("preview-stage").setAttribute("aria-busy", "false");
+    $("preview-empty").hidden = false;
+    $("frame-container").hidden = true;
+    const image = $("remote-preview");
+    image.hidden = true;
+    image.removeAttribute("src");
+    $("preview-size").textContent = "\u7B49\u5F85\u5185\u5BB9";
+  }
+  function refreshPreviewControls() {
+    const total = hasRemotePreview ? preparedBundle?.pages.length || 0 : 0;
+    $("preview-controls").hidden = total < 2;
+    $("preview-prev").disabled = busy || previewPageIndex === 0;
+    $("preview-next").disabled = busy || previewPageIndex >= total - 1;
+    $("preview-page").disabled = busy || total < 2;
+  }
+  function cachePreview(index, url) {
+    previewImages.delete(index);
+    previewImages.set(index, url);
+    while (previewImages.size > 3) {
+      const oldest = previewImages.keys().next().value;
+      const value = previewImages.get(oldest);
+      previewImages.delete(oldest);
+      if (value.startsWith("blob:")) URL.revokeObjectURL(value);
+    }
+  }
+  function showRemotePreviews(first, jobId, entries = [], restored) {
+    resetPreview();
+    if (!preparedBundle) return;
+    hasRemotePreview = true;
+    restoredPreviews = restored || null;
+    if (jobId) previewSession = { service, token: input("service-token").value.trim(), jobId, entries };
+    if (first) cachePreview(0, first);
+    const options = preparedBundle.pages.map((page, i2) => {
+      const option = document.createElement("option");
+      option.value = String(i2);
+      option.textContent = page.name;
+      return option;
+    });
+    $("preview-page").replaceChildren(...options);
+    void selectPreviewPage(0);
+    renderPageList();
+  }
+  async function selectPreviewPage(index) {
+    if (!preparedBundle || !hasRemotePreview || !preparedBundle.pages[index]) return;
+    previewController?.abort();
+    const revision = ++previewRevision;
+    const localController = new AbortController();
+    previewController = localController;
+    previewPageIndex = index;
+    const page = preparedBundle.pages[index];
+    $("preview-page").value = String(index);
+    $("preview-size").textContent = `${index + 1} / ${preparedBundle.pages.length} \u9875`;
+    $("preview-caption").textContent = `${page.name} \xB7 ${Math.round(page.root.width)} \xD7 ${Math.round(page.root.height)} px`;
+    $("preview-caption").hidden = false;
+    $("preview-empty").hidden = true;
+    $("frame-container").hidden = true;
+    $("remote-preview").hidden = true;
+    $("preview-message").hidden = false;
+    $("preview-message-text").textContent = `\u6B63\u5728\u52A0\u8F7D\u7B2C ${index + 1} \u9875\u9884\u89C8\u2026`;
+    $("preview-retry").hidden = true;
+    $("preview-stage").setAttribute("aria-busy", "true");
+    refreshPreviewControls();
+    document.querySelectorAll(".page-row").forEach((row, i2) => {
+      row.dataset.previewActive = String(i2 === index);
+      const button = row.querySelector(".page-preview");
+      if (button) {
+        button.textContent = i2 === index ? "\u5F53\u524D\u9884\u89C8" : "\u9884\u89C8";
+        button.setAttribute("aria-pressed", String(i2 === index));
+      }
+    });
+    let objectURL = null;
+    const timer = setTimeout(() => localController.abort(), 1e4);
+    try {
+      let url = previewImages.get(index) || restoredPreviews?.[index];
+      if (!url) {
+        const session2 = previewSession, entry = session2?.entries.find((p) => p.pageIndex === index);
+        if (!session2 || !entry) throw new Error("\u6B64\u9875\u6CA1\u6709\u53EF\u7528\u622A\u56FE\uFF0C\u8BF7\u66F4\u65B0\u52A9\u624B\u540E\u91CD\u65B0\u6355\u83B7\u3002");
+        if (entry.error) throw new Error(entry.error);
+        const response = await fetch(`${session2.service}/api/states/${session2.jobId}/preview/${index}`, { headers: { "X-H2F-Token": session2.token }, signal: localController.signal });
+        if (!response.ok) throw new Error(response.status === 404 ? "\u9884\u89C8\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u91CD\u65B0\u6355\u83B7\u9875\u9762\u3002" : "\u9884\u89C8\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u52A9\u624B\u8FDE\u63A5\u540E\u91CD\u8BD5\u3002");
+        const blob = await response.blob();
+        if (!blob.type.startsWith("image/jpeg")) throw new Error("\u9884\u89C8\u56FE\u7247\u683C\u5F0F\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u6355\u83B7\u3002");
+        objectURL = URL.createObjectURL(blob);
+        url = objectURL;
+      }
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      if (revision !== previewRevision) return;
+      if (localController.signal.aborted) throw new Error("\u9884\u89C8\u52A0\u8F7D\u8D85\u65F6");
+      cachePreview(index, url);
+      objectURL = null;
+      const target = $("remote-preview");
+      target.src = url;
+      target.alt = `\u7B2C ${index + 1} \u9875\uFF1A${page.name}`;
+      target.dataset.pageIndex = String(index);
+      target.hidden = false;
+      applyPreviewZoom(true);
+      $("preview-message").hidden = true;
+    } catch (error) {
+      if (revision !== previewRevision) return;
+      $("preview-message-text").textContent = localController.signal.aborted ? "\u9884\u89C8\u52A0\u8F7D\u8D85\u65F6\uFF0C\u8BF7\u91CD\u8BD5\u3002" : errorText(error);
+      $("preview-retry").hidden = false;
+    } finally {
+      clearTimeout(timer);
+      if (objectURL) URL.revokeObjectURL(objectURL);
+      if (revision === previewRevision) {
+        $("preview-stage").setAttribute("aria-busy", "false");
+        previewController = null;
+      }
+    }
+  }
+  $("preview-prev").addEventListener("click", () => {
+    void selectPreviewPage(previewPageIndex - 1);
+  });
+  $("preview-next").addEventListener("click", () => {
+    void selectPreviewPage(previewPageIndex + 1);
+  });
+  $("preview-page").addEventListener("change", () => {
+    void selectPreviewPage(Number($("preview-page").value));
+  });
+  $("preview-retry").addEventListener("click", () => {
+    void selectPreviewPage(previewPageIndex);
+  });
   function refreshImportAction() {
+    refreshHandoffControls();
     if (!preparedBundle || preparedBundle.pages.length < 2) return;
     const selected = pageStates.filter((p) => p.selected).length, remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
     $("import").disabled = busy || !selected || plugin && !remaining;
@@ -6680,15 +8491,136 @@
     if (!Number.isFinite(width) || width < 320 || width > 3840) throw new Error("\u6D4F\u89C8\u5668\u5BBD\u5EA6\u9700\u8981\u5728 320\u20133840 px \u4E4B\u95F4");
     return Math.round(width);
   }
+  function previewDimensions() {
+    const image = $("remote-preview");
+    if (!image.hidden && image.naturalWidth) return { width: image.naturalWidth, height: image.naturalHeight, kind: "image" };
+    if (frame && !$("frame-container").hidden) return { width: Number(frame.dataset.viewportWidth || 1440), height: 900, kind: "html" };
+    return null;
+  }
+  function refreshZoomControls() {
+    const dimensions = previewDimensions(), enabled = !!dimensions && !plugin;
+    $("preview-zoom-controls").hidden = !enabled;
+    $("preview-shortcuts").hidden = !enabled;
+    $("preview-zoom-out").disabled = busy || !enabled || previewZoom <= 0.1;
+    $("preview-zoom-in").disabled = busy || !enabled || previewZoom >= 4;
+    $("preview-zoom-actual").disabled = busy || !enabled;
+    $("preview-zoom-fit").disabled = busy || !enabled;
+    $("preview-zoom-value").textContent = `${Math.round(previewZoom * 100)}%`;
+    $("preview-zoom-fit").setAttribute("aria-pressed", String(previewFit));
+    $("preview-zoom-actual").setAttribute("aria-pressed", String(!previewFit && previewZoom === 1));
+  }
+  function applyPreviewZoom(reset2 = false, previousZoom = previewZoom) {
+    const dimensions = previewDimensions();
+    if (!dimensions || plugin) {
+      refreshZoomControls();
+      return;
+    }
+    const stage = $("preview-stage");
+    stage.classList.add("zoomable");
+    const style = getComputedStyle(stage), paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight), paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    const centerX = (stage.scrollLeft + stage.clientWidth / 2) / previousZoom, centerY = (stage.scrollTop + stage.clientHeight / 2) / previousZoom;
+    if (previewFit) previewZoom = Math.max(0.01, Math.min(1, (stage.clientWidth - paddingX) / dimensions.width, (stage.clientHeight - paddingY) / dimensions.height));
+    if (dimensions.kind === "image") {
+      const image = $("remote-preview");
+      image.style.width = `${dimensions.width * previewZoom}px`;
+      image.style.height = `${dimensions.height * previewZoom}px`;
+    } else if (frame) {
+      const host = $("frame-container");
+      host.style.width = `${dimensions.width * previewZoom}px`;
+      host.style.height = `${dimensions.height * previewZoom}px`;
+      frame.style.height = `${dimensions.height}px`;
+      frame.style.transform = `scale(${previewZoom})`;
+    }
+    if (reset2 || previewFit) {
+      stage.scrollLeft = 0;
+      stage.scrollTop = 0;
+    } else {
+      stage.scrollLeft = Math.max(0, centerX * previewZoom - stage.clientWidth / 2);
+      stage.scrollTop = Math.max(0, centerY * previewZoom - stage.clientHeight / 2);
+    }
+    refreshZoomControls();
+  }
+  function setPreviewZoom(value) {
+    const previous = previewZoom;
+    previewFit = value === "fit";
+    if (typeof value === "number") previewZoom = Math.max(0.1, Math.min(4, value));
+    applyPreviewZoom(false, previous);
+  }
+  var zoomSteps = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+  $("preview-zoom-in").addEventListener("click", () => setPreviewZoom(zoomSteps.find((z) => z > previewZoom + 1e-3) || 4));
+  $("preview-zoom-out").addEventListener("click", () => setPreviewZoom([...zoomSteps].reverse().find((z) => z < previewZoom - 1e-3) || 0.1));
+  $("preview-zoom-actual").addEventListener("click", () => setPreviewZoom(1));
+  $("preview-zoom-fit").addEventListener("click", () => setPreviewZoom("fit"));
+  $("remote-preview").addEventListener("load", () => applyPreviewZoom(true));
+  function previewIsEditing(target) {
+    return !!target?.closest?.('input,textarea,select,[contenteditable="true"]');
+  }
+  function handlePreviewWheel(event, embeddedFrame) {
+    if (!event.metaKey && !event.ctrlKey || busy || !previewDimensions() || plugin) return;
+    event.preventDefault();
+    const target = !$("remote-preview").hidden ? $("remote-preview") : $("frame-container"), stage = $("preview-stage");
+    const bounds = target.getBoundingClientRect(), frameBounds = embeddedFrame?.getBoundingClientRect();
+    const x = frameBounds ? frameBounds.left + event.clientX * previewZoom : event.clientX, y = frameBounds ? frameBounds.top + event.clientY * previewZoom : event.clientY;
+    const localX = (x - bounds.left) / previewZoom, localY = (y - bounds.top) / previewZoom;
+    const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1);
+    setPreviewZoom(previewZoom * Math.exp(-delta * 2e-3));
+    const next = target.getBoundingClientRect();
+    stage.scrollLeft += next.left + localX * previewZoom - x;
+    stage.scrollTop += next.top + localY * previewZoom - y;
+  }
+  function handlePreviewKeyDown(event) {
+    if (event.code !== "Space" || previewIsEditing(event.target) || busy || !previewDimensions() || plugin || !previewHovered && !$("preview-stage").contains(document.activeElement)) return;
+    event.preventDefault();
+    previewSpace = true;
+    $("preview-stage").classList.add("pan-ready");
+  }
+  function handlePreviewKeyUp(event) {
+    if (event.code === "Space") {
+      previewSpace = false;
+      $("preview-stage").classList.remove("pan-ready");
+      releasePreviewPan();
+    }
+  }
+  function releasePreviewPan() {
+    const pan = previewPan;
+    previewPan = null;
+    const stage = $("preview-stage");
+    stage.classList.remove("panning");
+    if (pan && stage.hasPointerCapture(pan.pointer)) stage.releasePointerCapture(pan.pointer);
+  }
+  $("preview-stage").addEventListener("pointerenter", () => {
+    previewHovered = true;
+  });
+  $("preview-stage").addEventListener("pointerleave", () => {
+    previewHovered = false;
+  });
+  $("preview-stage").addEventListener("wheel", (event) => handlePreviewWheel(event), { passive: false });
+  document.addEventListener("keydown", handlePreviewKeyDown);
+  document.addEventListener("keyup", handlePreviewKeyUp);
+  window.addEventListener("blur", () => {
+    previewSpace = false;
+    $("preview-stage").classList.remove("pan-ready");
+    releasePreviewPan();
+  });
+  $("preview-stage").addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !previewSpace || !previewDimensions()) return;
+    event.preventDefault();
+    const stage = $("preview-stage");
+    stage.focus({ preventScroll: true });
+    stage.setPointerCapture(event.pointerId);
+    previewPan = { pointer: event.pointerId, x: event.clientX, y: event.clientY, left: stage.scrollLeft, top: stage.scrollTop };
+    stage.classList.add("panning");
+  });
+  $("preview-stage").addEventListener("pointermove", (event) => {
+    if (!previewPan || event.pointerId !== previewPan.pointer) return;
+    event.preventDefault();
+    const stage = $("preview-stage");
+    stage.scrollLeft = previewPan.left - (event.clientX - previewPan.x);
+    stage.scrollTop = previewPan.top - (event.clientY - previewPan.y);
+  });
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) $("preview-stage").addEventListener(type, releasePreviewPan);
   function fitPreview() {
-    if (!frame || plugin || $("frame-container").hidden) return;
-    const host = $("frame-container");
-    const width = Number(frame.dataset.viewportWidth || 1440);
-    const scale = Math.min(1, host.clientWidth / width);
-    frame.style.transform = `scale(${scale})`;
-    const height = 900;
-    frame.style.height = `${height}px`;
-    host.style.height = `${height * scale}px`;
+    applyPreviewZoom();
   }
   new ResizeObserver(fitPreview).observe($("preview-stage"));
   async function prepareHTML(html, filename = sourceName, builder = new BundleBuilder(filename.replace(/\.html?$/i, "") || "HTML \u9875\u9762")) {
@@ -6724,6 +8656,9 @@
     const doc = currentFrame.contentDocument;
     if (!doc) throw new Error("\u65E0\u6CD5\u8BBF\u95EE\u9884\u89C8\u5185\u5BB9\uFF0C\u8BF7\u901A\u8FC7\u672C\u5730\u670D\u52A1\u6355\u83B7");
     doc.addEventListener("click", (event) => event.preventDefault(), true);
+    doc.addEventListener("wheel", (event) => handlePreviewWheel(event, currentFrame), { passive: false });
+    doc.addEventListener("keydown", handlePreviewKeyDown);
+    doc.addEventListener("keyup", handlePreviewKeyUp);
     await Promise.race([Promise.all(Array.from(doc.images).map((img) => img.decode().catch(() => {
     }))), new Promise((resolve) => setTimeout(resolve, 3500))]);
     await Promise.race([doc.fonts.ready, new Promise((resolve) => setTimeout(resolve, 2500))]);
@@ -6753,14 +8688,14 @@
   }
   async function api(path, payload) {
     const token = input("service-token").value.trim();
-    if (!token) throw new Error("\u8BF7\u5148\u586B\u5199\u672C\u5730\u670D\u52A1\u8FDE\u63A5\u7801\uFF08\u8FD0\u884C npm run serve \u540E\u53EF\u89C1\uFF09");
+    if (!token) throw new Error("\u8BF7\u5148\u6253\u5F00\u6355\u83B7\u52A9\u624B\uFF0C\u5E76\u70B9\u51FB\u201C\u8FDE\u63A5\u684C\u9762\u52A9\u624B\u201D");
     try {
       const response = await fetch(`${service}${path}`, { method: payload ? "POST" : "GET", headers: { "X-H2F-Token": token, ...payload ? { "Content-Type": "application/json" } : {} }, body: payload ? JSON.stringify(payload) : void 0, signal: controller?.signal || AbortSignal.timeout(7e3) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || `\u8BF7\u6C42\u5931\u8D25\uFF1A${response.status}`);
       return result;
     } catch (e) {
-      if (e instanceof TypeError) throw new Error("\u65E0\u6CD5\u8FDE\u63A5\u672C\u5730\u670D\u52A1\u3002\u8BF7\u8FD0\u884C npm run serve\uFF0C\u5E76\u786E\u8BA4\u4F7F\u7528 127.0.0.1:3847\u3002");
+      if (e instanceof TypeError) throw new Error("\u65E0\u6CD5\u8FDE\u63A5\u6355\u83B7\u52A9\u624B\u3002\u8BF7\u786E\u8BA4\u52A9\u624B\u4ECD\u5728\u83DC\u5355\u680F\u8FD0\u884C\uFF0C\u518D\u70B9\u51FB\u201C\u8FDE\u63A5\u684C\u9762\u52A9\u624B\u201D\u3002");
       throw e;
     }
   }
@@ -6785,14 +8720,22 @@
     status("\u6B63\u5728\u51C6\u5907\u5185\u5BB9\u2026");
     try {
       if (tab === "url") {
-        const url = input("page-url").value.trim();
-        if (!/^https?:\/\//i.test(url)) throw new Error("\u8BF7\u8F93\u5165\u5B8C\u6574\u7684 http \u6216 https \u9875\u9762\u5730\u5740");
+        const url = normalizeCaptureAddress(input("page-url").value);
+        if ($("url-mode").value === "states") {
+          if (autoStates()) {
+            if (!discovery || discoveryKey !== requestKey()) {
+              await discoverAutomaticPages(url);
+              return;
+            }
+            const states = discovery.plan.states.filter((_, i2) => discoverySelection[i2]);
+            if (!states.length) throw new Error("\u8BF7\u81F3\u5C11\u52FE\u9009\u4E00\u4E2A\u9875\u9762");
+            await prepareStates(url, { ...discovery.plan, states });
+          } else await prepareStates(url);
+          return;
+        }
         const response = await api("/api/capture", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body" });
-        $("preview-empty").hidden = true;
-        $("frame-container").hidden = true;
-        $("remote-preview").src = response.preview;
-        $("remote-preview").hidden = false;
         showPrepared(response.document);
+        showRemotePreviews(response.preview);
       } else if (tab === "file" && sourceFiles.length > 1) {
         const builder = new BundleBuilder(sourceName);
         for (const file of sourceFiles) {
@@ -6820,8 +8763,10 @@
       status(errorText(e) === "This operation was aborted" ? "\u6355\u83B7\u5DF2\u53D6\u6D88\u3002" : errorText(e), true);
     } finally {
       controller = null;
+      activeStateJob = null;
       setBusy(false);
       renderPageList();
+      renderDiscovery();
     }
   });
   $("demo").addEventListener("click", async () => {
@@ -6871,7 +8816,7 @@
     if (!plugin) status("\u5DF2\u4E0B\u8F7D\u6355\u83B7\u6570\u636E\u3002\u8BF7\u5728 Figma \u4E2D\u8FD0\u884C\u63D2\u4EF6\uFF0C\u5E76\u62D6\u5165\u6B64\u6587\u4EF6\u3002");
   }
   $("download").addEventListener("click", download);
-  $("import").addEventListener("click", () => {
+  function importPrepared() {
     if (!prepared || !preparedBundle) return;
     if (!plugin) {
       download();
@@ -6884,22 +8829,26 @@
     }
     captureStopped = false;
     importing = true;
+    void reportHandoffProgress("importing", pageStates.filter((p) => p.state === "complete").length, 0);
     setBusy(true, true);
     renderPageList();
     message("SETTINGS", { settings: { mode: mode(), token: input("service-token").value } });
     if (preparedBundle.pages.length === 1) {
       status("\u6B63\u5728\u52A0\u8F7D\u5B57\u4F53\u5E76\u521B\u5EFA\u56FE\u5C42\u2026");
-      message("IMPORT", { document: prepared, mode: mode() });
+      message("IMPORT", { document: prepared, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId });
     } else {
       batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       queuePosition = 0;
-      message("BATCH_START", { id: batchId, mode: mode(), plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height })) });
+      message("BATCH_START", { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height })) });
       status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} \u9875\u2026`);
     }
-  });
+  }
+  $("import").addEventListener("click", importPrepared);
   $("cancel").addEventListener("click", () => {
     captureStopped = true;
-    if (controller) controller.abort();
+    if (activeStateJob) {
+      void api(`/api/${activeJobKind}/${activeStateJob}/cancel`, {}).catch((e) => status(errorText(e), true));
+    } else if (controller) controller.abort();
     if (importing) message("CANCEL");
     status(importing ? "\u6B63\u5728\u53D6\u6D88\u5F53\u524D\u9875\uFF0C\u5DF2\u5B8C\u6210\u7684\u9875\u9762\u4F1A\u4FDD\u7559\u2026" : "\u6B63\u5728\u505C\u6B62\u89E3\u6790\u2026");
   });
@@ -6915,7 +8864,7 @@
     });
     renderPageList();
   });
-  for (const id of ["viewport-width", "selector", "base-url", "page-url", "html-code", "split-pages", "page-selector"]) $(id).addEventListener("input", invalidate);
+  for (const id of ["viewport-width", "selector", "base-url", "page-url", "html-code", "split-pages", "page-selector", "state-plan", "url-mode"]) $(id).addEventListener("input", invalidate);
   for (const radio of document.querySelectorAll('input[name="mode"]')) radio.addEventListener("change", () => {
     document.querySelectorAll(".mode-card").forEach((card) => card.classList.toggle("selected", !!card.querySelector("input")?.checked));
   });
@@ -6930,8 +8879,15 @@
   window.onmessage = (event) => {
     if (!plugin || !event.data?.pluginMessage || event.source && Array.from(document.querySelectorAll("iframe")).some((child) => child.contentWindow === event.source)) return;
     const msg = event.data.pluginMessage;
+    if (msg.type === "CONTEXT") {
+      updateFigmaContext(msg.context);
+      return;
+    }
     if (msg.type === "SETTINGS") {
+      updateFigmaContext(msg.context);
       if (typeof msg.settings?.token === "string") input("service-token").value = msg.settings.token;
+      if (msg.assistant && typeof msg.assistant.clientId === "string" && typeof msg.assistant.credential === "string") assistantCredentials = msg.assistant;
+      if (plugin) void connectAssistant(false);
       const radio = document.querySelector(`input[name="mode"][value="${msg.settings?.mode === "auto" ? "auto" : "visual"}"]`);
       if (radio) {
         radio.checked = true;
@@ -6944,6 +8900,10 @@
     } else if (msg.type === "PAGE_COMPLETE" && msg.id === batchId) {
       const index = queue[msg.index];
       setPageState(index, msg.result.nodeId ? "complete" : "failed", msg.result.nodeId ? `\u5B8C\u6210 \xB7 ${msg.result.result.nodes} \u5C42` : msg.result.error);
+      if (incomingHandoff && Date.now() - incomingHandoff.lastProgress > 600) {
+        incomingHandoff.lastProgress = Date.now();
+        void reportHandoffProgress("importing", pageStates.filter((p) => p.state === "complete").length, pageStates.filter((p) => p.state === "failed").length);
+      }
       queuePosition++;
       if (!captureStopped && queuePosition < queue.length) setTimeout(sendNextPage, 0);
     } else if (msg.type === "BATCH_COMPLETE" && msg.id === batchId) {
@@ -6955,6 +8915,7 @@
       const remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
       $("import").textContent = remaining ? `\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59 ${remaining} \u9875` : "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165";
       $("import").disabled = remaining === 0;
+      void reportHandoffProgress(msg.result.cancelled ? "cancelled" : msg.result.failed ? "partial" : "complete", pageStates.filter((p) => p.state === "complete").length, pageStates.filter((p) => p.state === "failed").length);
       updateWarnings(msg.result.results.flatMap((r) => r.error ? [{ code: "PAGE_FAILED", message: `${r.name}\uFF1A${r.error}` }] : r.result?.diagnostics || []).slice(0, 100));
     } else if (msg.type === "PROGRESS") {
       $("progress").value = Math.round(msg.done / msg.total * 100);
@@ -6965,13 +8926,431 @@
       if (pageStates[0]) pageStates[0].state = "complete";
       $("report-title").textContent = "\u5DF2\u5BFC\u5165 Figma";
       status(`\u5DF2\u521B\u5EFA ${msg.result.nodes} \u4E2A\u56FE\u5C42${msg.result.autoLayouts ? `\uFF0C\u5176\u4E2D ${msg.result.autoLayouts} \u4E2A Auto Layout \u5BB9\u5668` : ""}\u3002\u53EF\u4EE5\u5728 Figma \u4E2D\u64A4\u9500\u672C\u6B21\u5BFC\u5165\u3002`);
+      void reportHandoffProgress("complete", 1, 0);
       updateWarnings(msg.result.diagnostics || []);
     } else if (msg.type === "ERROR") {
+      void reportHandoffProgress("failed", pageStates.filter((p) => p.state === "complete").length, 0);
       importing = false;
       setBusy(false);
       status(msg.message || "\u5BFC\u5165\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", true);
     }
   };
+  $("url-mode").addEventListener("change", () => {
+    $("state-plan-panel").hidden = $("url-mode").value !== "states";
+    invalidate();
+    syncStateInput();
+  });
+  $("state-input-mode").addEventListener("change", () => {
+    invalidate();
+    clearDiscovery();
+    syncStateInput();
+  });
+  $("exploration-depth").addEventListener("change", () => {
+    invalidate();
+    clearDiscovery();
+  });
+  for (const id of ["page-url", "viewport-width", "selector"]) $(id).addEventListener("input", clearDiscovery);
+  $("rediscover-pages").addEventListener("click", () => {
+    clearDiscovery();
+    invalidate();
+    $("prepare").click();
+  });
+  function renderDiscovery() {
+    if (!discovery) return;
+    $("discovery-intro").hidden = true;
+    $("discovery-results").hidden = false;
+    $("discovery-title").textContent = `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
+    const count = () => {
+      $("discovery-count").textContent = `\u5DF2\u9009\u62E9 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`;
+      refreshPrepareAction();
+    };
+    $("discovery-list").replaceChildren(...discovery.pages.map((page, i2) => {
+      const row = document.createElement("label");
+      row.className = "discovery-row";
+      row.dataset.failed = String(!!page.error);
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = discoverySelection[i2];
+      checkbox.disabled = busy || !!page.error;
+      checkbox.setAttribute("aria-label", `\u6355\u83B7 ${page.name}`);
+      checkbox.addEventListener("change", () => {
+        discoverySelection[i2] = checkbox.checked;
+        invalidate();
+        count();
+      });
+      const copy = document.createElement("span");
+      copy.className = "discovery-copy";
+      const name = document.createElement("strong");
+      name.textContent = page.name;
+      const detail = document.createElement("small");
+      let route = "";
+      try {
+        const address = new URL(page.destination || page.url);
+        route = address.hash || decodeURIComponent(address.pathname.split("/").pop() || "/");
+      } catch {
+      }
+      detail.textContent = page.error ? `\u65E0\u6CD5\u6253\u5F00 \xB7 ${page.error}` : `${page.via} \xB7 ${page.via === "\u5BFC\u822A\u6807\u7B7E" && !page.destination ? "\u70B9\u51FB\u540E\u6355\u83B7" : route}${page.checked ? "" : " \xB7 \u6355\u83B7\u65F6\u9A8C\u8BC1"}`;
+      if (page.path) detail.textContent = `${page.via} \xB7 ${page.path}`;
+      copy.append(name, detail);
+      row.append(checkbox, copy);
+      return row;
+    }));
+    const report = discovery.report;
+    $("discovery-summary").textContent = `${report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62\u3002" : ""}\u5DF2\u9A8C\u8BC1 ${discovery.pages.filter((p) => p.checked).length} \u9875${report.errors.length ? `\uFF0C${report.errors.length} \u9875\u65E0\u6CD5\u6253\u5F00` : ""}\u3002${report.limited ? "\u8FBE\u5230\u626B\u63CF\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\uFF0C\u5269\u4F59\u5019\u9009\u9875\u4F1A\u5728\u6355\u83B7\u65F6\u9A8C\u8BC1\u3002" : "\u52FE\u9009\u9875\u9762\u540E\u70B9\u51FB\u201C\u5F00\u59CB\u6355\u83B7\u201D\u3002"}`;
+    if (report.mode === "interactions") $("discovery-summary").textContent = `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001\uFF0C\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.errors.length} \u6B21\u3002${report.limited ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u672A\u63A2\u7D22\uFF1B\u5DF2\u8FBE\u5230\u672C\u6B21\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\u3002` : "\u672C\u6B21\u961F\u5217\u5DF2\u5904\u7406\u3002"} \u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u53D7\u9650\u6216\u91CD\u590D\u63A7\u4EF6\uFF1B\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+    count();
+  }
+  $("discovery-select-all").addEventListener("click", () => {
+    if (discovery) {
+      discoverySelection = discovery.pages.map((p) => !p.error);
+      invalidate();
+      renderDiscovery();
+    }
+  });
+  $("discovery-clear").addEventListener("click", () => {
+    discoverySelection.fill(false);
+    invalidate();
+    renderDiscovery();
+  });
+  async function discoverAutomaticPages(url) {
+    clearDiscovery();
+    status("\u6B63\u5728\u6253\u5F00\u5165\u53E3\u5E76\u53D1\u73B0\u9875\u9762\u2026");
+    const key = requestKey();
+    const job = await api("/api/discover", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", exploreInteractions: $("state-input-mode").value === "explore", maxDepth: Number($("exploration-depth").value) });
+    activeStateJob = job.id;
+    activeJobKind = "discover";
+    while (true) {
+      const snapshot = await api(`/api/discover/${job.id}`), p = snapshot.progress;
+      if (p) status(`${captureStopped ? "\u6B63\u5728\u505C\u6B62\u63A2\u7D22" : p.status === "exploring" ? "\u6B63\u5728\u63A2\u7D22\u4EA4\u4E92" : "\u6B63\u5728\u53D1\u73B0\u9875\u9762"}\uFF1A\u5DF2\u627E\u5230 ${p.found || 0} \u9875 \xB7 \u5DF2\u68C0\u67E5 ${p.scanned || 0} \u9875 \xB7 ${p.name || ""}${p.attempted !== void 0 ? ` \xB7 \u5DF2\u5C1D\u8BD5 ${p.attempted} \u6B21` : ""}`);
+      if (snapshot.status !== "running") {
+        if (snapshot.error) throw new Error(snapshot.error);
+        discovery = await api(`/api/discover/${job.id}/result`);
+        discoveryKey = key;
+        discoverySelection = discovery.pages.map((p2) => !p2.error);
+        renderDiscovery();
+        status(discovery.report.mode === "interactions" ? `${discovery.report.cancelled ? "\u63A2\u7D22\u5DF2\u505C\u6B62" : "\u672C\u8F6E\u63A2\u7D22\u7ED3\u675F"}\uFF1A\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u72B6\u6001${discovery.report.limited ? "\uFF0C\u4ECD\u6709\u672A\u63A2\u7D22\u52A8\u4F5C" : ""}\u3002\u8BF7\u67E5\u770B\u62A5\u544A\u5E76\u52FE\u9009\u6355\u83B7\u3002` : `${discovery.report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62" : "\u53D1\u73B0\u5B8C\u6210"}\uFF1A${discovery.pages.length} \u4E2A\u5019\u9009\u9875\u9762\uFF0C\u8BF7\u52FE\u9009\u540E\u5F00\u59CB\u6355\u83B7\u3002`, !discoverySelection.some(Boolean));
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  function downloadDiscoveryFile(data2, filename) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data2, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2e3);
+  }
+  $("download-discovery-report").addEventListener("click", () => {
+    if (discovery) downloadDiscoveryFile({ ...discovery.report, states: discovery.pages.map(({ name, path, via, depth }) => ({ name, path, via, depth })) }, "interaction-exploration-report.json");
+  });
+  $("download-generated-plan").addEventListener("click", () => {
+    if (discovery) downloadDiscoveryFile({ ...discovery.plan, states: discovery.plan.states.filter((_, i2) => discoverySelection[i2]) }, "discovered-states.json");
+  });
+  $("load-demo-states").addEventListener("click", () => {
+    invalidate();
+    clearDiscovery();
+    $("state-input-mode").value = "recipe";
+    syncStateInput();
+    $("state-plan").value = JSON.stringify(multi_app_admin_states_default, null, 2);
+    input("page-url").value = multi_app_admin_states_default.url;
+    input("viewport-width").value = String(multi_app_admin_states_default.viewport.width);
+    $("state-plan-label").textContent = `\u793A\u4F8B\u6E05\u5355 \xB7 ${multi_app_admin_states_default.states.length} \u4E2A\u72B6\u6001`;
+    status("\u5DF2\u8F7D\u5165\u793A\u4F8B\u72B6\u6001\u6E05\u5355\u3002\u8FDE\u63A5\u672C\u5730\u670D\u52A1\u540E\u70B9\u51FB\u89E3\u6790\uFF0C\u9010\u4E2A\u6355\u83B7\u4EA4\u4E92\u72B6\u6001\u3002");
+  });
+  $("choose-state-plan").addEventListener("click", () => input("state-plan-file").click());
+  input("state-plan-file").addEventListener("change", async () => {
+    const file = input("state-plan-file").files?.[0];
+    if (!file) return;
+    invalidate();
+    clearDiscovery();
+    $("state-input-mode").value = "recipe";
+    syncStateInput();
+    try {
+      if (file.size > 2 * 1024 * 1024) throw new Error("\u72B6\u6001\u6E05\u5355\u6700\u591A 2 MB");
+      const text = await file.text();
+      const plan = JSON.parse(text);
+      if (!Array.isArray(plan.states)) throw new Error("\u72B6\u6001\u6E05\u5355\u9700\u8981 states \u6570\u7EC4");
+      $("state-plan").value = text;
+      input("page-url").value = plan.url || "";
+      input("viewport-width").value = String(plan.viewport?.width || 1440);
+      $("state-plan-label").textContent = `${file.name} \xB7 ${plan.states.length} \u4E2A\u72B6\u6001`;
+    } catch (e) {
+      status(errorText(e), true);
+    }
+  });
+  async function prepareStates(url, suppliedPlan) {
+    let plan;
+    try {
+      plan = suppliedPlan || JSON.parse($("state-plan").value);
+    } catch {
+      throw new Error("\u8BF7\u5148\u8F7D\u5165\u72B6\u6001\u6E05\u5355\uFF0C\u6216\u7C98\u8D34\u6709\u6548\u7684 JSON");
+    }
+    plan.url = url;
+    plan.viewport = { ...plan.viewport, width: viewportWidth() };
+    const job = await api("/api/states", plan);
+    activeStateJob = job.id;
+    activeJobKind = "states";
+    while (true) {
+      const snapshot = await api(`/api/states/${job.id}`);
+      const p = snapshot.progress;
+      if (p) {
+        $("progress").value = Math.round((p.completed + p.failed) / p.total * 100);
+        status(`${captureStopped ? "\u6B63\u5728\u505C\u6B62" : "\u6B63\u5728\u6355\u83B7"} ${Math.min(p.index + 1, p.total)} / ${p.total}\uFF1A${p.name} \xB7 \u5B8C\u6210 ${p.completed}\uFF0C\u5931\u8D25 ${p.failed}`);
+      }
+      if (snapshot.status !== "running") {
+        if (snapshot.status === "failed") throw new Error(snapshot.error || "\u72B6\u6001\u6355\u83B7\u5931\u8D25");
+        const result = await api(`/api/states/${job.id}/result`);
+        stateReport = result.report;
+        if (result.bundle.pages.length) {
+          showBundle(result.bundle);
+          showRemotePreviews(result.preview, job.id, result.previews || []);
+        }
+        $("download-state-report").hidden = false;
+        status(`\u72B6\u6001\u6355\u83B7${result.report.cancelled ? "\u5DF2\u505C\u6B62" : "\u5B8C\u6210"}\uFF1A\u6210\u529F ${result.report.completed} / ${result.report.total}\uFF0C\u5931\u8D25 ${result.report.failed}\u3002${result.report.completed ? "\u53EF\u9009\u62E9\u9875\u9762\u540E\u5BFC\u5165 Figma\u3002" : "\u8BF7\u4E0B\u8F7D\u62A5\u544A\u68C0\u67E5\u5931\u8D25\u539F\u56E0\u3002"}`, !result.report.completed);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
+  }
+  $("download-state-report").addEventListener("click", () => {
+    if (!stateReport) return;
+    const blob = new Blob([JSON.stringify(stateReport, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "state-capture-report.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2e3);
+  });
+  async function handoffAPI(path, body, timeout = 5e3) {
+    const token = input("service-token").value.trim();
+    if (!token) throw new Error("\u8BF7\u5148\u8FDE\u63A5\u684C\u9762\u52A9\u624B");
+    const response = await fetch(`${service}${path}`, { method: body === void 0 ? "GET" : "POST", headers: { "X-H2F-Token": token, ...body === void 0 ? {} : { "Content-Type": "application/json" } }, body: body === void 0 ? void 0 : JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "\u7ED3\u679C\u4F20\u8F93\u5931\u8D25");
+    return result;
+  }
+  function refreshHandoffControls() {
+    const count = pageStates.filter((p) => p.selected).length;
+    $("send-handoff").hidden = plugin || !preparedBundle;
+    $("send-handoff").disabled = busy || !count;
+    $("send-handoff").textContent = `\u53D1\u9001\u5230 Figma \u63D2\u4EF6${count ? `\uFF08${count} \u9875\uFF09` : ""}`;
+    $("receive-handoff").disabled = busy || handoffReceiving;
+    $("direct-target").hidden = plugin || !preparedBundle;
+    $("direct-import").hidden = plugin || !preparedBundle;
+    const target = figmaTargets.find((t) => t.id === $("figma-target").value);
+    $("direct-import").disabled = busy || !count || !target || target.busy;
+    $("direct-import").textContent = `${outgoingPhase === "complete" ? "\u518D\u6B21\u5BFC\u5165" : "\u76F4\u63A5\u5BFC\u5165"} Figma${count ? `\uFF08${count} \u9875\uFF09` : ""}`;
+    $("figma-target-help").textContent = target ? `${target.documentName} / ${target.pageName}${target.busy ? " \xB7 \u63D2\u4EF6\u6B63\u5728\u5904\u7406\u4EFB\u52A1" : ""}` : "\u8BF7\u5728\u76EE\u6807 Figma \u6587\u4EF6\u4E2D\u6253\u5F00\u63D2\u4EF6\u5E76\u4FDD\u6301\u8FDE\u63A5\u3002";
+  }
+  function selectedBundle() {
+    if (!preparedBundle) throw new Error("\u8BF7\u5148\u6355\u83B7\u9875\u9762");
+    const indices = pageStates.map((p, i2) => p.selected ? i2 : -1).filter((i2) => i2 >= 0);
+    if (!indices.length) throw new Error("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u9875");
+    const builder = new BundleBuilder(preparedBundle.name);
+    indices.forEach((i2) => builder.add(hydratePage(preparedBundle, i2)));
+    return builder.bundle;
+  }
+  function outgoingStatus(item) {
+    outgoingPhase = item.status;
+    const labels = { pending: "\u5DF2\u53D1\u9001\u3002\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u70B9\u51FB\u201C\u63A5\u6536\u5E76\u5BFC\u5165\u5F53\u524D\u9875\u9762\u201D\u3002", received: "Figma \u63D2\u4EF6\u5DF2\u63A5\u6536\uFF0C\u6B63\u5728\u51C6\u5907\u5BFC\u5165\u3002", importing: `\u6B63\u5728\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} \u9875`, complete: `\u5DF2\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} \u9875`, partial: `\u5BFC\u5165\u7ED3\u675F\uFF1A\u5B8C\u6210 ${item.completed} \u9875\uFF0C\u5931\u8D25 ${item.failed} \u9875\u3002\u8BF7\u5728 Figma \u4E2D\u68C0\u67E5\u3002`, cancelled: `\u5BFC\u5165\u5DF2\u53D6\u6D88\uFF0C\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684 ${item.completed} \u9875\u3002`, failed: "\u5BFC\u5165\u5931\u8D25\uFF0C\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u67E5\u770B\u539F\u56E0\u6216\u91CD\u8BD5\u3002", replaced: "\u8FD9\u6279\u7ED3\u679C\u5DF2\u88AB\u65B0\u53D1\u9001\u7684\u7ED3\u679C\u66FF\u4EE3\u3002" };
+    $("handoff-send-status").hidden = false;
+    $("handoff-send-status").classList.toggle("error", ["failed", "partial"].includes(item.status));
+    $("handoff-send-status").textContent = item.error || (item.autoImport && item.status === "pending" ? `\u5DF2\u8BF7\u6C42\u5BFC\u5165\uFF1A${item.target.documentName} / ${item.target.pageName}\uFF0C\u7B49\u5F85\u63D2\u4EF6\u6267\u884C\u2026` : labels[item.status] || item.status);
+    refreshHandoffControls();
+  }
+  async function sendHandoff(direct = false) {
+    if (plugin || busy) return;
+    try {
+      const target = direct ? figmaTargets.find((t) => t.id === $("figma-target").value) : null;
+      if (direct && !target) throw new Error("\u8BF7\u5148\u9009\u62E9\u5DF2\u8FDE\u63A5\u7684 Figma \u76EE\u6807\u9875\u9762");
+      const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map((p) => p.selected), mode(), target?.id, target?.contextVersion]);
+      const stableSignature = signature;
+      if (stableSignature !== sendSignature || direct && ["complete", "partial", "failed", "cancelled", "replaced"].includes(outgoingPhase)) {
+        sendSignature = stableSignature;
+        sendRequestId = randomId();
+      }
+      outgoingHandoff = null;
+      handoffSending = true;
+      setBusy(true);
+      $("handoff-send-status").hidden = false;
+      $("handoff-send-status").classList.remove("error");
+      $("handoff-send-status").textContent = "\u6B63\u5728\u53D1\u9001\u6240\u9009\u9875\u9762\u5230 Figma \u63D2\u4EF6\u2026";
+      const sent = await handoffAPI("/api/handoffs", { requestId: sendRequestId, bundle, mode: mode(), ...target ? { targetId: target.id, targetContext: target.contextVersion } : {} }, 6e4);
+      outgoingHandoff = sent.id;
+      outgoingStatus(sent);
+    } catch (error) {
+      $("handoff-send-status").hidden = false;
+      $("handoff-send-status").classList.add("error");
+      $("handoff-send-status").textContent = errorText(error);
+    } finally {
+      handoffSending = false;
+      setBusy(false);
+      renderPageList();
+    }
+  }
+  $("send-handoff").addEventListener("click", () => {
+    void sendHandoff(false);
+  });
+  $("direct-import").addEventListener("click", () => {
+    void sendHandoff(true);
+  });
+  $("figma-target").addEventListener("change", refreshHandoffControls);
+  async function pollHandoffs() {
+    if (handoffPolling || !input("service-token").value.trim()) return;
+    handoffPolling = true;
+    try {
+      if (plugin && !handoffReceiving) {
+        if (figmaContext) await handoffAPI("/api/figma/receivers", { receiverId, ...figmaContext, busy: busy || handoffReceiving || importing });
+        const result = await handoffAPI(`/api/handoffs/latest?receiverId=${receiverId}`);
+        handoffCandidate = result.handoff;
+        if (handoffCandidate?.autoImport && !busy && !handoffReceiving) {
+          await receiveHandoff();
+          return;
+        }
+        $("handoff-inbox").hidden = !handoffCandidate;
+        if (handoffCandidate) {
+          $("handoff-title").textContent = "\u684C\u9762\u52A9\u624B\u6709\u65B0\u7684\u6355\u83B7\u7ED3\u679C";
+          $("handoff-description").textContent = `${handoffCandidate.name} \xB7 ${handoffCandidate.pages} \u9875`;
+          refreshHandoffControls();
+        }
+      } else if (!plugin) {
+        const receivers = await handoffAPI("/api/figma/receivers");
+        figmaTargets = receivers.targets;
+        const key = JSON.stringify(figmaTargets);
+        if (key !== targetOptionsKey) {
+          const select = $("figma-target"), previous = select.value;
+          targetOptionsKey = key;
+          const empty2 = document.createElement("option");
+          empty2.value = "";
+          empty2.textContent = "\u9009\u62E9 Figma \u6587\u4EF6\u548C\u9875\u9762";
+          select.replaceChildren(empty2, ...figmaTargets.map((t) => {
+            const option = document.createElement("option");
+            option.value = t.id;
+            option.textContent = `${t.documentName} / ${t.pageName}${t.busy ? "\uFF08\u5FD9\u788C\uFF09" : ""}`;
+            return option;
+          }));
+          select.value = figmaTargets.some((t) => t.id === previous) ? previous : !previous && figmaTargets.length === 1 ? figmaTargets[0].id : "";
+          refreshHandoffControls();
+        }
+        if (outgoingHandoff) {
+          const id = outgoingHandoff, result = await handoffAPI(`/api/handoffs/${id}`);
+          if (outgoingHandoff === id) outgoingStatus(result);
+        }
+      }
+    } catch {
+    } finally {
+      handoffPolling = false;
+    }
+  }
+  function reportHandoffProgress(state, completed, failed) {
+    const handoff = incomingHandoff;
+    if (!handoff) return Promise.resolve();
+    handoff.ack = handoff.ack.catch(() => {
+    }).then(() => handoffAPI(`/api/handoffs/${handoff.id}/progress`, { receiverId, status: state, completed, failed })).catch(() => {
+    });
+    return handoff.ack;
+  }
+  async function receiveHandoff() {
+    if (!plugin || !handoffCandidate || busy || handoffReceiving) return;
+    const id = handoffCandidate.id;
+    handoffReceiving = true;
+    setBusy(true);
+    try {
+      const received = await handoffAPI(`/api/handoffs/${id}/claim`, { receiverId, contextVersion: figmaContext?.contextVersion }, 6e4);
+      validateBundle(received.bundle);
+      invalidate();
+      showBundle(received.bundle);
+      incomingHandoff = { id, ack: Promise.resolve(), lastProgress: 0, expectedPageId: received.target?.pageId };
+      const radio = document.querySelector(`input[name="mode"][value="${received.mode === "auto" ? "auto" : "visual"}"]`);
+      if (radio) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event("change"));
+      }
+      $("handoff-inbox").hidden = true;
+      handoffCandidate = null;
+      handoffReceiving = false;
+      setBusy(false);
+      importPrepared();
+    } catch (error) {
+      status(errorText(error), true);
+    } finally {
+      handoffReceiving = false;
+      if (!importing) setBusy(false);
+    }
+  }
+  $("receive-handoff").addEventListener("click", () => {
+    void receiveHandoff();
+  });
+  function updateFigmaContext(context) {
+    if (!context || typeof context.pageId !== "string") return;
+    if (!figmaContext || figmaContext.pageId !== context.pageId || figmaContext.documentName !== context.documentName || figmaContext.pageName !== context.pageName) figmaContext = { ...context, contextVersion: randomId() };
+  }
+  var handoffPollTimer = setInterval(() => {
+    void pollHandoffs();
+  }, 2e3);
+  window.addEventListener("beforeunload", () => clearInterval(handoffPollTimer));
+  function assistantConnected(url, credential) {
+    void Promise.resolve().then(pollHandoffs);
+    service = url;
+    input("service-token").value = credential;
+    $("connection-dot").classList.add("connected");
+    $("connection-label").textContent = "\u684C\u9762\u52A9\u624B\u5DF2\u8FDE\u63A5";
+    $("assistant-pair-code").hidden = true;
+    $("assistant-help").textContent = "\u52A9\u624B\u4FDD\u6301\u8FD0\u884C\uFF0C\u5373\u53EF\u76F4\u63A5\u6355\u83B7\uFF1B\u4E0B\u6B21\u4F1A\u81EA\u52A8\u91CD\u8FDE\u3002";
+    $("connect-assistant").textContent = "\u91CD\u65B0\u68C0\u6D4B";
+  }
+  async function connectAssistant(interactive) {
+    if (assistantConnecting) return;
+    assistantConnecting = true;
+    $("connect-assistant").disabled = true;
+    try {
+      if (interactive) $("assistant-help").textContent = "\u6B63\u5728\u67E5\u627E\u5DF2\u6253\u5F00\u7684\u6355\u83B7\u52A9\u624B\u2026";
+      const found = await discoverAssistant(assistantCredentials?.serviceURL);
+      if (!found) {
+        if (interactive) {
+          $("connection-dot").classList.remove("connected");
+          $("connection-label").textContent = "\u5C1A\u672A\u8FDE\u63A5\u684C\u9762\u52A9\u624B";
+          $("assistant-help").textContent = "\u8BF7\u5148\u53CC\u51FB\u6253\u5F00 HTML to Figma \u6355\u83B7\u52A9\u624B\uFF0C\u518D\u70B9\u51FB\u8FDE\u63A5\u3002";
+        }
+        return;
+      }
+      if (assistantCredentials && await verifyAssistant(found, assistantCredentials.credential)) {
+        assistantConnected(found, assistantCredentials.credential);
+        assistantCredentials.serviceURL = found;
+        message("ASSISTANT_SETTINGS", { assistant: assistantCredentials });
+        return;
+      }
+      if (!interactive) {
+        $("connection-label").textContent = "\u5DF2\u627E\u5230\u684C\u9762\u52A9\u624B";
+        $("assistant-help").textContent = "\u70B9\u51FB\u8FDE\u63A5\uFF0C\u9996\u6B21\u53EA\u9700\u5728\u52A9\u624B\u4E2D\u786E\u8BA4\u4E00\u6B21\u3002";
+        return;
+      }
+      assistantCredentials || (assistantCredentials = newAssistantCredentials());
+      const result = await pairAssistant(found, assistantCredentials, (code) => {
+        $("assistant-pair-code").textContent = code;
+        $("assistant-pair-code").hidden = false;
+        $("assistant-help").textContent = "\u8BF7\u6838\u5BF9\u52A9\u624B\u7A97\u53E3\u4E2D\u7684\u914D\u5BF9\u7801\u4E00\u81F4\uFF0C\u7136\u540E\u70B9\u51FB\u201C\u5141\u8BB8\u8FDE\u63A5\u201D\u3002";
+      });
+      assistantCredentials = { clientId: result.clientId, credential: result.credential, serviceURL: result.url };
+      message("ASSISTANT_SETTINGS", { assistant: assistantCredentials });
+      assistantConnected(result.url, result.credential);
+      status("\u684C\u9762\u52A9\u624B\u5DF2\u8FDE\u63A5\uFF0C\u53EF\u4EE5\u5F00\u59CB\u6355\u83B7\u3002");
+    } catch (error) {
+      $("assistant-help").textContent = errorText(error);
+      $("assistant-pair-code").hidden = true;
+    } finally {
+      assistantConnecting = false;
+      $("connect-assistant").disabled = false;
+    }
+  }
+  $("connect-assistant").addEventListener("click", () => void connectAssistant(true));
+  if (!plugin && session?.token) {
+    $("connect-assistant").hidden = true;
+    $("assistant-help").textContent = "\u5F53\u524D\u5DE5\u4F5C\u53F0\u5DF2\u8FDE\u63A5\u672C\u673A\u6355\u83B7\u670D\u52A1\u3002";
+  }
   message("READY");
 })();
 </script></body></html>
