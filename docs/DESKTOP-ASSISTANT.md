@@ -1,4 +1,6 @@
-# HTML to Figma 捕获助手（macOS）
+# HTML to Figma 捕获助手
+
+Windows x64 新增于 v0.8.0，安装和构建见 [Windows 助手指南](WINDOWS-ASSISTANT.md)。下文保留原生 macOS 版本说明。
 
 v0.4.0 新增原生 macOS 桌面助手，将运行环境、本地服务和捕获浏览器一起打包。用户不需要安装 Node.js、npm 或 Playwright，也不需要在终端运行命令。
 

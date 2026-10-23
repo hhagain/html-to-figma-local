@@ -16,8 +16,13 @@ const inside = (root, target) => {
   const relative = path.relative(root, target);
   return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 };
-const safeRelative = relative => !relative.includes('\0') && !relative.includes('\\') &&
-  !relative.split('/').some(part => part.startsWith('.'));
+export function safeLocalRelative(relative, { filesystem = false, windows = process.platform === 'win32' } = {}) {
+  if (relative.includes('\0') || (relative.includes('\\') && !(windows && filesystem))) return false;
+  const parts = windows && filesystem ? relative.split(/[\\/]/) : relative.split('/');
+  return parts.every(part => !part.startsWith('.') && (!windows ||
+    (!part.includes(':') && !/[. ]$/.test(part) && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))));
+}
+const safeRelative = (relative, filesystem = false) => safeLocalRelative(relative, { filesystem });
 
 export function validateCaptureURL(value) {
   const url = new URL(normalizeCaptureAddress(value));
@@ -27,8 +32,10 @@ export function validateCaptureURL(value) {
   if (url.protocol === 'file:') {
     let filename;
     try { filename = fileURLToPath(url); } catch { throw new Error('本地地址无效，请使用 file:/// 开头的本机文件地址'); }
-    if (url.hostname || !path.isAbsolute(filename) || filename.includes('\0') || filename.includes('\\'))
+    if (url.hostname || !path.isAbsolute(filename) || filename.includes('\0') || (process.platform !== 'win32' && filename.includes('\\')))
       throw new Error('只支持本机的 file:/// 文件地址');
+    if (process.platform === 'win32' && !safeLocalRelative(filename.slice(path.parse(filename).root.length), { filesystem: true }))
+      throw new Error('本地 Windows 地址包含不支持的文件名');
     if (!/\.html?$/i.test(filename)) throw new Error('本地入口必须是 .html 或 .htm 文件');
     if (path.basename(filename).startsWith('.')) throw new Error('不能捕获隐藏文件');
   }
@@ -37,11 +44,11 @@ export function validateCaptureURL(value) {
 
 export function resolveStateURL(value, base) {
   const baseURL = validateCaptureURL(base);
-  const target = baseURL.protocol === 'file:' && /^(?:\/|Users\/)/.test(value || '') ? normalizeCaptureAddress(value) : value || baseURL.href;
+  const target = baseURL.protocol === 'file:' && /^(?:\/|Users\/|[a-z]:[\\/])/i.test(value || '') ? normalizeCaptureAddress(value) : value || baseURL.href;
   const url = validateCaptureURL(new URL(target, baseURL).href);
   if (baseURL.protocol === 'file:') {
     const root = path.dirname(fileURLToPath(baseURL));
-    if (url.protocol !== 'file:' || !inside(root, fileURLToPath(url)) || !safeRelative(path.relative(root, fileURLToPath(url))))
+    if (url.protocol !== 'file:' || !inside(root, fileURLToPath(url)) || !safeRelative(path.relative(root, fileURLToPath(url)), true))
       throw new Error('本地状态地址必须位于入口 HTML 所在目录或其子目录中');
   } else if (url.protocol === 'file:' || url.origin !== baseURL.origin) {
     throw new Error('状态地址必须与入口同源且不含账号密码');
@@ -96,7 +103,7 @@ export async function openCaptureSource(value) {
       const candidate = path.resolve(root, relative);
       if (!safeRelative(relative) || !inside(root, candidate)) return response(403, 'text/plain', 'Local resource is outside the capture directory');
       const target = await realpath(candidate);
-      if (!inside(realRoot, target) || !safeRelative(path.relative(realRoot, target))) return response(403, 'text/plain', 'Local resource is outside the capture directory');
+      if (!inside(realRoot, target) || !safeRelative(path.relative(realRoot, target), true)) return response(403, 'text/plain', 'Local resource is outside the capture directory');
       const contentType = mime[path.extname(target).toLowerCase()];
       if (!contentType) return response(403, 'text/plain', 'Unsupported local resource type');
       const info = await stat(target);

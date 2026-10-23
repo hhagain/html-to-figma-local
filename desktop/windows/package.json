@@ -1,0 +1,85 @@
+{
+  "name": "html-to-figma-capture-windows",
+  "version": "0.8.0",
+  "private": true,
+  "description": "HTML to Figma native Windows capture assistant",
+  "author": "hhagain",
+  "main": "main.cjs",
+  "scripts": {
+    "dist": "electron-builder --win nsis zip --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.hhagain.HTMLToFigmaCapture",
+    "productName": "HTML to Figma Capture",
+    "asar": true,
+    "directories": {
+      "output": "../../artifacts/windows",
+      "buildResources": "."
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "policy.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../artifacts/windows/staging/engine",
+        "to": "engine"
+      },
+      {
+        "from": "../../artifacts/windows/staging/browser",
+        "to": "browser"
+      },
+      {
+        "from": "../../artifacts/windows/staging/runtime.json",
+        "to": "runtime.json"
+      },
+      {
+        "from": "../../artifacts/windows/staging/Licenses",
+        "to": "Licenses"
+      },
+      {
+        "from": "icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "artifactName": "HTML-to-Figma-Capture-${version}-win-${arch}.${ext}",
+    "win": {
+      "icon": "icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": false,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "HTML to Figma Capture",
+      "artifactName": "HTML-to-Figma-Capture-${version}-win-${arch}-Setup.${ext}",
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ]
+    }
+  }
+}

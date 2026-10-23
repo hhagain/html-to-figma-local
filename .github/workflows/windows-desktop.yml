@@ -1,0 +1,61 @@
+name: Windows desktop installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/windows-desktop-assistant']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/windows/package-lock.json
+      - name: Install capture dependencies
+        run: npm ci
+      - name: Install Windows browser
+        run: npx playwright install chromium
+      - name: Install Windows host dependencies
+        working-directory: desktop/windows
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Regression tests on Windows
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee windows-tests.log
+      - name: Build EXE installer and portable ZIP
+        run: npm run windows:package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Packaged Windows end-to-end validation
+        run: npm run windows:smoke
+      - name: Create checksums and installation guide
+        run: node scripts/windows/checksums.mjs
+      - name: Upload installer and validation evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: html-to-figma-windows-x64
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            artifacts/windows/*.exe
+            artifacts/windows/*.zip
+            artifacts/windows/*.txt
+            artifacts/windows/*.md
+            artifacts/windows/*-validation.json
+            artifacts/windows/windows-build.json
+            artifacts/windows/*.png
+            windows-tests.log

@@ -8,7 +8,7 @@ const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 const stage = path.join(root, '.cache', `package-${Date.now()}`); const name = `html-to-figma-local-${pkg.version}`; const directory = path.join(stage, name);
 await mkdir(directory, { recursive: true }); await mkdir(path.join(root, 'artifacts'), { recursive: true });
 const paths = ['manifest.json', 'package.json', 'package-lock.json', 'tsconfig.json', 'README.md', 'src', 'scripts', 'dist', 'docs', 'examples', 'tests', 'vendor', 'desktop'];
-for (const entry of paths) await cp(path.join(root, entry), path.join(directory, entry), { recursive: true });
+for (const entry of paths) await cp(path.join(root, entry), path.join(directory, entry), { recursive: true, filter: source => !['node_modules', '.cache', '.git', '.DS_Store'].includes(path.basename(source)) });
 await mkdir(path.join(directory, 'artifacts'), { recursive: true });
 const archive = path.join(root, 'artifacts', `${name}.zip`);
 const temporaryArchive = path.join(stage, `${name}.zip`);

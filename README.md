@@ -2,7 +2,13 @@
 
 把本地 HTML 或浏览器页面转换为可编辑的 Figma 图层。包含 Figma 开发插件、本地捕获工作台和命令行工具。
 
-当前版本：**0.7.0 开发版**。代码已独立实现；参考了 HTML → 布局数据 → Figma 的工作流，没有复制 Neil Studio 的插件代码或界面。
+当前版本：**0.8.0 开发版**。代码已独立实现；参考了 HTML → 布局数据 → Figma 的工作流，没有复制 Neil Studio 的插件代码或界面。
+
+## v0.8.0 Windows 桌面捕获助手
+
+新增 Windows x64 的安装向导 EXE 与便携 ZIP，内置运行环境和浏览器，支持系统托盘、配对、插件导出、自动交互捕获及桌面一键导入。输入支持 `C:\…\index.html` 和 `file:///C:/…`，预览使用 Ctrl + 滚轮及空格 + 左键拖拽。
+
+安装与开发说明见 [Windows 助手指南](docs/WINDOWS-ASSISTANT.md)。Windows 包与配套插件版本为 0.8.0；已发布的 Mac 0.7.0 包继续保留。
 
 ## 下载 v0.7.0
 
@@ -225,7 +231,7 @@ npm run package
 ```
 
 - `npm test`：运行实际 Chrome 捕获、界面交互、资源处理、本地接口边界检查，以及 Figma API 模拟环境中的字体、布局、取消和回滚测试。
-- `npm run package`：构建并生成 `artifacts/html-to-figma-local-0.7.0.zip`。
+- `npm run package`：构建并生成 `artifacts/html-to-figma-local-0.8.0.zip`。
 - 浏览器测试不需要接管用户现有 Chrome；会创建独立、临时的浏览器上下文。
 
 相关说明：

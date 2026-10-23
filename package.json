@@ -1,6 +1,6 @@
 {
   "name": "html-to-figma-local",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Local HTML and webpage capture to editable Figma layers",
   "type": "module",
@@ -16,7 +16,10 @@
     "package": "npm run build && node scripts/package.mjs",
     "capture:states": "node scripts/capture-states.mjs",
     "desktop:build": "node scripts/desktop/build.mjs",
-    "desktop:package": "node scripts/desktop/package.mjs"
+    "desktop:package": "node scripts/desktop/package.mjs",
+    "windows:prepare": "npm run build && node scripts/windows/prepare.mjs",
+    "windows:package": "npm run windows:prepare && npm --prefix desktop/windows run dist",
+    "windows:smoke": "node scripts/windows/smoke.mjs"
   },
   "devDependencies": {
     "@figma/plugin-typings": "1.142.0",
