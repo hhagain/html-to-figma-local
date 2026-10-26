@@ -39,8 +39,12 @@ jobs:
         run: npm run windows:package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Build v0.8.0 runtime repair patch
+        run: node scripts/windows/package-repair.mjs
       - name: Packaged Windows end-to-end validation
         run: npm run windows:smoke
+      - name: Reproduce and repair original published v0.8.0
+        run: node scripts/windows/smoke-repair.mjs
       - name: Create checksums and installation guide
         run: node scripts/windows/checksums.mjs
       - name: Upload installer and validation evidence

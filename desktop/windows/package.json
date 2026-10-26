@@ -1,6 +1,6 @@
 {
   "name": "html-to-figma-capture-windows",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "HTML to Figma native Windows capture assistant",
   "author": "hhagain",
@@ -24,12 +24,27 @@
       "main.cjs",
       "preload.cjs",
       "policy.cjs",
-      "package.json"
+      "package.json",
+      "runtime-check.cjs"
     ],
     "extraResources": [
       {
         "from": "../../artifacts/windows/staging/engine",
         "to": "engine"
+      },
+      {
+        "from": "../../artifacts/windows/staging/engine/node_modules/playwright",
+        "to": "engine/node_modules/playwright",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../../artifacts/windows/staging/engine/node_modules/playwright-core",
+        "to": "engine/node_modules/playwright-core",
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../../artifacts/windows/staging/browser",
@@ -80,6 +95,7 @@
         "zh_CN",
         "en_US"
       ]
-    }
+    },
+    "afterPack": "./after-pack.cjs"
   }
 }

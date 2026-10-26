@@ -1,22 +1,39 @@
 import { _electron as electron } from 'playwright';
-import { readFile, writeFile, mkdir, readdir, cp } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, cp, mkdtemp } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
+const { verifyDependencyManifest } = createRequire(import.meta.url)('../../desktop/windows/runtime-check.cjs');
 const run = promisify(execFile);
 if (process.platform !== 'win32') throw new Error('Packaged Windows validation requires Windows.');
 const root = process.cwd(), out = path.join(root,'artifacts/windows');
 const pkg = JSON.parse(await readFile('package.json','utf8'));
 const setup = path.join(out,`HTML-to-Figma-Capture-${pkg.version}-win-x64-Setup.exe`);
-const installDir = path.join(root,'.cache','windows-installed');
-await mkdir(path.dirname(installDir),{recursive:true});
+const isolatedRoot = await mkdtemp(path.join(tmpdir(),'h2f-independent-install-'));
+const relative=path.relative(root,isolatedRoot);
+assert.ok(path.isAbsolute(relative)||relative==='..'||relative.startsWith('..'+path.sep),'Installation must be outside the checkout');
+const installDir = path.join(isolatedRoot,'installed');
+const portableDir = path.join(isolatedRoot,'portable');
+await mkdir(portableDir,{recursive:true});
+const archive=path.join(out,`HTML-to-Figma-Capture-${pkg.version}-win-x64.zip`);
+console.log('Extracting the portable ZIP outside the build checkout.');
+await run('powershell.exe',['-NoProfile','-NonInteractive','-Command','Expand-Archive -LiteralPath $env:H2F_VERIFY_ARCHIVE -DestinationPath $env:H2F_VERIFY_PORTABLE -Force'],{timeout:300000,windowsHide:true,env:{...process.env,H2F_VERIFY_ARCHIVE:archive,H2F_VERIFY_PORTABLE:portableDir}});
+const portableExecutable=path.join(portableDir,'HTML to Figma Capture.exe');
+const portableResources=path.join(portableDir,'resources');
+const portableDependencies=verifyDependencyManifest(portableResources);
+await run(process.execPath,['scripts/desktop/smoke.mjs'],{timeout:180000,maxBuffer:1024*1024,env:{...process.env,
+  H2F_SMOKE_RESOURCES:portableResources,H2F_SMOKE_EXECUTABLE:portableExecutable,H2F_SMOKE_OUTPUT:path.join(out,'portable-engine-validation.json')}}).then(r=>console.log(r.stdout));
+console.log('Portable ZIP dependencies and capture service verified independently.');
 console.log('Installing Windows setup EXE.');
 await run(setup,['/S',`/D=${installDir}`],{timeout:180000,windowsHide:true});
 console.log('Installed; validating bundled service without a system runtime.');
 const executable = path.join(installDir,'HTML to Figma Capture.exe');
 const resources = path.join(installDir,'resources');
+const installedDependencies=verifyDependencyManifest(resources);
 await run(process.execPath,['scripts/desktop/smoke.mjs'],{timeout:180000,maxBuffer:1024*1024,env:{...process.env,
   H2F_SMOKE_RESOURCES:resources,H2F_SMOKE_EXECUTABLE:executable,H2F_SMOKE_OUTPUT:path.join(out,'engine-validation.json')}}).then(r=>console.log(r.stdout));
 const env = {...process.env}; delete env.ELECTRON_RUN_AS_NODE;
@@ -95,8 +112,10 @@ try {
   await instance.close();instance=null;
   let stillRunning=true;try{await fetch(currentAddress+'/api/desktop/discovery',{signal:AbortSignal.timeout(1000)});}catch{stillRunning=false;}
   assert.equal(stillRunning,false);
+  const portableApp=await electron.launch({executablePath:portableExecutable,env,timeout:60000});
+  try {const portableWindow=await portableApp.firstWindow();await portableWindow.waitForURL(/\/desktop$/,{timeout:60000});await portableWindow.waitForFunction(()=>document.querySelector('#engine-title')?.textContent==='捕获引擎已就绪');await portableWindow.screenshot({path:path.join(out,'windows-portable.png'),fullPage:true});}finally{await portableApp.close();}
   await writeFile(path.join(out,'native-validation.json'),JSON.stringify({version:pkg.version,validatedAt:new Date().toISOString(),platform:process.platform,
-    installerInstalled:true,packagedAppLaunched:true,rendererNodeDisabled:true,pairingThroughNativeBridge:true,pluginExport:true,pluginIDPreserved:true,
+    installerInstalled:true,packagedAppLaunched:true,installationOutsideCheckout:true,portableArchiveExtractedOutsideCheckout:true,portableServiceVerified:true,portableWindowLaunched:true,installedDependencyFilesVerified:installedDependencies.files,portableDependencyFilesVerified:portableDependencies.files,rendererNodeDisabled:true,pairingThroughNativeBridge:true,pluginExport:true,pluginIDPreserved:true,
     nativeWindowsPathCapture:true,ctrlWheel:true,spaceDrag:true,fitAndActualZoom:true,desktopDirectHandoff:true,
     receiver:'automated receiver; real Windows Figma not tested',trayCloseKeepsService:true,restartKeepsPairing:true,quitStopsService:true},null,2)+'\n');
   console.log('Installed Windows assistant end-to-end validation passed.');

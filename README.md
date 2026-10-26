@@ -2,7 +2,15 @@
 
 把本地 HTML 或浏览器页面转换为可编辑的 Figma 图层。包含 Figma 开发插件、本地捕获工作台和命令行工具。
 
-当前版本：**0.8.0 开发版**。代码已独立实现；参考了 HTML → 布局数据 → Figma 的工作流，没有复制 Neil Studio 的插件代码或界面。
+当前版本：**0.8.1 开发版**。代码已独立实现；参考了 HTML → 布局数据 → Figma 的工作流，没有复制 Neil Studio 的插件代码或界面。
+
+## v0.8.1 Windows 启动修复
+
+修复 v0.8.0 Windows 分发包漏带 Playwright 运行依赖，导致启动时退出码 1 / ERR_MODULE_NOT_FOUND。两项依赖改为明确的资源复制项，并在生成安装包前校验实际文件。EXE 安装版和便携 ZIP 均在仓库之外验证，避免从构建目录意外读取依赖。
+
+[v0.8.1 发布页](https://github.com/hhagain/html-to-figma-local/releases/tag/v0.8.1) · [EXE 安装包](https://github.com/hhagain/html-to-figma-local/releases/download/v0.8.1/HTML-to-Figma-Capture-0.8.1-win-x64-Setup.exe) · [便携 ZIP](https://github.com/hhagain/html-to-figma-local/releases/download/v0.8.1/HTML-to-Figma-Capture-0.8.1-win-x64.zip)
+
+v0.8.0 Windows 包受此问题影响，请升级。详细原因与验证见 [Windows 启动修复](docs/WINDOWS-STARTUP-FIX.md)。
 
 ## v0.8.0 Windows 桌面捕获助手
 

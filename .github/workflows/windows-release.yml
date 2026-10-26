@@ -10,7 +10,7 @@ on:
       tag:
         description: Existing release tag
         required: true
-        default: v0.8.0
+        default: v0.8.1
         type: string
 
 permissions:
@@ -76,6 +76,7 @@ jobs:
             "$OUT/HTML-to-Figma-Capture-$VERSION-win-x64.zip" \
             "artifacts/html-to-figma-local-$VERSION.zip" \
             "$OUT/SHA256SUMS-windows.txt" "$OUT/SHA256SUMS.txt" "$OUT/WINDOWS-INSTALL.md" \
+            "$OUT/H2F-Windows-0.8.0-Runtime-Repair.zip" \
             --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
             --title "HTML to Figma · Local $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$OUT/github-publication.json"
@@ -88,7 +89,7 @@ jobs:
           retention-days: 30
           path: |
             artifacts/windows-ci/**/native-validation.json
-            artifacts/windows-ci/**/engine-validation.json
+            artifacts/windows-ci/**/*-validation.json
             artifacts/windows-ci/**/windows-build.json
             artifacts/windows-ci/**/github-publication.json
             artifacts/windows-ci/**/*.png

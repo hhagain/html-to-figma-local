@@ -3,6 +3,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { nativeCommand, trustedOrigin } = require('./policy.cjs');
+const { assertPackagedDependencies, redactStartupError } = require('./runtime-check.cjs');
 
 app.setName('HTML to Figma Capture');
 app.setPath('userData', path.join(app.getPath('appData'), 'HTML to Figma Capture'));
@@ -12,6 +13,10 @@ const engineRoot = path.join(resources, 'engine');
 let window, tray, child, serviceURL, serviceToken = '', quitting = false, stopping = false;
 let crashCount = 0, lastReadyAt = 0, recoveryTimer;
 const pendingPairIDs = new Set();
+const logPath = path.join(dataDirectory,'logs','capture-service.log');
+function logStartup(message) {
+  try { fs.mkdirSync(path.dirname(logPath),{recursive:true}); if(fs.existsSync(logPath)&&fs.statSync(logPath).size>128*1024){fs.copyFileSync(logPath,logPath+'.previous');fs.writeFileSync(logPath,'');} fs.appendFileSync(logPath,new Date().toISOString()+' '+redactStartupError(message,[dataDirectory,resources,app.getPath('home')])+'\n'); } catch {}
+}
 const iconPath = path.join(app.isPackaged ? resources : __dirname, 'icon.ico');
 const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -83,6 +88,7 @@ function createMenus() {
     { label: '显示 Figma 插件', click: exportPlugin },
     { type: 'separator' },
     { label: '重新启动捕获服务', click: restartEngine },
+    { label: '显示启动诊断日志', click: () => { logStartup('Diagnostic log requested'); if(fs.existsSync(logPath))shell.showItemInFolder(logPath);else dialog.showErrorBox('无法写入诊断日志','请检查应用数据目录的写入权限。'); } },
     { label: '退出捕获助手', accelerator: 'Ctrl+Q', click: () => app.quit() },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate([
@@ -99,6 +105,8 @@ function startEngine() {
   serviceURL = undefined; serviceToken = ''; pendingPairIDs.clear();
   try {
     fs.mkdirSync(dataDirectory, { recursive: true });
+    logStartup('Starting service; assistant '+app.getVersion()+'; architecture '+process.arch);
+    assertPackagedDependencies(engineRoot);
     const runtime = JSON.parse(fs.readFileSync(path.join(resources, 'runtime.json'), 'utf8'));
     const browser = path.join(resources, 'browser', runtime.browserExecutable);
     if (!fs.existsSync(browser) || !fs.existsSync(path.join(engineRoot, 'scripts/desktop-service.mjs'))) throw new Error('应用内置环境不完整，请完整解压或重新安装。');
@@ -118,21 +126,22 @@ function startEngine() {
         try { handleEvent(JSON.parse(line.slice(10))); } catch { /* Ignore malformed service events. */ }
       }
     });
-    current.stderr.on('data', text => { errorTail = (errorTail + text).slice(-3000); });
+    current.stderr.on('data', text => { errorTail = (errorTail + text).slice(-3000); logStartup(text); });
     current.stdin.on('error', () => {});
-    current.on('error', () => { if (child === current) child = undefined; loading('捕获服务未启动', '无法启动内置运行环境，请重新安装后再试。'); });
+    current.on('error', error => { logStartup('Spawn error: '+error.message); if (child === current) child = undefined; loading('捕获服务未启动', '无法启动内置运行环境。请从“助手”菜单打开启动诊断日志。'); });
     current.on('exit', code => {
       if (child !== current) return;
       child = undefined; serviceURL = undefined; serviceToken = ''; pendingPairIDs.clear();
+      logStartup('Service exited: '+String(code));
       if (quitting || stopping) return;
       if (lastReadyAt && Date.now()-lastReadyAt > 30000) crashCount = 0;
       lastReadyAt = 0;
       if (++crashCount <= 2) { loading('正在恢复捕获服务', '服务意外退出，助手正在重新启动。'); recoveryTimer = setTimeout(startEngine,1000); }
-      else { tray?.setToolTip('HTML to Figma · 服务已停止'); loading('捕获服务已停止', `请从托盘菜单重新启动捕获服务。退出码：${code ?? '未知'}。`); }
+      else { tray?.setToolTip('HTML to Figma · 服务已停止'); loading('捕获服务已停止', `退出码：${code ?? '未知'}。请从“助手”菜单选择“显示启动诊断日志”。${errorTail ? '\n'+redactStartupError(errorTail,[dataDirectory,resources,app.getPath('home')]).slice(-700) : ''}`); }
     });
     const startupTimer = setTimeout(() => { if (child === current && !serviceURL) loading('启动时间较长', '可以从托盘菜单重新启动服务；请确认应用已完整解压。'); },18000);
     startupTimer.unref();
-  } catch (error) { loading('捕获服务未启动', error.message); }
+  } catch (error) { logStartup('Startup error: '+error.message); loading('捕获服务未启动', error.message+' 请从“助手”菜单查看启动诊断日志。'); }
 }
 function handleEvent(event) {
   if (event.type === 'ready') {

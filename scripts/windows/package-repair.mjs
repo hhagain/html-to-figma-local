@@ -1,0 +1,22 @@
+import {readFile,writeFile,mkdir,cp,readdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+const run=promisify(execFile),root=process.cwd(),stage=path.join(root,'.cache','runtime-repair-0.8.0'),out=path.join(root,'artifacts/windows');
+await mkdir(stage,{recursive:true});await mkdir(out,{recursive:true});
+for(const name of ['playwright','playwright-core'])await cp(path.join(root,'node_modules',name),path.join(stage,'runtime-libraries',name),{recursive:true});
+await cp('scripts/windows/repair-runtime.cjs',path.join(stage,'repair-runtime.cjs'));await cp('desktop/windows/runtime-check.cjs',path.join(stage,'runtime-check.cjs'));
+const files=[];
+async function visit(directory){for(const entry of await readdir(directory,{withFileTypes:true})){const file=path.join(directory,entry.name);if(entry.isDirectory())await visit(file);else if(entry.isFile()){const bytes=await readFile(file);files.push({path:path.relative(path.join(stage,'runtime-libraries'),file).split(path.sep).join('/'),bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});}}}
+await visit(path.join(stage,'runtime-libraries'));await writeFile(path.join(stage,'repair-manifest.json'),JSON.stringify({schemaVersion:1,assistantVersion:'0.8.0',files},null,2)+'\n');
+let launcher=await readFile('desktop/windows/diagnostics/启动诊断.cmd','utf8');launcher=launcher.replaceAll('diagnose.cjs','repair-runtime.cjs').replaceAll('本工具不会捕获网页，不会删除配对或捕获数据。','本工具只补齐缺失依赖，不会改动 HTML、Figma 文件或配对数据。').replaceAll('诊断会短暂启动后台服务并自动关闭。','然后按任意键补齐运行依赖。').replaceAll('echo 完成后请发送同目录的 H2F-Windows-startup-*.json 报告。','echo 如显示修复成功，请重新打开助手。').replaceAll('\npause','\nif not defined H2F_REPAIR_NONINTERACTIVE pause');
+launcher=launcher.replace('if not defined H2F_DIAG_EXE (','if not defined H2F_DIAG_EXE if exist "%~dp0..\\HTML-to-Figma-Capture-0.8.0-win-x64\\HTML to Figma Capture.exe" set "H2F_DIAG_EXE=%~dp0..\\HTML-to-Figma-Capture-0.8.0-win-x64\\HTML to Figma Capture.exe"\nif not defined H2F_DIAG_EXE (');
+launcher=launcher.replaceAll('诊断','修复').replaceAll('本工具的两个文件','本工具的所有文件');
+await writeFile(path.join(stage,'修复缺失依赖.cmd'),launcher.replace(/\r?\n/g,'\r\n'));
+await writeFile(path.join(stage,'使用说明.txt'),'Windows 助手 v0.8.0 运行依赖修复\r\n\r\n1. 从助手托盘菜单选择退出。\r\n2. 完整解压本补丁。\r\n3. 双击“修复缺失依赖.cmd”。如未找到助手，将 HTML to Figma Capture.exe 拖到 CMD 上。\r\n4. 显示修复成功后重新打开助手。\r\n\r\n补丁仅适用于 Windows v0.8.0，将核对补丁文件并补齐 playwright 与 playwright-core。无需 Node.js 或 npm，不清理用户数据。若无写入权限，请改用 v0.8.1 安装包。\r\n');
+const name='H2F-Windows-0.8.0-Runtime-Repair.zip',archive=path.join(out,name);
+if(process.platform==='win32')await run('powershell.exe',['-NoProfile','-NonInteractive','-Command','Compress-Archive -Path (Join-Path $env:H2F_REPAIR_STAGE "*") -DestinationPath $env:H2F_REPAIR_OUT -Force'],{env:{...process.env,H2F_REPAIR_STAGE:stage,H2F_REPAIR_OUT:archive},maxBuffer:1024*1024});
+else await run('/usr/bin/zip',['-qr',archive,'.'],{cwd:stage});
+const bytes=await readFile(archive);await writeFile(path.join(out,'repair-package.json'),JSON.stringify({file:name,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),dependencyFiles:files.length},null,2)+'\n');
+console.log(JSON.stringify({archive,bytes:bytes.length,dependencyFiles:files.length}));

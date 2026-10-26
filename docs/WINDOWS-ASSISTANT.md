@@ -1,11 +1,13 @@
-# Windows 捕获助手 v0.8.0
+# Windows 捕获助手 v0.8.1
 
 适用于 Windows 11 x64。Windows ARM64、Windows 10 和真实 Windows Figma 联调尚未验收。应用内置运行环境与 Chromium，使用者无需安装 Node.js、npm 或浏览器。
 
+v0.8.0 存在运行依赖漏打问题，请使用 v0.8.1。已有便携版可使用对应的依赖修复补丁。
+
 ## 安装
 
-1. 下载 `HTML-to-Figma-Capture-0.8.0-win-x64-Setup.exe` 并运行，按向导选择安装位置。默认按当前用户安装。
-2. 或下载 `HTML-to-Figma-Capture-0.8.0-win-x64.zip`，完整解压后启动 `HTML to Figma Capture.exe`；不要只复制其中一个 EXE。
+1. 下载 `HTML-to-Figma-Capture-0.8.1-win-x64-Setup.exe` 并运行，按向导选择安装位置。默认按当前用户安装。
+2. 或下载 `HTML-to-Figma-Capture-0.8.1-win-x64.zip`，完整解压后启动 `HTML to Figma Capture.exe`；不要只复制其中一个 EXE。
 3. 打开应用，等待“捕获引擎已就绪”。本开发预览包未进行代码签名；Windows 可能显示未知发布者，请核对下载来源和 SHA-256。
 
 ## 连接 Figma
@@ -43,3 +45,5 @@ GitHub Actions 工作流 `.github/workflows/windows-desktop.yml` 在 Windows run
 自动化验收包括内置服务、本地 HTML、交互探索、配对与插件导出、Ctrl 滚轮、空格拖拽、直接传输、关闭到托盘、重启与退出。导入接收端使用测试宿主，不把这项测试描述为真实 Windows Figma 文件验收。
 
 本次验证结果与边界见 [Windows 验证记录](WINDOWS-VALIDATION.md)。
+
+启动异常时，可从“助手 → 显示启动诊断日志”查看 `%APPDATA%\HTML to Figma Capture\logs\capture-service.log`，日志会保留实际错误并隐藏本机路径与连接 token。
