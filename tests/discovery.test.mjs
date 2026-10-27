@@ -32,7 +32,8 @@ test('normalizes macOS copied paths without losing percent encoding, query or ha
  assert.equal(normalizeCaptureAddress('/Users/me/原型 #100%/index.html#/资产'),'file:///Users/me/%E5%8E%9F%E5%9E%8B%20%23100%25/index.html#/%E8%B5%84%E4%BA%A7');
  for(const value of ['Users/me/private.json','/Users/me/%2fetc/index.html','javascript:alert(1)','https://user:secret@site.com',''])assert.throws(()=>normalizeCaptureAddress(value));
  assert.equal(normalizeCaptureAddress('https://example.com/path?q=1#/a'),'https://example.com/path?q=1#/a');
- assert.throws(()=>validateDiscoveryRequest({url,maxPages:201}),/200/);
+ assert.equal(validateDiscoveryRequest({url}).maxPages,null);assert.equal(validateDiscoveryRequest({url,maxPages:1000}).maxPages,1000);
+ for(const maxPages of [0,-1,1.5,Infinity,Number.MAX_SAFE_INTEGER+1,'201'])assert.throws(()=>validateDiscoveryRequest({url,maxPages}),/预算/);
 });
 
 test('discovers local tabs and directory pages, deduplicates links, then captures without a user recipe',async()=>{
@@ -56,9 +57,9 @@ test('discovery cancellation retains found candidates and closes the browser con
  const again=await discoverPages(browser,{url,maxPages:1});assert.equal(again.pages.length,1);assert.equal(again.report.limited,true);
 });
 
-test('discovery caps large collections at 200 pages without dropping the ability to capture unscanned pages',async()=>{
+test('an explicit discovery budget caps collections at 200 pages without dropping the ability to capture unscanned pages',async()=>{
  const many=path.join(temp,'many');await mkdir(many);await Promise.all(Array.from({length:205},(_,i)=>writeFile(path.join(many,`page-${String(i).padStart(3,'0')}.html`),'<html><body><h1>Page</h1></body></html>')));
- const controller=new AbortController();const result=await discoverPages(browser,{url:path.join(many,'page-000.html')},{signal:controller.signal,onProgress:p=>{if(p.scanned>=1)controller.abort();}});
+ const controller=new AbortController();const result=await discoverPages(browser,{url:path.join(many,'page-000.html'),maxPages:200},{signal:controller.signal,onProgress:p=>{if(p.scanned>=1)controller.abort();}});
  assert.equal(result.pages.length,200);assert.equal(result.plan.states.length,200);assert.equal(result.report.limited,true);
  const last=await captureStates(browser,{...result.plan,states:result.plan.states.slice(-1)});assert.equal(last.report.completed,1);
 });
@@ -91,4 +92,12 @@ test('UI discovers, selects, captures only checked pages and invalidates discove
   assert.ok((await page.locator('#status').textContent()).includes('成功 2 / 2'));
   await page.locator('#page-url').fill(path.join(root,'guide.html'));assert.equal(await page.locator('#discovery-results').isHidden(),true);assert.equal(await page.locator('#ready-actions').isHidden(),true);assert.equal(await page.locator('#prepare-label').textContent(),'自动发现页面');
  }finally{await context.close();await app.close();}
+});
+
+test('default discovery includes local pages beyond 200 without an implicit page budget',async()=>{
+ const many=path.join(temp,'large-no-cap');await mkdir(many);
+ await Promise.all(Array.from({length:450},(_,i)=>writeFile(path.join(many,`page-${String(i).padStart(3,'0')}.html`),'<html><body><h1>Page</h1></body></html>')));
+ const controller=new AbortController();const result=await discoverPages(browser,{url:path.join(many,'page-000.html')},{signal:controller.signal,onProgress:p=>{if(p.scanned>=1)controller.abort();}});
+ assert.equal(result.pages.length,450);assert.equal(result.plan.states.length,450);assert.equal(result.report.maxPages,null);
+ const last=await captureStates(browser,{...result.plan,states:result.plan.states.slice(-1)});assert.equal(last.report.completed,1);
 });

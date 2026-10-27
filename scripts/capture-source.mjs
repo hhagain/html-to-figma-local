@@ -116,7 +116,7 @@ export async function openCaptureSource(value) {
       return response(error.code === 'ENOENT' ? 404 : 403, 'text/plain', 'Local resource is missing or unreadable');
     }
   };
-  const listPages = async (limit = 200) => {
+  const listPages = async (limit = Infinity) => {
     const files = [], directories = [{ directory: root, depth: 0 }]; let examined = 0, limited = false;
     while (directories.length && files.length < limit && examined < 3000) {
       const { directory, depth } = directories.shift();

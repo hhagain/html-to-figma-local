@@ -11,14 +11,14 @@ import{mockFigma}from'./helpers.mjs';
 const makeBundle=(count=3)=>{const b=new BundleBuilder('桌面捕获 · 中文页面');for(let i=0;i<count;i++)b.add({schemaVersion:1,name:`状态 ${i+1}`,createdAt:'2026-10-23',source:{title:'示例',url:'local-html',selector:'body',viewport:{width:1440,height:900}},root:{id:'root',name:`状态 ${i+1}`,kind:'frame',x:0,y:0,width:390,height:844,opacity:1,fills:[],children:[]},assets:[],diagnostics:[],stats:{nodes:1,texts:0,images:0,vectors:0,missingAssets:0}});return b.bundle;};
 const id='ab'.repeat(16),receiver='cd'.repeat(16);
 let browser;before(async()=>{browser=await launchBrowser();});after(async()=>{await browser?.close();});
-test('handoffs preserve 200 pages, prevent duplicate claims, isolate senders and expire',()=>{
- let now=1000;const store=createHandoffStore({now:()=>now}),payload={requestId:id,bundle:makeBundle(200),mode:'auto'};
- const sent=store.publish('sender',payload);assert.equal(sent.pages,200);assert.equal(store.publish('sender',payload).id,sent.id);assert.equal(store.latest().id,sent.id);
- const received=store.claim(sent.id,'receiver');assert.equal(received.bundle.pages.length,200);assert.equal(received.mode,'auto');assert.equal(store.latest(),null);
- assert.throws(()=>store.claim(sent.id,'other'),/另一个/);assert.throws(()=>store.progress(sent.id,'other',{status:'complete',completed:200}),/只有/);
+test('handoffs preserve 1000 pages, prevent duplicate claims, isolate senders and expire',()=>{
+ let now=1000;const store=createHandoffStore({now:()=>now}),payload={requestId:id,bundle:makeBundle(1000),mode:'auto'};
+ const sent=store.publish('sender',payload);assert.equal(sent.pages,1000);assert.equal(store.publish('sender',payload).id,sent.id);assert.equal(store.latest().id,sent.id);
+ const received=store.claim(sent.id,'receiver');assert.equal(received.bundle.pages.length,1000);assert.equal(received.mode,'auto');assert.equal(store.latest(),null);
+ assert.throws(()=>store.claim(sent.id,'other'),/另一个/);assert.throws(()=>store.progress(sent.id,'other',{status:'complete',completed:1000}),/只有/);
  assert.throws(()=>store.progress(sent.id,'receiver',{status:'complete',completed:1}),/尚未/);
- store.progress(sent.id,'receiver',{status:'importing',completed:0});store.progress(sent.id,'receiver',{status:'partial',completed:199,failed:1});
- store.progress(sent.id,'receiver',{status:'importing',completed:199,failed:0});assert.equal(store.progress(sent.id,'receiver',{status:'complete',completed:200,failed:0}).status,'complete');
+ store.progress(sent.id,'receiver',{status:'importing',completed:0});store.progress(sent.id,'receiver',{status:'partial',completed:999,failed:1});
+ store.progress(sent.id,'receiver',{status:'importing',completed:999,failed:0});assert.equal(store.progress(sent.id,'receiver',{status:'complete',completed:1000,failed:0}).status,'complete');
  assert.throws(()=>store.claim(sent.id,'receiver'),/已开始或已完成/);assert.equal(store.progress(sent.id,'receiver',{status:'importing',completed:0}).status,'complete');
  const next=store.publish('sender',{...payload,requestId:'ef'.repeat(16)});now+=31*60*1000;assert.equal(store.latest(),null);assert.throws(()=>store.status(next.id),/过期/);store.close();
 });

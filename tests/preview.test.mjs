@@ -21,9 +21,9 @@ async function prepareUI(app,page){
 }
 const waitImage=(page,index)=>page.waitForFunction(i=>document.querySelector('#remote-preview').dataset.pageIndex===String(i)&&!document.querySelector('#remote-preview').hidden,index);
 
-test('temporary preview store covers 200 page indices and removes only the evicted job',async()=>{
+test('temporary preview store covers page indices beyond 200 and removes only the evicted job',async()=>{
  const store=createPreviewStore(),a='a'.repeat(24),b='b'.repeat(24),image='data:image/jpeg;base64,/9j/2Q==';
- try{await store.save(a,0,image);await store.save(a,199,image);await store.save(b,0,image);assert.ok(await store.read(a,199));await assert.rejects(store.save(a,200,image),/索引/);await assert.rejects(store.read('../etc/passwd',0),/索引/);await store.forget(a);assert.equal(await store.read(a,0),null);assert.ok(await store.read(b,0));}finally{await store.close();}
+ try{await store.save(a,0,image);await store.save(a,199,image);await store.save(b,0,image);assert.ok(await store.read(a,199));await store.save(a,999,image);assert.ok(await store.read(a,999));await assert.rejects(store.save(a,-1,image),/索引/);await assert.rejects(store.save(a,Number.MAX_SAFE_INTEGER+1,image),/索引/);await assert.rejects(store.read('../etc/passwd',0),/索引/);await store.forget(a);assert.equal(await store.read(a,0),null);assert.ok(await store.read(b,0));}finally{await store.close();}
  assert.equal(await store.read(b,0),null);
 });
 

@@ -10,6 +10,10 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const input = (id: string) => $<HTMLInputElement>(id);
 const plugin = window.parent !== window;
 document.body.classList.toggle('is-plugin', plugin);
+$('download-assistant').hidden = !plugin;
+$('download-assistant').addEventListener('click', event => {
+  if (plugin) { event.preventDefault(); message('OPEN_DESKTOP_ASSISTANT_DOWNLOAD'); }
+});
 let tab = 'file', source = '', sourceName = '', prepared: CaptureDocument | null = null, busy = false;
 let frame: HTMLIFrameElement | null = null, controller: AbortController | null = null;
 let sourceFiles: File[] = [], preparedBundle: CaptureBundle | null = null, captureStopped = false, importing = false;
@@ -102,7 +106,8 @@ function renderPageList() {
   if (!preparedBundle) return;
   $('page-list-section').hidden = preparedBundle.pages.length < 2;
   $('page-list-title').textContent = `页面列表 · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`;
-  $('page-list').replaceChildren(...preparedBundle.pages.map((page, i) => {
+  const rows = document.createDocumentFragment();
+  preparedBundle.pages.forEach((page, i) => {
     const row = document.createElement('div'); row.className = 'page-row'; row.dataset.previewActive = String(hasRemotePreview && previewPageIndex === i);
     const label = document.createElement('label'); label.className = 'page-select';
     const box = document.createElement('input'); box.type = 'checkbox'; box.checked = pageStates[i].selected; box.disabled = busy; box.setAttribute('aria-label', `选择 ${page.name}`);
@@ -115,8 +120,9 @@ function renderPageList() {
       view.textContent = previewPageIndex === i ? '当前预览' : '预览'; view.setAttribute('aria-label', `预览 ${page.name}`); view.setAttribute('aria-pressed', String(previewPageIndex === i));
       view.addEventListener('click', () => { void selectPreviewPage(i); }); row.append(view);
     }
-    return row;
-  }));
+    rows.append(row);
+  });
+  $('page-list').replaceChildren(rows);
   refreshImportAction();
 }
 function resetPreview() {
@@ -236,7 +242,7 @@ input('file-input').addEventListener('change', () => { const files = Array.from(
 async function loadFiles(files: File[]) {
   invalidate(); sourceFiles = files; source = '';
   try {
-    if (files.length > 200 || files.reduce((n, f) => n + f.size, 0) > 128 * 1024 * 1024) throw new Error('每批最多 200 个文件、128 MB');
+    if (files.reduce((n, f) => n + f.size, 0) > 128 * 1024 * 1024) throw new Error('所选文件总量超过 128 MB，请分批导入');
     if (files.some(f => !/\.(html?|json)$/i.test(f.name))) throw new Error('请选择 HTML 或本插件导出的 JSON 文件');
     sourceName = files.length === 1 ? files[0].name : `${files.length} 个 HTML / 数据文件`;
     $('file-label').textContent = sourceName;
@@ -516,7 +522,8 @@ function renderDiscovery() {
   $('discovery-intro').hidden = true; $('discovery-results').hidden = false;
   $('discovery-title').textContent = `${discovery.report.mode === 'interactions' ? '已探索' : '发现'} ${discovery.pages.length} 个${discovery.report.mode === 'interactions' ? '状态' : '页面'}`;
   const count = () => { $('discovery-count').textContent = `已选择 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`; refreshPrepareAction(); };
-  $('discovery-list').replaceChildren(...discovery.pages.map((page: any, i: number) => {
+  const rows = document.createDocumentFragment();
+  discovery.pages.forEach((page: any, i: number) => {
     const row = document.createElement('label'); row.className = 'discovery-row'; row.dataset.failed = String(!!page.error);
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = discoverySelection[i]; checkbox.disabled = busy || !!page.error; checkbox.setAttribute('aria-label', `捕获 ${page.name}`);
     checkbox.addEventListener('change', () => { discoverySelection[i] = checkbox.checked; invalidate(); count(); });
@@ -526,8 +533,9 @@ function renderDiscovery() {
     let route = ''; try { const address = new URL(page.destination || page.url); route = address.hash || decodeURIComponent(address.pathname.split('/').pop() || '/'); } catch {}
     detail.textContent = page.error ? `无法打开 · ${page.error}` : `${page.via} · ${page.via === '导航标签' && !page.destination ? '点击后捕获' : route}${page.checked ? '' : ' · 捕获时验证'}`;
     if (page.path) detail.textContent = `${page.via} · ${page.path}`;
-    copy.append(name, detail); row.append(checkbox, copy); return row;
-  }));
+    copy.append(name, detail); row.append(checkbox, copy); rows.append(row);
+  });
+  $('discovery-list').replaceChildren(rows);
   const report = discovery.report;
   $('discovery-summary').textContent = `${report.cancelled ? '发现已停止。' : ''}已验证 ${discovery.pages.filter((p: any) => p.checked).length} 页${report.errors.length ? `，${report.errors.length} 页无法打开` : ''}。${report.limited ? '达到扫描范围或时间上限，剩余候选页会在捕获时验证。' : '勾选页面后点击“开始捕获”。'}`;
   if (report.mode === 'interactions') $('discovery-summary').textContent = `已记录 ${discovery.pages.length} 个不同状态，尝试 ${report.attempted} 次，合并 ${report.duplicates} 次重复，失败 ${report.errors.length} 次。${report.limited ? `仍有 ${report.remaining} 个候选动作未探索；已达到本次范围或时间上限。` : '本次队列已处理。'} 跳过 ${report.skippedControls} 个受限或重复控件；不代表全部交互已覆盖。`;

@@ -1,5 +1,5 @@
 import { validateDocument, countScene, type CaptureDocument, type Asset, type SceneNode } from './schema';
-export const BATCH_LIMITS = { pages: 200, nodes: 120000, assets: 2000, assetBytes: 64 * 1024 * 1024 };
+export const BATCH_LIMITS = { nodes: 120000, assets: 2000, assetBytes: 64 * 1024 * 1024 };
 export interface CaptureBundle { schemaVersion: 1; format: 'h2f-bundle'; name: string; createdAt: string; pages: CaptureDocument[]; assets: Asset[]; errors: { name: string; message: string }[] }
 export function isBundle(value: any): value is CaptureBundle { return value?.format === 'h2f-bundle'; }
 export function hydratePage(bundle: CaptureBundle, index: number): CaptureDocument {
@@ -14,7 +14,6 @@ export class BundleBuilder {
   constructor(name: string) { this.bundle = { schemaVersion: 1, format: 'h2f-bundle', name, createdAt: new Date().toISOString(), pages: [], assets: [], errors: [] }; }
   add(input: CaptureDocument) {
     validateDocument(input);
-    if (this.bundle.pages.length >= BATCH_LIMITS.pages) throw new Error('每批最多 200 页，请拆成多个批次');
     const count = countScene(input.root).nodes; if (this.nodes + count > BATCH_LIMITS.nodes) throw new Error('整批超过 120000 个图层，请分批捕获');
     const mapping = new Map<string, string>(); const refs: Asset[] = [];
     for (const a of input.assets) {
@@ -30,12 +29,12 @@ export class BundleBuilder {
     const clone = (n: SceneNode): SceneNode => ({ ...n, fills: n.fills.map(p => p.type === 'image' ? { ...p, assetId: mapping.get(p.assetId)! } : p), ...(n.children ? { children: n.children.map(clone) } : {}) });
     this.bundle.pages.push({ ...input, root: clone(input.root), assets: refs }); this.nodes += count;
   }
-  addBundle(bundle: CaptureBundle) { validateBundle(bundle); bundle.pages.forEach((_, i) => this.add(hydratePage(bundle, i))); this.bundle.errors.push(...bundle.errors); }
+  addBundle(bundle: CaptureBundle) { validateBundle(bundle); bundle.pages.forEach((_, i) => this.add(hydratePage(bundle, i))); for (const error of bundle.errors) this.bundle.errors.push(error); }
   error(name: string, error: unknown) { this.bundle.errors.push({ name, message: error instanceof Error ? error.message : String(error) }); }
 }
 export function validateBundle(value: unknown): asserts value is CaptureBundle {
   const b = value as CaptureBundle;
-  if (!b || b.schemaVersion !== 1 || b.format !== 'h2f-bundle' || typeof b.name !== 'string' || b.name.length > 500 || !Array.isArray(b.pages) || !b.pages.length || b.pages.length > BATCH_LIMITS.pages || !Array.isArray(b.assets) || b.assets.length > BATCH_LIMITS.assets || !Array.isArray(b.errors) || b.errors.length > 400) throw new Error('多页数据格式无效或页数超限');
+  if (!b || b.schemaVersion !== 1 || b.format !== 'h2f-bundle' || typeof b.name !== 'string' || b.name.length > 500 || !Array.isArray(b.pages) || !b.pages.length || !Array.isArray(b.assets) || b.assets.length > BATCH_LIMITS.assets || !Array.isArray(b.errors)) throw new Error('多页数据格式无效');
   const ids = new Set<string>(); let bytes = 0, nodes = 0;
   for (const a of b.assets) { if (!a || typeof a.id !== 'string' || ids.has(a.id) || typeof a.url !== 'string' || (a.base64 !== undefined && typeof a.base64 !== 'string')) throw new Error('共享资源无效'); ids.add(a.id); bytes += (a.base64?.length || 0) * .75; }
   if (bytes > BATCH_LIMITS.assetBytes) throw new Error('整批图片超过 64 MB');
@@ -60,7 +59,6 @@ export function discoverPages(doc: Document, baseSelector: string, split: boolea
     }
   }
   if (!pages.length) pages = [root];
-  if (pages.length > BATCH_LIMITS.pages) throw new Error(`识别到 ${pages.length} 页，每批最多 200 页；请用捕获区域或页面选择器分批导入`);
   return pages.map((element, i) => {
     element.setAttribute('data-h2f-capture-page', String(i));
     const name = element.getAttribute('data-pencil-name') || element.getAttribute('data-page-name') || element.getAttribute('aria-label') || element.getAttribute('data-page') || element.querySelector('h1,h2')?.textContent?.trim() || `${doc.title || '页面'} ${String(i + 1).padStart(3, '0')}`;

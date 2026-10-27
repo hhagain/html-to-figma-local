@@ -5,19 +5,19 @@ import { ImportBatch } from '../dist/lib/batch.js';
 import { mockFigma } from './helpers.mjs';
 const frame = (id, children = []) => ({ id, kind: 'frame', name: id, x: 0, y: 0, width: 390, height: 844, opacity: 1, fills: [], children });
 const page = (i, count = 40) => ({ schemaVersion: 1, name: `页面 ${i}`, createdAt: '', source: { title: '', url: 'local-html', selector: '.page', viewport: { width: 1440, height: 900 } }, root: frame('root', Array.from({ length: count }, (_, j) => frame(`n${j}`))), assets: [], diagnostics: [], stats: { nodes: count + 1, texts: 0, images: 0, vectors: 0, missingAssets: 0 } });
-test('200-page bundle exceeds single-page node cap safely and deduplicates image bytes', () => {
-  const builder = new BundleBuilder('200 页');
-  for (let i = 0; i < 200; i++) { const p = page(i); p.assets = [{ id: 'image', url: 'data:image/png;base64,AAAAAAAAAAAAAAAA', mime: 'image/png', base64: 'AAAAAAAAAAAAAAAA' }]; p.root.fills = [{ type: 'image', assetId: 'image', fit: 'FILL' }]; builder.add(p); }
-  validateBundle(builder.bundle); assert.equal(builder.bundle.pages.length, 200); assert.equal(builder.bundle.assets.length, 1);
+test('1000-page bundle exceeds single-page node cap safely and deduplicates image bytes', () => {
+  const builder = new BundleBuilder('1000 页');
+  for (let i = 0; i < 1000; i++) { const p = page(i); p.assets = [{ id: 'image', url: 'data:image/png;base64,AAAAAAAAAAAAAAAA', mime: 'image/png', base64: 'AAAAAAAAAAAAAAAA' }]; p.root.fills = [{ type: 'image', assetId: 'image', fit: 'FILL' }]; builder.add(p); }
+  validateBundle(builder.bundle); assert.equal(builder.bundle.pages.length, 1000); assert.equal(builder.bundle.assets.length, 1);
   assert.ok(builder.bundle.pages.reduce((n, p) => n + p.stats.nodes, 0) > 6000); assert.ok(builder.bundle.pages.every(p => !p.assets[0].base64));
-  assert.equal(hydratePage(builder.bundle, 199).assets[0].base64, 'AAAAAAAAAAAAAAAA'); assert.throws(() => builder.add(page(201)), /200/);
+  assert.equal(hydratePage(builder.bundle, 999).assets[0].base64, 'AAAAAAAAAAAAAAAA'); builder.add(page(1001)); assert.equal(builder.bundle.pages.length,1001); validateBundle(builder.bundle);
 });
-test('batch imports 200 pages with one font inventory and no overlapping grid positions', async () => {
+test('batch imports 1000 pages with one font inventory and no overlapping grid positions', async () => {
   const mock = mockFigma(); let inventories = 0; const list = mock.api.listAvailableFontsAsync; mock.api.listAvailableFontsAsync = async () => { inventories++; return list(); };
-  const data = Array.from({ length: 200 }, (_, i) => page(i, 0)); const batch = new ImportBatch(mock.api, 'test', data.map(p => ({ name: p.name, width: 390, height: 844 })), 'visual');
-  for (let i = 0; i < 200; i++) assert.ok((await batch.importPage(i, data[i])).nodeId);
-  const result = await batch.finish(); assert.equal(result.completed, 200); assert.equal(result.failed, 0); assert.equal(inventories, 1); assert.equal(mock.page.children.length, 200);
-  const positions = mock.page.children.map(n => `${n.x},${n.y}`); assert.equal(new Set(positions).size, 200);
+  const data = Array.from({ length: 1000 }, (_, i) => page(i, 0)); const batch = new ImportBatch(mock.api, 'test', data.map(p => ({ name: p.name, width: 390, height: 844 })), 'visual');
+  for (let i = 0; i < 1000; i++) assert.ok((await batch.importPage(i, data[i])).nodeId);
+  const result = await batch.finish(); assert.equal(result.completed, 1000); assert.equal(result.failed, 0); assert.equal(inventories, 1); assert.equal(mock.page.children.length, 1000);
+  const positions = mock.page.children.map(n => `${n.x},${n.y}`); assert.equal(new Set(positions).size, 1000);
 });
 test('one failed page does not remove successful pages or block the next one', async () => {
   const mock = mockFigma(); const data = [page(1, 0), page(2, 0), page(3, 0)]; data[1].root.width = -1;
@@ -34,4 +34,17 @@ test('identical image contents with different URLs do not create duplicate page 
   const p = page(1, 0); p.assets = ['a', 'b'].map(id => ({ id, url: `https://example.test/${id}.png`, mime: 'image/png', base64: 'AAAAAAAAAAAAAAAA' }));
   p.root.fills = p.assets.map(a => ({ type: 'image', assetId: a.id, fit: 'FILL' })); const builder = new BundleBuilder('图片去重'); builder.add(p); validateBundle(builder.bundle);
   assert.equal(builder.bundle.assets.length, 1); assert.equal(builder.bundle.pages[0].assets.length, 1);
+});
+
+test('removing page limits keeps the total-node resource budget enforced',()=>{
+  const builder=new BundleBuilder('资源预算');
+  for(let i=0;i<100;i++)builder.add(page(i,1199));
+  assert.equal(builder.bundle.pages.length,100);validateBundle(builder.bundle);
+  assert.throws(()=>builder.add(page(101,0)),/120000/);
+});
+
+test('page failure records above 400 remain valid when the bundle fits its resource budget',()=>{
+  const builder=new BundleBuilder('多失败记录');builder.add(page(1,0));
+  for(let i=0;i<800;i++)builder.error('页面 '+i,new Error('捕获失败'));
+  validateBundle(builder.bundle);assert.equal(builder.bundle.errors.length,800);
 });

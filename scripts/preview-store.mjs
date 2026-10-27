@@ -6,7 +6,7 @@ import path from 'node:path';
 export function createPreviewStore() {
   let rootPromise, closed = false;
   const validate = (jobId, index) => {
-    if (!/^[a-f0-9]{24}$/.test(jobId) || !Number.isInteger(index) || index < 0 || index >= 200) throw new Error('预览索引无效');
+    if (!/^[a-f0-9]{24}$/.test(jobId) || !Number.isSafeInteger(index) || index < 0) throw new Error('预览索引无效');
   };
   return {
     async save(jobId, index, preview) {

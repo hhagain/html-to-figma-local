@@ -16,7 +16,8 @@ test('validates bounded same-origin recipes without arbitrary code execution',()
  const valid=plan([{id:'a',name:'A',steps:[]}]);assert.equal(validateStatePlan(valid).states.length,1);
  assert.throws(()=>validateStatePlan({...valid,states:[{id:'a',name:'A',url:'https://untrusted.test/'}]}),/同源/);
  assert.throws(()=>validateStatePlan({...valid,states:[{id:'a',name:'A',steps:[{type:'evaluate',value:'alert(1)'}]}]}),/不支持/);
- assert.throws(()=>validateStatePlan({...valid,states:Array.from({length:201},(_,i)=>({id:`s${i}`,name:'a'}))}),/200/);
+ assert.equal(validateStatePlan({...valid,states:Array.from({length:1000},(_,i)=>({id:`s${i}`,name:'a'}))}).states.length,1000);
+ assert.throws(()=>validateStatePlan({...valid,states:[]}),/至少/);
 });
 test('captures independent live states with editable select and checkbox content',async()=>{
  const result=await captureStates(browser,plan([

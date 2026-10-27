@@ -78,7 +78,7 @@ function validateDocument(input) {
 }
 
 // src/bundle.ts
-var BATCH_LIMITS = { pages: 200, nodes: 12e4, assets: 2e3, assetBytes: 64 * 1024 * 1024 };
+var BATCH_LIMITS = { nodes: 12e4, assets: 2e3, assetBytes: 64 * 1024 * 1024 };
 function isBundle(value) {
   return value?.format === "h2f-bundle";
 }
@@ -107,7 +107,6 @@ var BundleBuilder = class {
   }
   add(input) {
     validateDocument(input);
-    if (this.bundle.pages.length >= BATCH_LIMITS.pages) throw new Error("\u6BCF\u6279\u6700\u591A 200 \u9875\uFF0C\u8BF7\u62C6\u6210\u591A\u4E2A\u6279\u6B21");
     const count = countScene(input.root).nodes;
     if (this.nodes + count > BATCH_LIMITS.nodes) throw new Error("\u6574\u6279\u8D85\u8FC7 120000 \u4E2A\u56FE\u5C42\uFF0C\u8BF7\u5206\u6279\u6355\u83B7");
     const mapping = /* @__PURE__ */ new Map();
@@ -133,7 +132,7 @@ var BundleBuilder = class {
   addBundle(bundle) {
     validateBundle(bundle);
     bundle.pages.forEach((_, i) => this.add(hydratePage(bundle, i)));
-    this.bundle.errors.push(...bundle.errors);
+    for (const error of bundle.errors) this.bundle.errors.push(error);
   }
   error(name, error) {
     this.bundle.errors.push({ name, message: error instanceof Error ? error.message : String(error) });
@@ -141,7 +140,7 @@ var BundleBuilder = class {
 };
 function validateBundle(value) {
   const b = value;
-  if (!b || b.schemaVersion !== 1 || b.format !== "h2f-bundle" || typeof b.name !== "string" || b.name.length > 500 || !Array.isArray(b.pages) || !b.pages.length || b.pages.length > BATCH_LIMITS.pages || !Array.isArray(b.assets) || b.assets.length > BATCH_LIMITS.assets || !Array.isArray(b.errors) || b.errors.length > 400) throw new Error("\u591A\u9875\u6570\u636E\u683C\u5F0F\u65E0\u6548\u6216\u9875\u6570\u8D85\u9650");
+  if (!b || b.schemaVersion !== 1 || b.format !== "h2f-bundle" || typeof b.name !== "string" || b.name.length > 500 || !Array.isArray(b.pages) || !b.pages.length || !Array.isArray(b.assets) || b.assets.length > BATCH_LIMITS.assets || !Array.isArray(b.errors)) throw new Error("\u591A\u9875\u6570\u636E\u683C\u5F0F\u65E0\u6548");
   const ids = /* @__PURE__ */ new Set();
   let bytes = 0, nodes = 0;
   for (const a of b.assets) {
@@ -191,7 +190,6 @@ function discoverPages(doc, baseSelector, split, pageSelector = "") {
     }
   }
   if (!pages.length) pages = [root];
-  if (pages.length > BATCH_LIMITS.pages) throw new Error(`\u8BC6\u522B\u5230 ${pages.length} \u9875\uFF0C\u6BCF\u6279\u6700\u591A 200 \u9875\uFF1B\u8BF7\u7528\u6355\u83B7\u533A\u57DF\u6216\u9875\u9762\u9009\u62E9\u5668\u5206\u6279\u5BFC\u5165`);
   return pages.map((element, i) => {
     element.setAttribute("data-h2f-capture-page", String(i));
     const name = element.getAttribute("data-pencil-name") || element.getAttribute("data-page-name") || element.getAttribute("aria-label") || element.getAttribute("data-page") || element.querySelector("h1,h2")?.textContent?.trim() || `${doc.title || "\u9875\u9762"} ${String(i + 1).padStart(3, "0")}`;

@@ -385,7 +385,7 @@
   }
 
   // src/bundle.ts
-  var BATCH_LIMITS = { pages: 200, nodes: 12e4, assets: 2e3, assetBytes: 64 * 1024 * 1024 };
+  var BATCH_LIMITS = { nodes: 12e4, assets: 2e3, assetBytes: 64 * 1024 * 1024 };
 
   // src/batch.ts
   var ImportBatch = class {
@@ -402,11 +402,11 @@
       this.assetBytes = 0;
       this.assetIds = /* @__PURE__ */ new Set();
       this.staging = null;
-      if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.length > BATCH_LIMITS.pages || plan.some((p) => !p || typeof p.name !== "string" || !Number.isFinite(p.width) || p.width <= 0 || p.width > 1e5 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 1e5)) throw new Error("\u6279\u6B21\u8BA1\u5212\u65E0\u6548\uFF08\u6700\u591A 200 \u9875\uFF09");
+      if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some((p) => !p || typeof p.name !== "string" || !Number.isFinite(p.width) || p.width <= 0 || p.width > 1e5 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 1e5)) throw new Error("\u6279\u6B21\u8BA1\u5212\u65E0\u6548");
       this.context = createImportContext(api);
       this.page = api.currentPage;
       const existing = this.page.children.filter((n) => n.visible);
-      const originX = existing.length ? Math.max(...existing.map((n) => n.x + n.width)) + 160 : Math.round(api.viewport.center.x);
+      const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
       const originY = Math.round(api.viewport.center.y);
       const columns = Math.min(8, Math.ceil(Math.sqrt(plan.length)));
       let x = originX, y = originY, rowHeight = 0;
@@ -497,6 +497,10 @@
   figma.ui.onmessage = async (message) => {
     var _a, _b;
     if (!message || typeof message.type !== "string") return;
+    if (message.type === "OPEN_DESKTOP_ASSISTANT_DOWNLOAD") {
+      figma.openExternal("https://github.com/hhagain/html-to-figma-local/releases");
+      return;
+    }
     if (message.type === "READY") {
       figma.ui.postMessage({ type: "SETTINGS", settings: await figma.clientStorage.getAsync("h2f-settings-v1") || {}, assistant: await figma.clientStorage.getAsync("h2f-assistant-v1") || null, context: currentContext() });
       return;

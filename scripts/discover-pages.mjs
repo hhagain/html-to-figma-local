@@ -4,8 +4,8 @@ import { openCaptureSource, resolveStateURL } from './capture-source.mjs';
 
 export function validateDiscoveryRequest(input) {
   const options = validateCaptureRequest(input);
-  const maxPages = input.maxPages ?? 200;
-  if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 200) throw new Error('自动发现最多支持 200 页');
+  const maxPages = input.maxPages ?? null;
+  if (maxPages !== null && (!Number.isSafeInteger(maxPages) || maxPages < 1)) throw new Error('自动发现页面预算必须是正整数');
   const maxDepth = input.maxDepth ?? 4, maxActions = input.maxActions ?? 300, timeoutMs = input.timeoutMs ?? 180000;
   if (!Number.isInteger(maxDepth) || maxDepth < 1 || maxDepth > 6 || !Number.isInteger(maxActions) || maxActions < 1 || maxActions > 1000 || !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600000) throw new Error('探索范围无效');
   return { ...options, maxPages, maxDepth, maxActions, timeoutMs, exploreInteractions: input.exploreInteractions === true };
@@ -63,7 +63,7 @@ export async function discoverPages(browser, rawRequest, { signal, onProgress } 
   const canonical = value => { const url = new URL(value); if (!/^#!?\//.test(url.hash)) url.hash = ''; return url.href; };
   const add = (key, state, via, depth) => {
     if (known.has(key)) return known.get(key);
-    if (pages.length >= options.maxPages) { report.limited = true; return null; }
+    if (options.maxPages !== null && pages.length >= options.maxPages) { report.limited = true; return null; }
     const entry = { ...state, id: `page-${pages.length + 1}`, via, checked: false, depth };
     known.set(key, entry); pages.push(entry); if (depth <= 2) queue.push(entry); else report.limited = true; report.found = pages.length;
     return entry;
@@ -119,7 +119,7 @@ export async function discoverPages(browser, rawRequest, { signal, onProgress } 
         }
         // Local projects may have standalone pages with no links from index.html.
         if (item === entry && source.local) {
-          const local = await source.listPages(options.maxPages + 1); report.limited ||= local.limited;
+          const local = await source.listPages(options.maxPages === null ? undefined : Math.min(options.maxPages + 1, Number.MAX_SAFE_INTEGER)); report.limited ||= local.limited;
           for (const url of local.files) {
             const base = new URL(options.url); base.hash = ''; base.search = '';
             if (url === base.href) continue;

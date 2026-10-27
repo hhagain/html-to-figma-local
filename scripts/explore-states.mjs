@@ -12,7 +12,7 @@ export async function exploreStates(browser, options, { signal, onProgress } = {
   const deadline = setTimeout(() => { timedOut = true; abort(); }, options.timeoutMs); deadline.unref();
   const blocked = reason => { report.blockedRequests++; return reason.abort(); };
   try {
-    while (queue.length && pages.length < options.maxPages && report.attempted < options.maxActions && !signal?.aborted && !timedOut) {
+    while (queue.length && (options.maxPages === null || pages.length < options.maxPages) && report.attempted < options.maxActions && !signal?.aborted && !timedOut) {
       const work = queue.shift(); let timer;
       onProgress?.({ status: 'exploring', name: work.name, found: pages.length, scanned: report.scanned, attempted: report.attempted, remaining: queue.length, depth: work.depth });
       try {
@@ -52,7 +52,7 @@ export async function exploreStates(browser, options, { signal, onProgress } = {
         }
         if (!listedLocal && source.local) {
           listedLocal = true;
-          const listing = await source.listPages(options.maxPages + 1);
+          const listing = await source.listPages(options.maxPages === null ? undefined : Math.min(options.maxPages + 1, Number.MAX_SAFE_INTEGER));
           for (const url of listing.files) { if (url === options.url.split(/[?#]/)[0]) continue; queue.push({ url, name: decodeURIComponent(new URL(url).pathname.split('/').pop()), steps: [], keys: [], depth: 0, kind: '本地文件', path: [] }); }
         }
       } catch (error) { report.attempted++; if (!signal?.aborted && !timedOut && report.errors.length < 200) report.errors.push({ name: work.name, path: work.path.join(' → ').slice(0, 500), error: String(error.message).split('\n')[0].slice(0, 200) }); }

@@ -7,9 +7,9 @@ export class ImportBatch {
   private nodeCount = 0; private assetBytes = 0; private assetIds = new Set<string>();
   private context; private page: PageNode; private positions: { x: number; y: number }[]; private staging: FrameNode | null = null;
   constructor(private api: PluginAPI, readonly id: string, private plan: { name: string; width: number; height: number }[], private mode: ImportMode) {
-    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.length > BATCH_LIMITS.pages || plan.some(p => !p || typeof p.name !== 'string' || !Number.isFinite(p.width) || p.width <= 0 || p.width > 100000 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 100000)) throw new Error('批次计划无效（最多 200 页）');
+    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some(p => !p || typeof p.name !== 'string' || !Number.isFinite(p.width) || p.width <= 0 || p.width > 100000 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 100000)) throw new Error('批次计划无效');
     this.context = createImportContext(api); this.page = api.currentPage;
-    const existing = this.page.children.filter(n => n.visible); const originX = existing.length ? Math.max(...existing.map(n => n.x + n.width)) + 160 : Math.round(api.viewport.center.x);
+    const existing = this.page.children.filter(n => n.visible); const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
     const originY = Math.round(api.viewport.center.y); const columns = Math.min(8, Math.ceil(Math.sqrt(plan.length))); let x = originX, y = originY, rowHeight = 0;
     this.positions = plan.map((p, i) => { if (i > 0 && i % columns === 0) { x = originX; y += rowHeight + 120; rowHeight = 0; } const pos = { x, y }; x += p.width + 120; rowHeight = Math.max(rowHeight, p.height); return pos; });
   }

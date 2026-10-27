@@ -6,7 +6,7 @@ const ACTIONS = new Set(['click','fill','select','check','press','hover','scroll
 export function validateStatePlan(input) {
   if (!input || input.schemaVersion !== 1 || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 150) throw new Error('状态清单需要 schemaVersion: 1 和名称');
   const base = validateCaptureRequest({ url: input.url, width: input.viewport?.width || 1440, height: input.viewport?.height || 1000, selector: input.selector || 'body' });
-  if (!Array.isArray(input.states) || !input.states.length || input.states.length > 200) throw new Error('状态清单需要 1–200 个状态');
+  if (!Array.isArray(input.states) || !input.states.length) throw new Error('状态清单至少需要一个状态');
   if (input.captureMode !== undefined && !['viewport', 'full'].includes(input.captureMode)) throw new Error('捕获模式必须是 viewport 或 full');
   const safeURL = value => resolveStateURL(value, base.url);
   let actionCount = 0;

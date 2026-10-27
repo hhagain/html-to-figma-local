@@ -7826,7 +7826,7 @@
   }
 
   // src/bundle.ts
-  var BATCH_LIMITS = { pages: 200, nodes: 12e4, assets: 2e3, assetBytes: 64 * 1024 * 1024 };
+  var BATCH_LIMITS = { nodes: 12e4, assets: 2e3, assetBytes: 64 * 1024 * 1024 };
   function isBundle(value) {
     return value?.format === "h2f-bundle";
   }
@@ -7855,7 +7855,6 @@
     }
     add(input2) {
       validateDocument(input2);
-      if (this.bundle.pages.length >= BATCH_LIMITS.pages) throw new Error("\u6BCF\u6279\u6700\u591A 200 \u9875\uFF0C\u8BF7\u62C6\u6210\u591A\u4E2A\u6279\u6B21");
       const count = countScene(input2.root).nodes;
       if (this.nodes + count > BATCH_LIMITS.nodes) throw new Error("\u6574\u6279\u8D85\u8FC7 120000 \u4E2A\u56FE\u5C42\uFF0C\u8BF7\u5206\u6279\u6355\u83B7");
       const mapping = /* @__PURE__ */ new Map();
@@ -7881,7 +7880,7 @@
     addBundle(bundle) {
       validateBundle(bundle);
       bundle.pages.forEach((_, i2) => this.add(hydratePage(bundle, i2)));
-      this.bundle.errors.push(...bundle.errors);
+      for (const error of bundle.errors) this.bundle.errors.push(error);
     }
     error(name, error) {
       this.bundle.errors.push({ name, message: error instanceof Error ? error.message : String(error) });
@@ -7889,7 +7888,7 @@
   };
   function validateBundle(value) {
     const b = value;
-    if (!b || b.schemaVersion !== 1 || b.format !== "h2f-bundle" || typeof b.name !== "string" || b.name.length > 500 || !Array.isArray(b.pages) || !b.pages.length || b.pages.length > BATCH_LIMITS.pages || !Array.isArray(b.assets) || b.assets.length > BATCH_LIMITS.assets || !Array.isArray(b.errors) || b.errors.length > 400) throw new Error("\u591A\u9875\u6570\u636E\u683C\u5F0F\u65E0\u6548\u6216\u9875\u6570\u8D85\u9650");
+    if (!b || b.schemaVersion !== 1 || b.format !== "h2f-bundle" || typeof b.name !== "string" || b.name.length > 500 || !Array.isArray(b.pages) || !b.pages.length || !Array.isArray(b.assets) || b.assets.length > BATCH_LIMITS.assets || !Array.isArray(b.errors)) throw new Error("\u591A\u9875\u6570\u636E\u683C\u5F0F\u65E0\u6548");
     const ids = /* @__PURE__ */ new Set();
     let bytes = 0, nodes = 0;
     for (const a of b.assets) {
@@ -7939,7 +7938,6 @@
       }
     }
     if (!pages.length) pages = [root];
-    if (pages.length > BATCH_LIMITS.pages) throw new Error(`\u8BC6\u522B\u5230 ${pages.length} \u9875\uFF0C\u6BCF\u6279\u6700\u591A 200 \u9875\uFF1B\u8BF7\u7528\u6355\u83B7\u533A\u57DF\u6216\u9875\u9762\u9009\u62E9\u5668\u5206\u6279\u5BFC\u5165`);
     return pages.map((element, i2) => {
       element.setAttribute("data-h2f-capture-page", String(i2));
       const name = element.getAttribute("data-pencil-name") || element.getAttribute("data-page-name") || element.getAttribute("aria-label") || element.getAttribute("data-page") || element.querySelector("h1,h2")?.textContent?.trim() || `${doc.title || "\u9875\u9762"} ${String(i2 + 1).padStart(3, "0")}`;
@@ -7952,6 +7950,13 @@
   var input = (id) => $(id);
   var plugin = window.parent !== window;
   document.body.classList.toggle("is-plugin", plugin);
+  $("download-assistant").hidden = !plugin;
+  $("download-assistant").addEventListener("click", (event) => {
+    if (plugin) {
+      event.preventDefault();
+      message("OPEN_DESKTOP_ASSISTANT_DOWNLOAD");
+    }
+  });
   var tab = "file";
   var source = "";
   var sourceName = "";
@@ -8131,7 +8136,8 @@
     if (!preparedBundle) return;
     $("page-list-section").hidden = preparedBundle.pages.length < 2;
     $("page-list-title").textContent = `\u9875\u9762\u5217\u8868 \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
-    $("page-list").replaceChildren(...preparedBundle.pages.map((page, i2) => {
+    const rows = document.createDocumentFragment();
+    preparedBundle.pages.forEach((page, i2) => {
       const row = document.createElement("div");
       row.className = "page-row";
       row.dataset.previewActive = String(hasRemotePreview && previewPageIndex === i2);
@@ -8169,8 +8175,9 @@
         });
         row.append(view);
       }
-      return row;
-    }));
+      rows.append(row);
+    });
+    $("page-list").replaceChildren(rows);
     refreshImportAction();
   }
   function resetPreview() {
@@ -8390,7 +8397,7 @@
     sourceFiles = files;
     source = "";
     try {
-      if (files.length > 200 || files.reduce((n, f) => n + f.size, 0) > 128 * 1024 * 1024) throw new Error("\u6BCF\u6279\u6700\u591A 200 \u4E2A\u6587\u4EF6\u3001128 MB");
+      if (files.reduce((n, f) => n + f.size, 0) > 128 * 1024 * 1024) throw new Error("\u6240\u9009\u6587\u4EF6\u603B\u91CF\u8D85\u8FC7 128 MB\uFF0C\u8BF7\u5206\u6279\u5BFC\u5165");
       if (files.some((f) => !/\.(html?|json)$/i.test(f.name))) throw new Error("\u8BF7\u9009\u62E9 HTML \u6216\u672C\u63D2\u4EF6\u5BFC\u51FA\u7684 JSON \u6587\u4EF6");
       sourceName = files.length === 1 ? files[0].name : `${files.length} \u4E2A HTML / \u6570\u636E\u6587\u4EF6`;
       $("file-label").textContent = sourceName;
@@ -8935,7 +8942,8 @@
       $("discovery-count").textContent = `\u5DF2\u9009\u62E9 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`;
       refreshPrepareAction();
     };
-    $("discovery-list").replaceChildren(...discovery.pages.map((page, i2) => {
+    const rows = document.createDocumentFragment();
+    discovery.pages.forEach((page, i2) => {
       const row = document.createElement("label");
       row.className = "discovery-row";
       row.dataset.failed = String(!!page.error);
@@ -8964,8 +8972,9 @@
       if (page.path) detail.textContent = `${page.via} \xB7 ${page.path}`;
       copy.append(name, detail);
       row.append(checkbox, copy);
-      return row;
-    }));
+      rows.append(row);
+    });
+    $("discovery-list").replaceChildren(rows);
     const report = discovery.report;
     $("discovery-summary").textContent = `${report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62\u3002" : ""}\u5DF2\u9A8C\u8BC1 ${discovery.pages.filter((p) => p.checked).length} \u9875${report.errors.length ? `\uFF0C${report.errors.length} \u9875\u65E0\u6CD5\u6253\u5F00` : ""}\u3002${report.limited ? "\u8FBE\u5230\u626B\u63CF\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\uFF0C\u5269\u4F59\u5019\u9009\u9875\u4F1A\u5728\u6355\u83B7\u65F6\u9A8C\u8BC1\u3002" : "\u52FE\u9009\u9875\u9762\u540E\u70B9\u51FB\u201C\u5F00\u59CB\u6355\u83B7\u201D\u3002"}`;
     if (report.mode === "interactions") $("discovery-summary").textContent = `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001\uFF0C\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.errors.length} \u6B21\u3002${report.limited ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u672A\u63A2\u7D22\uFF1B\u5DF2\u8FBE\u5230\u672C\u6B21\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\u3002` : "\u672C\u6B21\u961F\u5217\u5DF2\u5904\u7406\u3002"} \u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u53D7\u9650\u6216\u91CD\u590D\u63A7\u4EF6\uFF1B\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
