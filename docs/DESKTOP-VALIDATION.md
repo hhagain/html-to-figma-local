@@ -136,3 +136,14 @@
 - 最终应用仍位于 `/Applications/HTML to Figma Capture.app`，插件文件已同步，助手运行中，148 页恢复数据可继续使用。本次补验没有修改功能代码，也没有重新生成安装包。
 
 证据：`artifacts/test-0.7.0.log`、`artifacts/handoff-final-tests.log`、`artifacts/preview-zoom-ui.png`、`artifacts/desktop/large-handoff-validation.json`、`artifacts/desktop/engine-smoke.json`、`artifacts/desktop/native-validation-0.7.0.json`、`artifacts/desktop/native-assistant-restored-0.7.0.txt`、`artifacts/desktop/native-assistant-handoff-0.7.0.png`。
+
+
+## v0.9.0 大批次与取消验证
+
+2026-10-27。Mac arm64 包内服务与浏览器测试通过，包括捕获、多页预览、发现、交互探索、配对、直传与保留插件身份；1000 页完整数据通过包内 HTTP 服务往返，完成回执为 1000/1000。Mac 受影响浏览器回归 46 项通过。
+
+Windows x64 构建运行 40451014139 全套回归 106 项通过，EXE 安装版和便携 ZIP 在仓库之外验收成功。两个运行依赖的 175 项包内文件仍逐项校验。
+
+1000 页真实浏览器解析与编译插件 Figma API 测试宿主导入通过，不能等同于真实 Figma 客户端已经导入任意 1000 页项目。内存、图层和资源预算继续生效。
+
+独立复现并修复了新页面初始化阶段取消导致关闭等待卡住的竞争；不改变当前用户正在运行的旧助手或已有捕获数据。
