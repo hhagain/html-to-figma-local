@@ -76,7 +76,7 @@ jobs:
           cp "$OUT/SHA256SUMS-windows.txt" "$OUT/SHA256SUMS.txt"
           sha256sum "artifacts/html-to-figma-local-$VERSION.zip" | sed 's#  artifacts/#  #' >> "$OUT/SHA256SUMS.txt"
           HAS_DRAFT=false
-          if DRAFT_STATUS=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.draft' 2>/dev/null); then
+          if DRAFT_STATUS=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null); then
             [[ "$DRAFT_STATUS" == true ]] || { echo 'This release is already published; refusing to overwrite assets.'; exit 1; }
             HAS_DRAFT=true
             MAC_SUM="HTML-to-Figma-Capture-$VERSION-mac-arm64.sha256"
