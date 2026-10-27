@@ -31,6 +31,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Regression tests on Windows
+        timeout-minutes: 10
         shell: bash
         run: |
           set -o pipefail

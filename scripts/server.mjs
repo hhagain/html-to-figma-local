@@ -81,9 +81,10 @@ export async function createAppServer({ port = 3847, root = path.join(project, '
             job.status=job.result.report.status;
           }catch(e){job.status='failed';job.error=e.message;}finally{capturing=false;desktop?.onActivity({phase:'idle',name:plan.name});}})(); return;
         }
-        const previewRoute=url.pathname.match(/^\/api\/states\/([a-f0-9]{24})\/preview\/(0|[1-9]\d{0,2})$/);
+        const previewRoute=url.pathname.match(/^\/api\/states\/([a-f0-9]{24})\/preview\/(0|[1-9]\d*)$/);
         if(previewRoute&&req.method==='GET'){
           const job=jobs.get(previewRoute[1]),index=Number(previewRoute[2]);
+          if(!Number.isSafeInteger(index)){json(res,400,{error:'预览索引无效'});return;}
           const entry=job?.kind==='states'?job.previews.find(p=>p.pageIndex===index):null;
           if(!entry||entry.error){json(res,404,{error:entry?.error||'此页预览不存在或已过期，请重新捕获'});return;}
           const image=await previews.read(job.id,index);

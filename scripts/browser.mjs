@@ -25,14 +25,14 @@ export async function captureURL(browser, request, { signal } = {}) {
   if (signal?.aborted) throw new Error('捕获已取消');
   const source = await openCaptureSource(options.url);
   const context = await browser.newContext({ viewport: { width: options.width, height: options.height }, deviceScaleFactor: 1, colorScheme: 'light', reducedMotion: 'reduce', serviceWorkers: 'block' });
-  let closing;
-  const closeContext = () => closing ||= context.close().catch(() => {});
+  let closing, pageReady;
+  const closeContext = () => closing ||= (async()=>{await pageReady?.catch(()=>{});await context.close().catch(()=>{});})();
   const abort = () => { void closeContext(); };
   if (signal?.aborted) { await context.close(); throw new Error('捕获已取消'); }
   signal?.addEventListener('abort', abort, { once: true });
   const deadline = setTimeout(abort, 55000);
   try {
-    const page = await Promise.race([context.newPage(), new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('浏览器创建页面超时，请安装匹配版本：npx playwright install chromium')), 15000); timer.unref(); })]); page.setDefaultTimeout(12000);
+    const page = await Promise.race([(pageReady=context.newPage()), new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('浏览器创建页面超时，请安装匹配版本：npx playwright install chromium')), 15000); timer.unref(); })]);pageReady=null;if(signal?.aborted)throw new Error('捕获已取消');page.setDefaultTimeout(12000);
     // No host filesystem or existing browser session is exposed to the remote page.
     await context.route('**/*', async route => {
       const local = await source.read(route.request().url());

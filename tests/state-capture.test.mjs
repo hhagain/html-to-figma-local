@@ -76,3 +76,10 @@ test('zero-pixel helper canvases do not become missing image placeholders',async
 test('password placeholders stay readable while real password values are masked',async()=>{
  const context=await browser.newContext();const page=await context.newPage();try{await page.setContent('<input id="empty" type="password" placeholder="请输入密码"><input id="filled" type="password" value="SecretDemo123">');await page.addScriptTag({path:'dist/capture.js'});const capture=await page.evaluate(()=>window.HTMLToFigma.captureDOM(document));const nodes=flat(capture.root);assert.equal(nodes.find(n=>n.name==='empty').children[0].text.value,'请输入密码');assert.equal(nodes.find(n=>n.name==='filled').children[0].text.value,'•'.repeat(13));}finally{await context.close();}
 });
+
+test('cancellation during page initialization closes the new context and keeps finished states',async()=>{
+ const controller=new AbortController();let created=0;
+ const wrapped={newContext:async options=>{const context=await browser.newContext(options);if(++created===2){const newPage=context.newPage.bind(context);context.newPage=()=>{const pending=newPage();setTimeout(()=>controller.abort(),0);return pending;};}return context;}};
+ const result=await captureStates(wrapped,plan([{id:'base',name:'第一张'},{id:'next',name:'正在初始化'},{id:'last',name:'未执行'}]),{signal:controller.signal});
+ assert.equal(result.report.cancelled,true);assert.equal(result.report.completed,1);assert.equal(result.bundle.pages.length,1);assert.equal(result.report.states[2].status,'not-run');assert.equal(browser.contexts().length,0);
+},{timeout:15000});

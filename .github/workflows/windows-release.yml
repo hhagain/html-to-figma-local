@@ -69,16 +69,37 @@ jobs:
         run: |
           OUT=artifacts/windows-ci/artifacts/windows
           VERSION=${RELEASE_TAG#v}
+          if [[ "$VERSION" != 0.8.* ]]; then
+            awk '$2 != "H2F-Windows-0.8.0-Runtime-Repair.zip"' "$OUT/SHA256SUMS-windows.txt" > "$OUT/windows-filtered.txt"
+            mv "$OUT/windows-filtered.txt" "$OUT/SHA256SUMS-windows.txt"
+          fi
           cp "$OUT/SHA256SUMS-windows.txt" "$OUT/SHA256SUMS.txt"
           sha256sum "artifacts/html-to-figma-local-$VERSION.zip" | sed 's#  artifacts/#  #' >> "$OUT/SHA256SUMS.txt"
-          gh release create "$RELEASE_TAG" \
-            "$OUT/HTML-to-Figma-Capture-$VERSION-win-x64-Setup.exe" \
-            "$OUT/HTML-to-Figma-Capture-$VERSION-win-x64.zip" \
-            "artifacts/html-to-figma-local-$VERSION.zip" \
-            "$OUT/SHA256SUMS-windows.txt" "$OUT/SHA256SUMS.txt" "$OUT/WINDOWS-INSTALL.md" \
-            "$OUT/H2F-Windows-0.8.0-Runtime-Repair.zip" \
-            --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
-            --title "HTML to Figma · Local $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          HAS_DRAFT=false
+          if DRAFT_STATUS=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.draft' 2>/dev/null); then
+            [[ "$DRAFT_STATUS" == true ]] || { echo 'This release is already published; refusing to overwrite assets.'; exit 1; }
+            HAS_DRAFT=true
+            MAC_SUM="HTML-to-Figma-Capture-$VERSION-mac-arm64.sha256"
+            if gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$MAC_SUM" --dir "$OUT/release-metadata"; then
+              cat "$OUT/release-metadata/$MAC_SUM" >> "$OUT/SHA256SUMS.txt"
+            fi
+          fi
+          ASSETS=(
+            "$OUT/HTML-to-Figma-Capture-$VERSION-win-x64-Setup.exe"
+            "$OUT/HTML-to-Figma-Capture-$VERSION-win-x64.zip"
+            "artifacts/html-to-figma-local-$VERSION.zip"
+            "$OUT/SHA256SUMS-windows.txt" "$OUT/SHA256SUMS.txt" "$OUT/WINDOWS-INSTALL.md"
+          )
+          if [[ "$VERSION" == 0.8.* ]]; then ASSETS+=("$OUT/H2F-Windows-0.8.0-Runtime-Repair.zip"); fi
+          if [[ "$HAS_DRAFT" == true ]]; then
+            gh release upload "$RELEASE_TAG" "${ASSETS[@]}" --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease \
+              --title "HTML to Figma · Local $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          else
+            gh release create "$RELEASE_TAG" "${ASSETS[@]}" \
+              --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
+              --title "HTML to Figma · Local $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          fi
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$OUT/github-publication.json"
       - name: Save small validation evidence
         if: always()

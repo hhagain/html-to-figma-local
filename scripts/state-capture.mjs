@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { captureLoadedPage, validateCaptureRequest } from './browser.mjs';
 import { createHash } from 'node:crypto';
 import { resolveStateURL, openCaptureSource } from './capture-source.mjs';
@@ -53,7 +54,7 @@ export async function runSteps(page, steps, signal) {
       if(a.type==='scroll') await el.evaluate((node,p)=>node.scrollTo({left:p.x||0,top:p.y||0,behavior:'instant'}),a);
       if(a.type==='wait') {
         if(el) { await el.waitFor({state:a.state||'visible',timeout}); if(a.text!==undefined) await page.waitForFunction(({selector,index,text})=>{const nodes=document.querySelectorAll(selector);return (nodes[index||0]?.textContent||'').includes(text);},{selector:a.selector,index:a.index,text:a.text},{timeout}); }
-        if(a.ms) await page.waitForTimeout(a.ms);
+        if(a.ms) await delay(a.ms, undefined, { signal });
       }
     } catch(error) { throw new Error(`步骤 ${i+1}（${a.type} ${a.selector||''}）失败：${String(error.message).split('\n')[0].slice(0,220)}`); }
   }
@@ -62,7 +63,7 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
   const plan=validateStatePlan(rawPlan); const {BundleBuilder}=await import('../dist/lib/bundle.js'); const builder=new BundleBuilder(plan.name);
   const report={schemaVersion:1,name:plan.name,url:plan.url,viewport:plan.viewport,startedAt:new Date().toISOString(),completedAt:null,status:'running',total:plan.states.length,completed:0,failed:0,cancelled:false,notes:plan.notes,states:[],limitations:['状态清单是明确覆盖范围，不等于穷举输入与交互的所有组合。','捕获是可编辑的静态快照，事件、数据连接与运行逻辑不会转入 Figma。','默认只捕获当前视口，滚动区域的其他部分需另列状态。']};
   const source=await openCaptureSource(plan.url);
-  const fingerprints=new Map(); let activeContext=null, activeClose=null; let preview=null;
+  const fingerprints=new Map(); let activeContext=null, activeClose=null, activePageReady=null; let preview=null;
   let documentSnapshot=null;const resourceCache=new Map();let cacheBytes=0;
   if(plan.snapshotDocument){
     if(signal?.aborted)throw new Error('捕获已取消');
@@ -74,7 +75,11 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
     report.sourceSnapshot={url:plan.url,retrievedAt:new Date().toISOString(),bytes:Buffer.byteLength(text),sha256:createHash('sha256').update(text).digest('hex')};
     report.limitations.push('本次使用已核验的入口 HTML 快照重放交互；查询参数由同一份客户端脚本处理。');
   }
-  const closeActive=()=>activeContext?(activeClose ||= activeContext.close().catch(()=>{})):Promise.resolve();
+  const closeActive=()=>{
+    if(!activeContext)return Promise.resolve();
+    const current=activeContext,ready=activePageReady;
+    return activeClose ||= (async()=>{await ready?.catch(()=>{});await current.close().catch(()=>{});})();
+  };
   const abort=()=>void closeActive(); signal?.addEventListener('abort',abort,{once:true});
   try {
     for(let i=0;i<plan.states.length;i++) {
@@ -101,13 +106,15 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
           return local?route.fulfill(local):route.continue();
         });
         if(state.expectedFingerprint)await context.addInitScript(()=>{window.WebSocket=class{constructor(){throw new Error('捕获会话不连接 WebSocket');}};navigator.sendBeacon=()=>false;});
-        const page=await context.newPage(); page.setDefaultTimeout(8000);
+        const page=await(activePageReady=context.newPage());activePageReady=null;
+        if(signal?.aborted)throw new Error('捕获已取消');
+        page.setDefaultTimeout(8000);
         page.on('dialog',dialog=>void dialog.dismiss());
         const response=await page.goto(source.toBrowserURL(state.url),{waitUntil:'domcontentloaded',timeout:25000});
         if(source.local&&response&&!response.ok())throw new Error(`本地页面无法读取：HTTP ${response.status()}`);
         if(state.setup) await runSteps(page,plan.setup,signal);
         await runSteps(page,state.steps,signal);
-        await page.waitForTimeout(120);
+        await delay(120, undefined, { signal });
         await page.evaluate(async()=>{await Promise.race([document.fonts.ready,new Promise(resolve=>setTimeout(resolve,1500))]);});
         if(signal?.aborted)throw new Error('捕获已取消');
         if(state.expectedFingerprint){const actual=await inspectState(page,source.local);if(actual.fingerprint!==state.expectedFingerprint)throw new Error('页面与探索时的状态不同，请重新探索；可能有异步数据或随机内容');}
@@ -126,7 +133,7 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         record.status=signal?.aborted?'cancelled':'failed';record.error=signal?.aborted?'捕获已取消':String(error.message).slice(0,500);
         if(record.status==='failed'){report.failed++;builder.error(`${state.group} · ${state.name}`,record.error);}
       } finally {
-        clearTimeout(timer);await closeActive();activeContext=null;activeClose=null;
+        clearTimeout(timer);await closeActive();activeContext=null;activeClose=null;activePageReady=null;
         record.durationMs=Date.now()-start;record.blockedRequests=blocked;report.states.push(record);
         onProgress?.({status:record.status,index:i,total:plan.states.length,name:state.name,completed:report.completed,failed:report.failed,error:record.error});
       }

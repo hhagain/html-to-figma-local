@@ -85,3 +85,11 @@ test('cancelling a multi-state job retains previews for its completed pages',asy
   assert.equal((await fetch(`${app.address}/api/states/${job.id}/preview/1`,{headers:headers(app)})).status,404);
  }finally{await app.close();}
 });
+
+test('preview routes accept page numbers above 999 and reject unsafe numeric indices',async()=>{
+ const app=await createAppServer({port:0});try{
+  const base=app.address+'/api/states/'+ 'a'.repeat(24)+'/preview/';
+  const missing=await fetch(base+'1000',{headers:headers(app)});assert.equal(missing.status,404);assert.ok((await missing.json()).error.includes('预览'));
+  const invalid=await fetch(base+'9007199254740992',{headers:headers(app)});assert.equal(invalid.status,400);assert.ok((await invalid.json()).error.includes('索引'));
+ }finally{await app.close();}
+});

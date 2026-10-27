@@ -55,8 +55,8 @@ export async function discoverPages(browser, rawRequest, { signal, onProgress } 
   const source = await openCaptureSource(options.url);
   const pages = [], known = new Map(), queue = [], errors = [];
   const report = { status: 'running', found: 0, scanned: 0, blockedRequests: 0, skippedControls: 0, limited: false, cancelled: false, errors, maxPages: options.maxPages };
-  let activeContext = null, closing = null, timedOut = false, title = '发现的页面';
-  const closeContext = () => activeContext ? (closing ||= activeContext.close().catch(() => {})) : Promise.resolve();
+  let activeContext = null, closing = null, activePageReady = null, timedOut = false, title = '发现的页面';
+  const closeContext = () => {if(!activeContext)return Promise.resolve();const current=activeContext,ready=activePageReady;return closing ||= (async()=>{await ready?.catch(()=>{});await current.close().catch(()=>{});})();};
   const abort = () => { void closeContext(); };
   signal?.addEventListener('abort', abort, { once: true });
   const deadline = setTimeout(() => { timedOut = true; abort(); }, 60000); deadline.unref();
@@ -85,7 +85,7 @@ export async function discoverPages(browser, rawRequest, { signal, onProgress } 
               (request.isNavigationRequest() && url.origin !== new URL(source.url).origin)) { report.blockedRequests++; return route.abort(); }
           const local = await source.read(url.href); return local ? route.fulfill(local) : route.continue();
         });
-        const page = await context.newPage(); page.setDefaultTimeout(4000);
+        const page = await (activePageReady=context.newPage());activePageReady=null;if(signal?.aborted||timedOut)break;page.setDefaultTimeout(4000);
         page.on('dialog', dialog => void dialog.dismiss());
         page.on('popup', popup => void popup.close().catch(() => {}));
         const response = await page.goto(source.toBrowserURL(item.url), { waitUntil: 'domcontentloaded', timeout: 10000 });
@@ -129,7 +129,7 @@ export async function discoverPages(browser, rawRequest, { signal, onProgress } 
         }
       } catch (error) {
         if (!signal?.aborted && !timedOut) { item.error = String(error.message).split('\n')[0].slice(0, 200); errors.push({ id: item.id, name: item.name, error: item.error }); }
-      } finally { clearTimeout(pageTimer); await closeContext(); activeContext = null; closing = null; report.scanned++; }
+      } finally { clearTimeout(pageTimer); await closeContext(); activeContext = null; closing = null; activePageReady = null; report.scanned++; }
     }
     report.limited ||= queue.length > 0 || timedOut;
   } finally { clearTimeout(deadline); signal?.removeEventListener('abort', abort); await closeContext(); }
