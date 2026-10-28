@@ -65,7 +65,7 @@ export async function importDocument(api: PluginAPI, document: CaptureDocument, 
     if (spec.border) {
       node.strokes = [{ type: 'SOLID', color: rgb(spec.border.color), opacity: spec.border.color.a }];
       [node.strokeTopWeight, node.strokeRightWeight, node.strokeBottomWeight, node.strokeLeftWeight] = spec.border.widths;
-      node.strokeAlign = 'INSIDE'; if (spec.border.dashed) node.dashPattern = [4, 4];
+      node.strokeAlign = spec.border.align || 'INSIDE'; if (spec.border.dashed) node.dashPattern = [4, 4];
     }
     node.effects = (spec.effects || []).map(e => ({ type: e.inner ? 'INNER_SHADOW' : 'DROP_SHADOW', color: { ...rgb(e.color), a: e.color.a }, offset: { x: e.x, y: e.y }, radius: e.blur, spread: e.spread, visible: true, blendMode: 'NORMAL' } as Effect));
   };

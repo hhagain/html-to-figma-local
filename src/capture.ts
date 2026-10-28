@@ -1,4 +1,5 @@
 import { linearGradient } from './gradient';
+import { solidPathClipSVG } from './clip-path';
 import { SCHEMA_VERSION, LIMITS, addDiagnostic, countScene, type CaptureDocument, type SceneNode, type Color, type Paint, type Asset, type Diagnostic, type Layout } from './schema';
 export interface CaptureOptions { selector?: string; name?: string; maxNodes?: number; clipToViewport?: boolean }
 const round = (v: number) => Math.round(v * 100) / 100;
@@ -166,17 +167,57 @@ export async function captureDOM(doc: Document = document, options: CaptureOptio
       n.border = { color: color(colors[first]), widths, dashed: /dashed|dotted/.test([cs.borderTopStyle, cs.borderRightStyle, cs.borderBottomStyle, cs.borderLeftStyle][first]) };
       if (colors.some((c, i) => widths[i] && c !== colors[first])) warn('BORDER_COLORS', '多色边框采用第一个可见边的颜色', name);
     }
+    let outlineDecoration: SceneNode | null = null;
+    const outlineWidth = px(cs.outlineWidth), outlineOffset = px(cs.outlineOffset);
+    if (outlineWidth > 0 && !['none', 'hidden'].includes(cs.outlineStyle)) {
+      const ink = color(cs.outlineColor);
+      if (ink.a) {
+        // CSS outlines do not occupy layout space. These offsets map directly to a
+        // native Figma stroke, preserving the captured box and its Auto Layout padding.
+        const near = (a: number, b: number) => Math.abs(a - b) < .01;
+        const align = near(outlineOffset, -outlineWidth / 2) ? 'CENTER' : near(outlineOffset, 0) ? 'OUTSIDE' : near(outlineOffset, -outlineWidth) ? 'INSIDE' : null;
+        if (!n.border && align && ['solid', 'dashed', 'dotted'].includes(cs.outlineStyle)) {
+          const width = outlineWidth * uniformScale(el);
+          n.border = { color: ink, widths: [width, width, width, width], align, dashed: cs.outlineStyle !== 'solid' };
+        } else if (['solid', 'dashed', 'dotted'].includes(cs.outlineStyle) && cs.clipPath === 'none'
+          && cs.overflowX === 'visible' && cs.overflowY === 'visible'
+          && !['svg', 'img', 'canvas', 'video', 'audio', 'input', 'textarea', 'select', 'iframe', 'object', 'embed'].includes(el.tagName.toLowerCase())) {
+          const scale = uniformScale(el), offset = outlineOffset * scale, width = outlineWidth * scale;
+          if (rect.width + 2 * offset > 0 && rect.height + 2 * offset > 0) {
+            // An independent outline keeps arbitrary offsets and coexisting borders without
+            // changing the content box. Its owner stays in visual layout to exclude this decoration.
+            outlineDecoration = base('frame', `CSS outline / ${name}`, { x: rect.x - offset, y: rect.y - offset, width: rect.width + 2 * offset, height: rect.height + 2 * offset }, rect);
+            outlineDecoration.border = { color: ink, widths: [width, width, width, width], align: 'OUTSIDE', dashed: cs.outlineStyle !== 'solid' };
+            outlineDecoration.radius = n.radius?.map(r => Math.max(0, r + offset)) as SceneNode['radius'];
+          } else warn('OUTLINE_UNSUPPORTED', 'outline 的负偏移超过了容器尺寸', name);
+        } else warn('OUTLINE_UNSUPPORTED', '此 outline 的样式或裁剪组合尚未转换', name);
+      }
+    }
     n.effects = effects(cs.boxShadow);
     n.clip = clips(cs.overflowX) || clips(cs.overflowY);
     const childClip = n.clip ? {left:Math.max(inheritedClip?.left ?? -Infinity,clips(cs.overflowX)?rect.left:-Infinity),right:Math.min(inheritedClip?.right ?? Infinity,clips(cs.overflowX)?rect.right:Infinity),top:Math.max(inheritedClip?.top ?? -Infinity,clips(cs.overflowY)?rect.top:-Infinity),bottom:Math.min(inheritedClip?.bottom ?? Infinity,clips(cs.overflowY)?rect.bottom:Infinity)} : inheritedClip;
     if (cs.transform !== 'none') warn('TRANSFORM', 'CSS 变换按屏幕包围盒捕获，旋转和倾斜可能有差异', name);
-    if (cs.filter !== 'none' || cs.backdropFilter !== 'none' || cs.clipPath !== 'none') warn('VISUAL_EFFECT', '滤镜、背景模糊和 clip-path 未转换', name);
+    if (cs.filter !== 'none' || cs.backdropFilter !== 'none') warn('VISUAL_EFFECT', '滤镜和背景模糊未转换', name);
+    let hasPseudoContent = false;
     for (const pseudo of ['::before', '::after']) {
       const style = win.getComputedStyle(el, pseudo);
-      if (style.content && !['none', 'normal'].includes(style.content) && style.display !== 'none' && (!['""', "''"].includes(style.content) || color(style.backgroundColor).a > 0 || px(style.borderTopWidth) > 0 || style.backgroundImage !== 'none')) warn('PSEUDO_ELEMENT', '伪元素内容未导入，建议改为真实 DOM 或 SVG', name);
+      if (style.content && !['none', 'normal'].includes(style.content) && style.display !== 'none' && (!['""', "''"].includes(style.content) || color(style.backgroundColor).a > 0 || px(style.borderTopWidth) > 0 || style.backgroundImage !== 'none')) { hasPseudoContent = true; warn('PSEUDO_ELEMENT', '伪元素内容未导入，建议改为真实 DOM 或 SVG', name); }
+    }
+    const tag = el.tagName.toLowerCase();
+    if (cs.clipPath !== 'none') {
+      // A solid empty element clipped to a CSS path is itself a vector shape. Converting
+      // it avoids both a rectangular background and an image fallback, while sibling text stays editable.
+      const solid = n.fills.length === 1 && n.fills[0].type === 'solid' ? n.fills[0] : null;
+      const hasOwnContent = ['img', 'canvas', 'video', 'audio', 'input', 'textarea', 'select', 'iframe', 'object', 'embed', 'meter', 'progress'].includes(tag);
+      const isShape = n.kind === 'frame' && !hasOwnContent && !el.children.length && !el.textContent?.trim() && !hasPseudoContent
+        && !n.border && !outlineDecoration && !n.effects.length && !n.radius?.some(r => r > 0) && cs.backgroundImage === 'none';
+      const layoutWidth = px(cs.width) + (cs.boxSizing === 'border-box' ? 0 : px(cs.paddingLeft) + px(cs.paddingRight));
+      const layoutHeight = px(cs.height) + (cs.boxSizing === 'border-box' ? 0 : px(cs.paddingTop) + px(cs.paddingBottom));
+      const svg = isShape && solid ? solidPathClipSVG(cs.clipPath, { width: n.width, height: n.height, layoutWidth: layoutWidth || rect.width, layoutHeight: layoutHeight || rect.height }, solid.color) : null;
+      if (svg) { n.kind = 'svg'; n.fills = []; n.svg = svg; n.clip = true; return n; }
+      warn('CLIP_PATH_UNSUPPORTED', '此 clip-path 尚未转换；当前支持无子内容、无边框的纯色 path() 图形', name);
     }
     if (n.kind === 'svg') { n.svg = svgString(el, rect); return n; }
-    const tag = el.tagName.toLowerCase();
     if (tag === 'img') {
       const img = el as HTMLImageElement;
       if (img.currentSrc || img.src) {
@@ -224,6 +265,7 @@ export async function captureDOM(doc: Document = document, options: CaptureOptio
       }
       if(tag==='select' && !(el as HTMLSelectElement).multiple){ const arrow=base('svg','下拉箭头',{x:rect.right-22,y:rect.y+rect.height/2-5,width:12,height:10},rect);arrow.svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 10" width="12" height="10"><path d="m2 3 4 4 4-4" fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/></svg>';n.children.push(arrow);}
     }
+    if (outlineDecoration) n.children.push(outlineDecoration);
     if (cs.display === 'flex' || cs.display === 'inline-flex') {
       const horizontal = cs.flexDirection.startsWith('row');
       const main: Layout['main'] = cs.justifyContent === 'center' ? 'CENTER' : /^(flex-)?end$/.test(cs.justifyContent) ? 'MAX' : cs.justifyContent === 'space-between' ? 'SPACE_BETWEEN' : 'MIN';

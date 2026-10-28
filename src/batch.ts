@@ -1,17 +1,35 @@
 import { importDocument, createImportContext, type ImportResult } from './importer';
 import { BATCH_LIMITS } from './bundle';
-import { validateDocument, countScene, type CaptureDocument, type ImportMode } from './schema';
+import { validateDocument, countScene, isCanvasPlacement, type CanvasPlacement, type CaptureDocument, type ImportMode } from './schema';
+export interface ImportPlanPage { name: string; width: number; height: number; canvas?: CanvasPlacement }
 export class ImportBatch {
   readonly results: { index: number; name: string; nodeId?: string; error?: string; result?: ImportResult }[] = [];
   cancelled = false; processing = false; next = 0;
   private nodeCount = 0; private assetBytes = 0; private assetIds = new Set<string>();
   private context; private page: PageNode; private positions: { x: number; y: number }[]; private staging: FrameNode | null = null;
-  constructor(private api: PluginAPI, readonly id: string, private plan: { name: string; width: number; height: number }[], private mode: ImportMode) {
-    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some(p => !p || typeof p.name !== 'string' || !Number.isFinite(p.width) || p.width <= 0 || p.width > 100000 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 100000)) throw new Error('批次计划无效');
+  constructor(private api: PluginAPI, readonly id: string, private plan: ImportPlanPage[], private mode: ImportMode) {
+    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some(p => !p || typeof p.name !== 'string' || !Number.isFinite(p.width) || p.width <= 0 || p.width > 100000 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 100000 || (p.canvas !== undefined && !isCanvasPlacement(p.canvas)))) throw new Error('批次计划无效');
     this.context = createImportContext(api); this.page = api.currentPage;
     const existing = this.page.children.filter(n => n.visible); const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
-    const originY = Math.round(api.viewport.center.y); const columns = Math.min(8, Math.ceil(Math.sqrt(plan.length))); let x = originX, y = originY, rowHeight = 0;
-    this.positions = plan.map((p, i) => { if (i > 0 && i % columns === 0) { x = originX; y += rowHeight + 120; rowHeight = 0; } const pos = { x, y }; x += p.width + 120; rowHeight = Math.max(rowHeight, p.height); return pos; });
+    type Unit = { width: number; height: number; minX: number; minY: number; entries: { index: number; x: number; y: number }[] };
+    const units: Unit[] = [], canvases = new Map<string, Unit>();
+    plan.forEach((p, index) => {
+      const c = p.canvas;
+      if (!c) { units.push({ width: p.width, height: p.height, minX: 0, minY: 0, entries: [{ index, x: 0, y: 0 }] }); return; }
+      let unit = canvases.get(c.id);
+      if (!unit) { unit = { width: c.width, height: c.height, minX: 0, minY: 0, entries: [] }; canvases.set(c.id, unit); units.push(unit); }
+      unit.minX = Math.min(unit.minX, c.x); unit.minY = Math.min(unit.minY, c.y);
+      unit.width = Math.max(unit.width, c.width, c.x + p.width); unit.height = Math.max(unit.height, c.height, c.y + p.height);
+      unit.entries.push({ index, x: c.x, y: c.y });
+    });
+    const originY = Math.round(api.viewport.center.y), columns = Math.min(8, Math.ceil(Math.sqrt(units.length)));
+    let x = originX, y = originY, rowHeight = 0;
+    this.positions = new Array(plan.length);
+    units.forEach((unit, i) => {
+      if (i > 0 && i % columns === 0) { x = originX; y += rowHeight + 120; rowHeight = 0; }
+      for (const entry of unit.entries) this.positions[entry.index] = { x: x + entry.x - unit.minX, y: y + entry.y - unit.minY };
+      x += unit.width - unit.minX + 120; rowHeight = Math.max(rowHeight, unit.height - unit.minY);
+    });
   }
   cancel() { this.cancelled = true; }
   cleanupOnClose() { this.cancelled = true; if (this.staging && !this.staging.removed) this.staging.remove(); }

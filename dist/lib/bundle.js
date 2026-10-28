@@ -1,6 +1,11 @@
 // src/schema.ts
 var SCHEMA_VERSION = 1;
 var LIMITS = { nodes: 6e3, depth: 64, text: 25e4, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 1e5 };
+function isCanvasPlacement(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const canvas = value, max = 1e7;
+  return typeof canvas.id === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(canvas.id) && [canvas.x, canvas.y].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= max) && [canvas.width, canvas.height].every((n) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= max);
+}
 function countScene(root) {
   let nodes = 0, texts = 0, images = 0, vectors = 0;
   const walk = (n) => {
@@ -25,6 +30,7 @@ function validateDocument(input) {
   const doc = input;
   if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
+  if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
   if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail("\u8D44\u6E90\u6570\u91CF\u8D85\u9650");
   const ids = /* @__PURE__ */ new Set();
   let assetBytes = 0;
@@ -58,7 +64,7 @@ function validateDocument(input) {
       } else fail("\u4E0D\u652F\u6301\u7684\u586B\u5145\u7C7B\u578B");
     }
     if (n.radius !== void 0 && !tuple(n.radius, 4)) fail("\u5706\u89D2\u65E0\u6548");
-    if (n.border !== void 0 && (!object(n.border) || !color(n.border.color) || !tuple(n.border.widths, 4))) fail("\u8FB9\u6846\u65E0\u6548");
+    if (n.border !== void 0 && (!object(n.border) || !color(n.border.color) || !tuple(n.border.widths, 4) || n.border.align !== void 0 && !["INSIDE", "CENTER", "OUTSIDE"].includes(n.border.align))) fail("\u8FB9\u6846\u65E0\u6548");
     if (n.effects !== void 0 && (!Array.isArray(n.effects) || n.effects.length > 10 || n.effects.some((e) => !object(e) || !color(e.color) || !number(e.x) || !number(e.y) || !number(e.blur, LIMITS.dimension, 0) || !number(e.spread)))) fail("\u9634\u5F71\u65E0\u6548");
     if (n.layout !== void 0) {
       const l = n.layout;
@@ -131,7 +137,15 @@ var BundleBuilder = class {
   }
   addBundle(bundle) {
     validateBundle(bundle);
-    bundle.pages.forEach((_, i) => this.add(hydratePage(bundle, i)));
+    const namespace = `bundle-${this.bundle.pages.length}`, canvases = /* @__PURE__ */ new Map();
+    bundle.pages.forEach((_, i) => {
+      const page = hydratePage(bundle, i), canvas = page.source.canvas;
+      if (canvas) {
+        if (!canvases.has(canvas.id)) canvases.set(canvas.id, `${namespace}-${canvases.size}`);
+        page.source = { ...page.source, canvas: { ...canvas, id: canvases.get(canvas.id) } };
+      }
+      this.add(page);
+    });
     for (const error of bundle.errors) this.bundle.errors.push(error);
   }
   error(name, error) {
@@ -157,7 +171,7 @@ function validateBundle(value) {
   if (nodes > BATCH_LIMITS.nodes) throw new Error("\u6574\u6279\u8D85\u8FC7 120000 \u4E2A\u56FE\u5C42");
   if (b.errors.some((e) => !e || typeof e.name !== "string" || typeof e.message !== "string")) throw new Error("\u9875\u9762\u9519\u8BEF\u8BB0\u5F55\u65E0\u6548");
 }
-function discoverPages(doc, baseSelector, split, pageSelector = "") {
+function discoverPages(doc, baseSelector, split, pageSelector = "", canvasId = `canvas-${Date.now()}-${Math.random().toString(36).slice(2)}`) {
   let root;
   try {
     root = doc.querySelector(baseSelector || "body");
@@ -190,10 +204,30 @@ function discoverPages(doc, baseSelector, split, pageSelector = "") {
     }
   }
   if (!pages.length) pages = [root];
+  const placements = /* @__PURE__ */ new Map();
+  if (split && pages.length > 1 && doc.defaultView) {
+    const groups = /* @__PURE__ */ new Map();
+    for (const page of pages) {
+      if (!page.parentElement) continue;
+      const siblings = groups.get(page.parentElement);
+      if (siblings) siblings.push(page);
+      else groups.set(page.parentElement, [page]);
+    }
+    let groupIndex = 0;
+    for (const [parent, siblings] of groups) {
+      if (siblings.length < 2 || !siblings.every((el) => doc.defaultView.getComputedStyle(el).position === "absolute")) continue;
+      const base = parent.getBoundingClientRect(), bounds = siblings.map((el) => el.getBoundingClientRect());
+      const round = (n) => Math.round(n * 100) / 100;
+      const width = round(bounds.reduce((max, r) => Math.max(max, r.right - base.left), Math.max(base.width, parent.scrollWidth)));
+      const height = round(bounds.reduce((max, r) => Math.max(max, r.bottom - base.top), Math.max(base.height, parent.scrollHeight)));
+      const id = `${canvasId}-${groupIndex++}`;
+      siblings.forEach((el, i) => placements.set(el, { id, x: round(bounds[i].left - base.left), y: round(bounds[i].top - base.top), width, height }));
+    }
+  }
   return pages.map((element, i) => {
     element.setAttribute("data-h2f-capture-page", String(i));
     const name = element.getAttribute("data-pencil-name") || element.getAttribute("data-page-name") || element.getAttribute("aria-label") || element.getAttribute("data-page") || element.querySelector("h1,h2")?.textContent?.trim() || `${doc.title || "\u9875\u9762"} ${String(i + 1).padStart(3, "0")}`;
-    return { element, selector: `[data-h2f-capture-page="${i}"]`, name: name.slice(0, 150) };
+    return { element, selector: `[data-h2f-capture-page="${i}"]`, name: name.slice(0, 150), ...placements.has(element) ? { canvas: placements.get(element) } : {} };
   });
 }
 export {

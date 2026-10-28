@@ -85,7 +85,7 @@ function showBundle(bundle: CaptureBundle) {
   const stats = bundle.pages.reduce((sum, page) => { const s = countScene(page.root); for (const key of ['nodes', 'texts', 'images', 'vectors'] as const) sum[key] += s[key]; return sum; }, { nodes: 0, texts: 0, images: 0, vectors: 0 });
   $('report').hidden = false; $('ready-actions').hidden = false; $('prepare').hidden = true;
   $('report-title').textContent = bundle.pages.length > 1 ? `已准备好 ${bundle.pages.length} 页` : '已准备好';
-  $('report-summary').textContent = bundle.pages.length > 1 ? `${bundle.name} · 图片资源已跨页去重` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)} px · ${prepared.name}`;
+  $('report-summary').textContent = bundle.pages.length > 1 ? `${bundle.name} · ${bundle.pages.some(p => p.source.canvas) ? '保留原画布排布 · ' : ''}图片资源已跨页去重` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)} px · ${prepared.name}`;
   $('stat-nodes').textContent = String(stats.nodes); $('stat-text').textContent = String(stats.texts); $('stat-image').textContent = String(stats.images); $('stat-svg').textContent = String(stats.vectors);
   $('preview-size').textContent = bundle.pages.length > 1 ? `${bundle.pages.length} 页` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)}`;
   const diagnostics = bundle.pages.flatMap(page => page.diagnostics).slice(0, 100);
@@ -372,13 +372,14 @@ async function prepareHTML(html: string, filename = sourceName, builder = new Bu
   doc.addEventListener('wheel', event => handlePreviewWheel(event, currentFrame), { passive: false }); doc.addEventListener('keydown', handlePreviewKeyDown); doc.addEventListener('keyup', handlePreviewKeyUp);
   await Promise.race([Promise.all(Array.from(doc.images).map(img => img.decode().catch(() => {}))), new Promise(resolve => setTimeout(resolve, 3500))]);
   await Promise.race([doc.fonts.ready, new Promise(resolve => setTimeout(resolve, 2500))]);
-  const pages = discoverPages(doc, selector, input('split-pages').checked, input('page-selector').value.trim());
+  const pages = discoverPages(doc, selector, input('split-pages').checked, input('page-selector').value.trim(), randomId());
   for (let i = 0; i < pages.length; i++) {
     if (captureStopped) break;
     const page = pages[i]; status(`正在解析 ${filename || 'HTML'} · 第 ${i + 1} / ${pages.length} 页…`);
     $<HTMLProgressElement>('progress').value = Math.round(i / pages.length * 100);
     try {
       const captured = await captureDOM(doc, { selector: page.selector, name: pages.length > 1 ? page.name : doc.title || filename.replace(/\.html?$/i, '') || 'HTML 页面' });
+      if (page.canvas) captured.source.canvas = page.canvas;
       captured.source.url = input('base-url').value.trim() || 'local-html'; captured.source.selector = pages.length > 1 ? page.name : selector;
       if (preparedHTML.unhandledScripts) captured.diagnostics.push({ code: 'SCRIPTS_DISABLED', message: 'HTML 内脚本未执行；依赖 JavaScript 的页面请使用网页链接入口', count: 1 });
       for (const link of doc.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')) if (!link.sheet) captured.diagnostics.push({ code: 'STYLESHEET_MISSING', message: '外部样式未加载，请设置资源基础地址或使用本地服务捕获', node: link.href.slice(0, 180), count: 1 });
@@ -467,7 +468,7 @@ function importPrepared() {
   if (preparedBundle.pages.length === 1) { status('正在加载字体并创建图层…'); message('IMPORT', { document: prepared, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId }); }
   else {
     batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`; queuePosition = 0;
-    message('BATCH_START', { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map(i => ({ name: preparedBundle!.pages[i].name, width: preparedBundle!.pages[i].root.width, height: preparedBundle!.pages[i].root.height })) });
+    message('BATCH_START', { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map(i => ({ name: preparedBundle!.pages[i].name, width: preparedBundle!.pages[i].root.width, height: preparedBundle!.pages[i].root.height, canvas: preparedBundle!.pages[i].source.canvas })) });
     status(`开始导入 ${queue.length} 页…`);
   }
 }

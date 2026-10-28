@@ -1,6 +1,11 @@
 // src/schema.ts
 var SCHEMA_VERSION = 1;
 var LIMITS = { nodes: 6e3, depth: 64, text: 25e4, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 1e5 };
+function isCanvasPlacement(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const canvas = value, max = 1e7;
+  return typeof canvas.id === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(canvas.id) && [canvas.x, canvas.y].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= max) && [canvas.width, canvas.height].every((n) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= max);
+}
 function countScene(root) {
   let nodes = 0, texts = 0, images = 0, vectors = 0;
   const walk = (n) => {
@@ -30,6 +35,7 @@ function validateDocument(input) {
   const doc = input;
   if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
+  if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
   if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail("\u8D44\u6E90\u6570\u91CF\u8D85\u9650");
   const ids = /* @__PURE__ */ new Set();
   let assetBytes = 0;
@@ -63,7 +69,7 @@ function validateDocument(input) {
       } else fail("\u4E0D\u652F\u6301\u7684\u586B\u5145\u7C7B\u578B");
     }
     if (n.radius !== void 0 && !tuple(n.radius, 4)) fail("\u5706\u89D2\u65E0\u6548");
-    if (n.border !== void 0 && (!object(n.border) || !color(n.border.color) || !tuple(n.border.widths, 4))) fail("\u8FB9\u6846\u65E0\u6548");
+    if (n.border !== void 0 && (!object(n.border) || !color(n.border.color) || !tuple(n.border.widths, 4) || n.border.align !== void 0 && !["INSIDE", "CENTER", "OUTSIDE"].includes(n.border.align))) fail("\u8FB9\u6846\u65E0\u6548");
     if (n.effects !== void 0 && (!Array.isArray(n.effects) || n.effects.length > 10 || n.effects.some((e) => !object(e) || !color(e.color) || !number(e.x) || !number(e.y) || !number(e.blur, LIMITS.dimension, 0) || !number(e.spread)))) fail("\u9634\u5F71\u65E0\u6548");
     if (n.layout !== void 0) {
       const l = n.layout;
@@ -252,7 +258,7 @@ async function importDocument(api, document, options) {
     if (spec.border) {
       node.strokes = [{ type: "SOLID", color: rgb(spec.border.color), opacity: spec.border.color.a }];
       [node.strokeTopWeight, node.strokeRightWeight, node.strokeBottomWeight, node.strokeLeftWeight] = spec.border.widths;
-      node.strokeAlign = "INSIDE";
+      node.strokeAlign = spec.border.align || "INSIDE";
       if (spec.border.dashed) node.dashPattern = [4, 4];
     }
     node.effects = (spec.effects || []).map((e) => ({ type: e.inner ? "INNER_SHADOW" : "DROP_SHADOW", color: { ...rgb(e.color), a: e.color.a }, offset: { x: e.x, y: e.y }, radius: e.blur, spread: e.spread, visible: true, blendMode: "NORMAL" }));

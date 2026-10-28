@@ -120,9 +120,23 @@
     return { type: "linear", stops: clipped, transform: [[a, b, 0.5 - (a + b) / 2], [-b, a, 0.5 - (a - b) / 2]] };
   }
 
+  // src/clip-path.ts
+  function solidPathClipSVG(value, size, color) {
+    const match = value.match(/^path\(\s*(?:(nonzero|evenodd)\s*,\s*)?(["'])([\s\S]*?)\2\s*\)(?:\s+border-box)?$/i);
+    if (!match || match[3].length > 1e6 || !/^[MmZzLlHhVvCcSsQqTtAa0-9eE+.,\s-]*$/.test(match[3])) return null;
+    if (![size.width, size.height, size.layoutWidth, size.layoutHeight].every((n) => Number.isFinite(n) && n > 0)) return null;
+    const fill = `rgb(${Math.round(color.r * 255)},${Math.round(color.g * 255)},${Math.round(color.b * 255)})`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}" viewBox="0 0 ${size.layoutWidth} ${size.layoutHeight}"><path d="${match[3]}" fill="${fill}" fill-opacity="${color.a}" fill-rule="${(match[1] || "nonzero").toLowerCase()}"/></svg>`;
+  }
+
   // src/schema.ts
   var SCHEMA_VERSION = 1;
   var LIMITS = { nodes: 6e3, depth: 64, text: 25e4, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 1e5 };
+  function isCanvasPlacement(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const canvas = value, max = 1e7;
+    return typeof canvas.id === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(canvas.id) && [canvas.x, canvas.y].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= max) && [canvas.width, canvas.height].every((n) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= max);
+  }
   function countScene(root) {
     let nodes = 0, texts = 0, images = 0, vectors = 0;
     const walk = (n) => {
@@ -152,6 +166,7 @@
     const doc = input2;
     if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
     if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
+    if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
     if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail("\u8D44\u6E90\u6570\u91CF\u8D85\u9650");
     const ids = /* @__PURE__ */ new Set();
     let assetBytes = 0;
@@ -185,7 +200,7 @@
         } else fail("\u4E0D\u652F\u6301\u7684\u586B\u5145\u7C7B\u578B");
       }
       if (n.radius !== void 0 && !tuple(n.radius, 4)) fail("\u5706\u89D2\u65E0\u6548");
-      if (n.border !== void 0 && (!object(n.border) || !color(n.border.color) || !tuple(n.border.widths, 4))) fail("\u8FB9\u6846\u65E0\u6548");
+      if (n.border !== void 0 && (!object(n.border) || !color(n.border.color) || !tuple(n.border.widths, 4) || n.border.align !== void 0 && !["INSIDE", "CENTER", "OUTSIDE"].includes(n.border.align))) fail("\u8FB9\u6846\u65E0\u6548");
       if (n.effects !== void 0 && (!Array.isArray(n.effects) || n.effects.length > 10 || n.effects.some((e) => !object(e) || !color(e.color) || !number(e.x) || !number(e.y) || !number(e.blur, LIMITS.dimension, 0) || !number(e.spread)))) fail("\u9634\u5F71\u65E0\u6548");
       if (n.layout !== void 0) {
         const l = n.layout;
@@ -421,20 +436,60 @@
         n.border = { color: color(colors[first]), widths, dashed: /dashed|dotted/.test([cs.borderTopStyle, cs.borderRightStyle, cs.borderBottomStyle, cs.borderLeftStyle][first]) };
         if (colors.some((c, i2) => widths[i2] && c !== colors[first])) warn("BORDER_COLORS", "\u591A\u8272\u8FB9\u6846\u91C7\u7528\u7B2C\u4E00\u4E2A\u53EF\u89C1\u8FB9\u7684\u989C\u8272", name);
       }
+      let outlineDecoration = null;
+      const outlineWidth = px(cs.outlineWidth), outlineOffset = px(cs.outlineOffset);
+      if (outlineWidth > 0 && !["none", "hidden"].includes(cs.outlineStyle)) {
+        const ink = color(cs.outlineColor);
+        if (ink.a) {
+          const near = (a, b) => Math.abs(a - b) < 0.01;
+          const align = near(outlineOffset, -outlineWidth / 2) ? "CENTER" : near(outlineOffset, 0) ? "OUTSIDE" : near(outlineOffset, -outlineWidth) ? "INSIDE" : null;
+          if (!n.border && align && ["solid", "dashed", "dotted"].includes(cs.outlineStyle)) {
+            const width = outlineWidth * uniformScale(el);
+            n.border = { color: ink, widths: [width, width, width, width], align, dashed: cs.outlineStyle !== "solid" };
+          } else if (["solid", "dashed", "dotted"].includes(cs.outlineStyle) && cs.clipPath === "none" && cs.overflowX === "visible" && cs.overflowY === "visible" && !["svg", "img", "canvas", "video", "audio", "input", "textarea", "select", "iframe", "object", "embed"].includes(el.tagName.toLowerCase())) {
+            const scale = uniformScale(el), offset2 = outlineOffset * scale, width = outlineWidth * scale;
+            if (rect.width + 2 * offset2 > 0 && rect.height + 2 * offset2 > 0) {
+              outlineDecoration = base("frame", `CSS outline / ${name}`, { x: rect.x - offset2, y: rect.y - offset2, width: rect.width + 2 * offset2, height: rect.height + 2 * offset2 }, rect);
+              outlineDecoration.border = { color: ink, widths: [width, width, width, width], align: "OUTSIDE", dashed: cs.outlineStyle !== "solid" };
+              outlineDecoration.radius = n.radius?.map((r) => Math.max(0, r + offset2));
+            } else warn("OUTLINE_UNSUPPORTED", "outline \u7684\u8D1F\u504F\u79FB\u8D85\u8FC7\u4E86\u5BB9\u5668\u5C3A\u5BF8", name);
+          } else warn("OUTLINE_UNSUPPORTED", "\u6B64 outline \u7684\u6837\u5F0F\u6216\u88C1\u526A\u7EC4\u5408\u5C1A\u672A\u8F6C\u6362", name);
+        }
+      }
       n.effects = effects(cs.boxShadow);
       n.clip = clips(cs.overflowX) || clips(cs.overflowY);
       const childClip = n.clip ? { left: Math.max(inheritedClip?.left ?? -Infinity, clips(cs.overflowX) ? rect.left : -Infinity), right: Math.min(inheritedClip?.right ?? Infinity, clips(cs.overflowX) ? rect.right : Infinity), top: Math.max(inheritedClip?.top ?? -Infinity, clips(cs.overflowY) ? rect.top : -Infinity), bottom: Math.min(inheritedClip?.bottom ?? Infinity, clips(cs.overflowY) ? rect.bottom : Infinity) } : inheritedClip;
       if (cs.transform !== "none") warn("TRANSFORM", "CSS \u53D8\u6362\u6309\u5C4F\u5E55\u5305\u56F4\u76D2\u6355\u83B7\uFF0C\u65CB\u8F6C\u548C\u503E\u659C\u53EF\u80FD\u6709\u5DEE\u5F02", name);
-      if (cs.filter !== "none" || cs.backdropFilter !== "none" || cs.clipPath !== "none") warn("VISUAL_EFFECT", "\u6EE4\u955C\u3001\u80CC\u666F\u6A21\u7CCA\u548C clip-path \u672A\u8F6C\u6362", name);
+      if (cs.filter !== "none" || cs.backdropFilter !== "none") warn("VISUAL_EFFECT", "\u6EE4\u955C\u548C\u80CC\u666F\u6A21\u7CCA\u672A\u8F6C\u6362", name);
+      let hasPseudoContent = false;
       for (const pseudo of ["::before", "::after"]) {
         const style = win.getComputedStyle(el, pseudo);
-        if (style.content && !["none", "normal"].includes(style.content) && style.display !== "none" && (!['""', "''"].includes(style.content) || color(style.backgroundColor).a > 0 || px(style.borderTopWidth) > 0 || style.backgroundImage !== "none")) warn("PSEUDO_ELEMENT", "\u4F2A\u5143\u7D20\u5185\u5BB9\u672A\u5BFC\u5165\uFF0C\u5EFA\u8BAE\u6539\u4E3A\u771F\u5B9E DOM \u6216 SVG", name);
+        if (style.content && !["none", "normal"].includes(style.content) && style.display !== "none" && (!['""', "''"].includes(style.content) || color(style.backgroundColor).a > 0 || px(style.borderTopWidth) > 0 || style.backgroundImage !== "none")) {
+          hasPseudoContent = true;
+          warn("PSEUDO_ELEMENT", "\u4F2A\u5143\u7D20\u5185\u5BB9\u672A\u5BFC\u5165\uFF0C\u5EFA\u8BAE\u6539\u4E3A\u771F\u5B9E DOM \u6216 SVG", name);
+        }
+      }
+      const tag = el.tagName.toLowerCase();
+      if (cs.clipPath !== "none") {
+        const solid = n.fills.length === 1 && n.fills[0].type === "solid" ? n.fills[0] : null;
+        const hasOwnContent = ["img", "canvas", "video", "audio", "input", "textarea", "select", "iframe", "object", "embed", "meter", "progress"].includes(tag);
+        const isShape = n.kind === "frame" && !hasOwnContent && !el.children.length && !el.textContent?.trim() && !hasPseudoContent && !n.border && !outlineDecoration && !n.effects.length && !n.radius?.some((r) => r > 0) && cs.backgroundImage === "none";
+        const layoutWidth = px(cs.width) + (cs.boxSizing === "border-box" ? 0 : px(cs.paddingLeft) + px(cs.paddingRight));
+        const layoutHeight = px(cs.height) + (cs.boxSizing === "border-box" ? 0 : px(cs.paddingTop) + px(cs.paddingBottom));
+        const svg = isShape && solid ? solidPathClipSVG(cs.clipPath, { width: n.width, height: n.height, layoutWidth: layoutWidth || rect.width, layoutHeight: layoutHeight || rect.height }, solid.color) : null;
+        if (svg) {
+          n.kind = "svg";
+          n.fills = [];
+          n.svg = svg;
+          n.clip = true;
+          return n;
+        }
+        warn("CLIP_PATH_UNSUPPORTED", "\u6B64 clip-path \u5C1A\u672A\u8F6C\u6362\uFF1B\u5F53\u524D\u652F\u6301\u65E0\u5B50\u5185\u5BB9\u3001\u65E0\u8FB9\u6846\u7684\u7EAF\u8272 path() \u56FE\u5F62", name);
       }
       if (n.kind === "svg") {
         n.svg = svgString(el, rect);
         return n;
       }
-      const tag = el.tagName.toLowerCase();
       if (tag === "img") {
         const img = el;
         if (img.currentSrc || img.src) {
@@ -504,6 +559,7 @@
           n.children.push(arrow);
         }
       }
+      if (outlineDecoration) n.children.push(outlineDecoration);
       if (cs.display === "flex" || cs.display === "inline-flex") {
         const horizontal = cs.flexDirection.startsWith("row");
         const main = cs.justifyContent === "center" ? "CENTER" : /^(flex-)?end$/.test(cs.justifyContent) ? "MAX" : cs.justifyContent === "space-between" ? "SPACE_BETWEEN" : "MIN";
@@ -7879,7 +7935,15 @@
     }
     addBundle(bundle) {
       validateBundle(bundle);
-      bundle.pages.forEach((_, i2) => this.add(hydratePage(bundle, i2)));
+      const namespace = `bundle-${this.bundle.pages.length}`, canvases = /* @__PURE__ */ new Map();
+      bundle.pages.forEach((_, i2) => {
+        const page = hydratePage(bundle, i2), canvas = page.source.canvas;
+        if (canvas) {
+          if (!canvases.has(canvas.id)) canvases.set(canvas.id, `${namespace}-${canvases.size}`);
+          page.source = { ...page.source, canvas: { ...canvas, id: canvases.get(canvas.id) } };
+        }
+        this.add(page);
+      });
       for (const error of bundle.errors) this.bundle.errors.push(error);
     }
     error(name, error) {
@@ -7905,7 +7969,7 @@
     if (nodes > BATCH_LIMITS.nodes) throw new Error("\u6574\u6279\u8D85\u8FC7 120000 \u4E2A\u56FE\u5C42");
     if (b.errors.some((e) => !e || typeof e.name !== "string" || typeof e.message !== "string")) throw new Error("\u9875\u9762\u9519\u8BEF\u8BB0\u5F55\u65E0\u6548");
   }
-  function discoverPages(doc, baseSelector, split, pageSelector = "") {
+  function discoverPages(doc, baseSelector, split, pageSelector = "", canvasId = `canvas-${Date.now()}-${Math.random().toString(36).slice(2)}`) {
     let root;
     try {
       root = doc.querySelector(baseSelector || "body");
@@ -7938,10 +8002,30 @@
       }
     }
     if (!pages.length) pages = [root];
+    const placements = /* @__PURE__ */ new Map();
+    if (split && pages.length > 1 && doc.defaultView) {
+      const groups = /* @__PURE__ */ new Map();
+      for (const page of pages) {
+        if (!page.parentElement) continue;
+        const siblings = groups.get(page.parentElement);
+        if (siblings) siblings.push(page);
+        else groups.set(page.parentElement, [page]);
+      }
+      let groupIndex = 0;
+      for (const [parent, siblings] of groups) {
+        if (siblings.length < 2 || !siblings.every((el) => doc.defaultView.getComputedStyle(el).position === "absolute")) continue;
+        const base = parent.getBoundingClientRect(), bounds = siblings.map((el) => el.getBoundingClientRect());
+        const round2 = (n) => Math.round(n * 100) / 100;
+        const width = round2(bounds.reduce((max, r) => Math.max(max, r.right - base.left), Math.max(base.width, parent.scrollWidth)));
+        const height = round2(bounds.reduce((max, r) => Math.max(max, r.bottom - base.top), Math.max(base.height, parent.scrollHeight)));
+        const id = `${canvasId}-${groupIndex++}`;
+        siblings.forEach((el, i2) => placements.set(el, { id, x: round2(bounds[i2].left - base.left), y: round2(bounds[i2].top - base.top), width, height }));
+      }
+    }
     return pages.map((element, i2) => {
       element.setAttribute("data-h2f-capture-page", String(i2));
       const name = element.getAttribute("data-pencil-name") || element.getAttribute("data-page-name") || element.getAttribute("aria-label") || element.getAttribute("data-page") || element.querySelector("h1,h2")?.textContent?.trim() || `${doc.title || "\u9875\u9762"} ${String(i2 + 1).padStart(3, "0")}`;
-      return { element, selector: `[data-h2f-capture-page="${i2}"]`, name: name.slice(0, 150) };
+      return { element, selector: `[data-h2f-capture-page="${i2}"]`, name: name.slice(0, 150), ...placements.has(element) ? { canvas: placements.get(element) } : {} };
     });
   }
 
@@ -8110,7 +8194,7 @@
     $("ready-actions").hidden = false;
     $("prepare").hidden = true;
     $("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} \u9875` : "\u5DF2\u51C6\u5907\u597D";
-    $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 \u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
+    $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
     $("stat-nodes").textContent = String(stats.nodes);
     $("stat-text").textContent = String(stats.texts);
     $("stat-image").textContent = String(stats.images);
@@ -8640,7 +8724,7 @@
     await Promise.race([Promise.all(Array.from(doc.images).map((img) => img.decode().catch(() => {
     }))), new Promise((resolve) => setTimeout(resolve, 3500))]);
     await Promise.race([doc.fonts.ready, new Promise((resolve) => setTimeout(resolve, 2500))]);
-    const pages = discoverPages(doc, selector, input("split-pages").checked, input("page-selector").value.trim());
+    const pages = discoverPages(doc, selector, input("split-pages").checked, input("page-selector").value.trim(), randomId());
     for (let i2 = 0; i2 < pages.length; i2++) {
       if (captureStopped) break;
       const page = pages[i2];
@@ -8648,6 +8732,7 @@
       $("progress").value = Math.round(i2 / pages.length * 100);
       try {
         const captured = await captureDOM(doc, { selector: page.selector, name: pages.length > 1 ? page.name : doc.title || filename.replace(/\.html?$/i, "") || "HTML \u9875\u9762" });
+        if (page.canvas) captured.source.canvas = page.canvas;
         captured.source.url = input("base-url").value.trim() || "local-html";
         captured.source.selector = pages.length > 1 ? page.name : selector;
         if (preparedHTML.unhandledScripts) captured.diagnostics.push({ code: "SCRIPTS_DISABLED", message: "HTML \u5185\u811A\u672C\u672A\u6267\u884C\uFF1B\u4F9D\u8D56 JavaScript \u7684\u9875\u9762\u8BF7\u4F7F\u7528\u7F51\u9875\u94FE\u63A5\u5165\u53E3", count: 1 });
@@ -8817,7 +8902,7 @@
     } else {
       batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       queuePosition = 0;
-      message("BATCH_START", { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height })) });
+      message("BATCH_START", { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, canvas: preparedBundle.pages[i2].source.canvas })) });
       status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} \u9875\u2026`);
     }
   }

@@ -15,15 +15,26 @@ export interface SceneNode {
   id: string; kind: 'frame' | 'text' | 'svg'; name: string;
   x: number; y: number; width: number; height: number; opacity: number;
   fills: Paint[]; radius?: [number, number, number, number];
-  border?: { color: Color; widths: [number, number, number, number]; dashed?: boolean };
+  border?: { color: Color; widths: [number, number, number, number]; dashed?: boolean; align?: 'INSIDE' | 'CENTER' | 'OUTSIDE' };
   effects?: { inner: boolean; color: Color; x: number; y: number; blur: number; spread: number }[];
   clip?: boolean; layout?: Layout; children?: SceneNode[];
   text?: { value: string; families: string[]; size: number; weight: number; italic: boolean; lineHeight: number; letterSpacing: number; color: Color; decoration: 'NONE' | 'UNDERLINE' | 'STRIKETHROUGH' };
   svg?: string;
 }
+export interface CanvasPlacement {
+  id: string; x: number; y: number; width: number; height: number;
+}
+// A canvas can span many individually captured pages, so its extent is larger than a single node.
+export function isCanvasPlacement(value: unknown): value is CanvasPlacement {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const canvas = value as CanvasPlacement, max = 10000000;
+  return typeof canvas.id === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(canvas.id)
+    && [canvas.x, canvas.y].every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= max)
+    && [canvas.width, canvas.height].every(n => typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= max);
+}
 export interface CaptureDocument {
   schemaVersion: 1; name: string; createdAt: string;
-  source: { title: string; url: string; viewport: { width: number; height: number }; selector: string };
+  source: { title: string; url: string; viewport: { width: number; height: number }; selector: string; canvas?: CanvasPlacement };
   root: SceneNode; assets: Asset[]; diagnostics: Diagnostic[];
   stats: { nodes: number; texts: number; images: number; vectors: number; missingAssets: number };
 }
@@ -48,6 +59,7 @@ export function validateDocument(input: unknown): asserts input is CaptureDocume
   const doc = input as Record<string, any>;
   if (typeof doc.name !== 'string' || doc.name.length > 500) fail('名称过长或缺失');
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== 'string' || typeof doc.source.selector !== 'string') fail('缺少页面信息');
+  if (doc.source.canvas !== undefined && !isCanvasPlacement(doc.source.canvas)) fail('原画布位置信息无效');
   if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail('资源数量超限');
   const ids = new Set<string>(); let assetBytes = 0;
   for (const a of doc.assets) {
@@ -77,7 +89,7 @@ export function validateDocument(input: unknown): asserts input is CaptureDocume
       } else fail('不支持的填充类型');
     }
     if (n.radius !== undefined && !tuple(n.radius, 4)) fail('圆角无效');
-    if (n.border !== undefined && (!object(n.border) || !color(n.border.color) || !tuple(n.border.widths, 4))) fail('边框无效');
+    if (n.border !== undefined && (!object(n.border) || !color(n.border.color) || !tuple(n.border.widths, 4) || (n.border.align !== undefined && !['INSIDE', 'CENTER', 'OUTSIDE'].includes(n.border.align)))) fail('边框无效');
     if (n.effects !== undefined && (!Array.isArray(n.effects) || n.effects.length > 10 || n.effects.some((e: any) => !object(e) || !color(e.color) || !number(e.x) || !number(e.y) || !number(e.blur, LIMITS.dimension, 0) || !number(e.spread)))) fail('阴影无效');
     if (n.layout !== undefined) {
       const l = n.layout;

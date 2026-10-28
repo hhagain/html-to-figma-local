@@ -1,4 +1,4 @@
-import { validateDocument, countScene, type CaptureDocument, type Asset, type SceneNode } from './schema';
+import { validateDocument, countScene, type CaptureDocument, type Asset, type SceneNode, type CanvasPlacement } from './schema';
 export const BATCH_LIMITS = { nodes: 120000, assets: 2000, assetBytes: 64 * 1024 * 1024 };
 export interface CaptureBundle { schemaVersion: 1; format: 'h2f-bundle'; name: string; createdAt: string; pages: CaptureDocument[]; assets: Asset[]; errors: { name: string; message: string }[] }
 export function isBundle(value: any): value is CaptureBundle { return value?.format === 'h2f-bundle'; }
@@ -29,7 +29,20 @@ export class BundleBuilder {
     const clone = (n: SceneNode): SceneNode => ({ ...n, fills: n.fills.map(p => p.type === 'image' ? { ...p, assetId: mapping.get(p.assetId)! } : p), ...(n.children ? { children: n.children.map(clone) } : {}) });
     this.bundle.pages.push({ ...input, root: clone(input.root), assets: refs }); this.nodes += count;
   }
-  addBundle(bundle: CaptureBundle) { validateBundle(bundle); bundle.pages.forEach((_, i) => this.add(hydratePage(bundle, i))); for (const error of bundle.errors) this.bundle.errors.push(error); }
+  addBundle(bundle: CaptureBundle) {
+    validateBundle(bundle);
+    // Repeated backups and different input files must not share the same canvas placement group.
+    const namespace = `bundle-${this.bundle.pages.length}`, canvases = new Map<string, string>();
+    bundle.pages.forEach((_, i) => {
+      const page = hydratePage(bundle, i), canvas = page.source.canvas;
+      if (canvas) {
+        if (!canvases.has(canvas.id)) canvases.set(canvas.id, `${namespace}-${canvases.size}`);
+        page.source = { ...page.source, canvas: { ...canvas, id: canvases.get(canvas.id)! } };
+      }
+      this.add(page);
+    });
+    for (const error of bundle.errors) this.bundle.errors.push(error);
+  }
   error(name: string, error: unknown) { this.bundle.errors.push({ name, message: error instanceof Error ? error.message : String(error) }); }
 }
 export function validateBundle(value: unknown): asserts value is CaptureBundle {
@@ -42,7 +55,8 @@ export function validateBundle(value: unknown): asserts value is CaptureBundle {
   if (nodes > BATCH_LIMITS.nodes) throw new Error('整批超过 120000 个图层');
   if (b.errors.some(e => !e || typeof e.name !== 'string' || typeof e.message !== 'string')) throw new Error('页面错误记录无效');
 }
-export function discoverPages(doc: Document, baseSelector: string, split: boolean, pageSelector = ''): { element: Element; selector: string; name: string }[] {
+export interface DiscoveredPage { element: Element; selector: string; name: string; canvas?: CanvasPlacement }
+export function discoverPages(doc: Document, baseSelector: string, split: boolean, pageSelector = '', canvasId = `canvas-${Date.now()}-${Math.random().toString(36).slice(2)}`): DiscoveredPage[] {
   let root: Element | null;
   try { root = doc.querySelector(baseSelector || 'body'); } catch { throw new Error('捕获区域选择器格式不正确'); }
   if (!root) throw new Error(`没有找到选择器：${baseSelector}`);
@@ -59,9 +73,30 @@ export function discoverPages(doc: Document, baseSelector: string, split: boolea
     }
   }
   if (!pages.length) pages = [root];
+  const placements = new Map<Element, CanvasPlacement>();
+  if (split && pages.length > 1 && doc.defaultView) {
+    const groups = new Map<Element, Element[]>();
+    for (const page of pages) {
+      if (!page.parentElement) continue;
+      const siblings = groups.get(page.parentElement);
+      if (siblings) siblings.push(page); else groups.set(page.parentElement, [page]);
+    }
+    let groupIndex = 0;
+    for (const [parent, siblings] of groups) {
+      // Absolute design exports are pieces of one canvas. Ordinary flow pages and dynamic states
+      // remain independent and use the existing grid arrangement.
+      if (siblings.length < 2 || !siblings.every(el => doc.defaultView!.getComputedStyle(el).position === 'absolute')) continue;
+      const base = parent.getBoundingClientRect(), bounds = siblings.map(el => el.getBoundingClientRect());
+      const round = (n: number) => Math.round(n * 100) / 100;
+      const width = round(bounds.reduce((max, r) => Math.max(max, r.right - base.left), Math.max(base.width, parent.scrollWidth)));
+      const height = round(bounds.reduce((max, r) => Math.max(max, r.bottom - base.top), Math.max(base.height, parent.scrollHeight)));
+      const id = `${canvasId}-${groupIndex++}`;
+      siblings.forEach((el, i) => placements.set(el, { id, x: round(bounds[i].left - base.left), y: round(bounds[i].top - base.top), width, height }));
+    }
+  }
   return pages.map((element, i) => {
     element.setAttribute('data-h2f-capture-page', String(i));
     const name = element.getAttribute('data-pencil-name') || element.getAttribute('data-page-name') || element.getAttribute('aria-label') || element.getAttribute('data-page') || element.querySelector('h1,h2')?.textContent?.trim() || `${doc.title || '页面'} ${String(i + 1).padStart(3, '0')}`;
-    return { element, selector: `[data-h2f-capture-page="${i}"]`, name: name.slice(0, 150) };
+    return { element, selector: `[data-h2f-capture-page="${i}"]`, name: name.slice(0, 150), ...(placements.has(element) ? { canvas: placements.get(element)! } : {}) };
   });
 }

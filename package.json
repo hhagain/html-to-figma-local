@@ -1,6 +1,6 @@
 {
   "name": "html-to-figma-local",
-  "version": "0.9.0",
+  "version": "0.9.3",
   "private": true,
   "description": "Local HTML and webpage capture to editable Figma layers",
   "type": "module",
