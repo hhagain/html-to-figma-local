@@ -2,11 +2,11 @@
 
 ## 已经安装过开发插件
 
-如果原插件指向本项目目录中的 `manifest.json`，关闭并重新运行 **HTML to Figma · Local** 即可。底部显示 **v0.10.0** 表示加载了新版。
+如果原插件指向本项目目录中的 `manifest.json`，关闭并重新运行 **HTML to Figma · Local** 即可。底部显示 **v0.11.0** 表示加载了新版。
 
 ## 使用 ZIP 安装
 
-1. 完整解压 `html-to-figma-local-0.10.0.zip` 到固定目录。
+1. 完整解压 `html-to-figma-local-0.11.0.zip` 到固定目录。
 2. 在 Figma 桌面端选择 **Plugins → Development → Import plugin from manifest…**。
 3. 选择解压目录中的 `manifest.json`。
 4. 从 **Plugins → Development → HTML to Figma · Local** 运行。

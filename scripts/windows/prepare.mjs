@@ -9,7 +9,7 @@ const desktop = JSON.parse(await readFile(path.join(root,'desktop/windows/packag
 if (pkg.version !== desktop.version) throw new Error('Windows host and plugin versions differ.');
 const staging = path.join(root,'artifacts/windows/staging'), engine = path.join(staging,'engine');
 await mkdir(path.join(engine,'scripts'),{recursive:true});
-for (const name of ['browser.mjs','capture-source.mjs','discover-pages.mjs','explore-states.mjs','interaction-inspector.mjs','preview-store.mjs','handoff-store.mjs','server.mjs','state-capture.mjs','desktop-pairing.mjs','desktop-service.mjs']) await cp(path.join(root,'scripts',name),path.join(engine,'scripts',name));
+for (const name of ['browser.mjs','long-page.mjs','capture-source.mjs','discover-pages.mjs','explore-states.mjs','interaction-inspector.mjs','preview-store.mjs','handoff-store.mjs','server.mjs','state-capture.mjs','desktop-pairing.mjs','desktop-service.mjs']) await cp(path.join(root,'scripts',name),path.join(engine,'scripts',name));
 for (const name of ['dist','examples']) await cp(path.join(root,name),path.join(engine,name),{recursive:true});
 await cp(path.join(root,'desktop/ui'),path.join(engine,'desktop-ui'),{recursive:true});
 const htmlPath = path.join(engine,'desktop-ui/index.html');

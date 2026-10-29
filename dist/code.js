@@ -101,6 +101,9 @@
     const canvas = value, max = 1e7;
     return typeof canvas.id === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(canvas.id) && [canvas.x, canvas.y].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= max) && [canvas.width, canvas.height].every((n) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= max);
   }
+  function validImportSettings(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value) && typeof value.smartLayout === "boolean";
+  }
   function countScene(root) {
     let nodes = 0, texts = 0, images = 0, vectors = 0;
     const walk = (n) => {
@@ -129,10 +132,15 @@
     const tuple = (v, len, min = 0) => Array.isArray(v) && v.length === len && v.every((x) => number(x, LIMITS.dimension, min));
     if (!object(input) || input.schemaVersion !== SCHEMA_VERSION) fail("\u7248\u672C\u4E0D\u517C\u5BB9\uFF0C\u8BF7\u4F7F\u7528\u672C\u63D2\u4EF6\u751F\u6210\u7684 .h2f.json \u6587\u4EF6");
     const doc = input;
+    if (doc.importOptions !== void 0 && !validImportSettings(doc.importOptions)) fail("\u5BFC\u5165\u8BBE\u7F6E\u65E0\u6548");
     if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
     if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
     if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
     if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
+    if (doc.source.longPage !== void 0) {
+      const p = doc.source.longPage;
+      if (!object(p) || p.expanded !== true || !Array.isArray(p.containers) || p.containers.length > 32 || p.containers.some((c) => !object(c) || typeof c.name !== "string" || c.name.length > 150 || !number(c.width, LIMITS.dimension, 0.01) || !number(c.height, LIMITS.dimension, 0.01)) || !Array.isArray(p.mergedStateIds) || p.mergedStateIds.some((id) => typeof id !== "string" || !/^[\w-]{1,80}$/.test(id))) fail("\u957F\u9875\u4FE1\u606F\u65E0\u6548");
+    }
     if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail("\u8D44\u6E90\u6570\u91CF\u8D85\u9650");
     const ids = /* @__PURE__ */ new Set();
     let assetBytes = 0;
@@ -469,11 +477,12 @@
 
   // src/batch.ts
   var ImportBatch = class {
-    constructor(api, id, plan, mode) {
+    constructor(api, id, plan, mode, smartLayout = true) {
       this.api = api;
       this.id = id;
       this.plan = plan;
       this.mode = mode;
+      this.smartLayout = smartLayout;
       this.results = [];
       this.cancelled = false;
       this.processing = false;
@@ -491,11 +500,11 @@
       const existing = this.page.children.filter((n) => n.visible);
       const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
       const units = [], canvases = /* @__PURE__ */ new Map();
-      const organized = designLayout(plan.map((p) => p.canvas ? __spreadProps(__spreadValues({}, p), { design: void 0 }) : p));
+      const organized = designLayout(plan.map((p) => p.canvas || !this.smartLayout ? __spreadProps(__spreadValues({}, p), { design: void 0 }) : p));
       let designUnit;
       plan.forEach((p, index) => {
         const c = p.canvas;
-        if (!c && p.design) {
+        if (!c && p.design && this.smartLayout) {
           if (!designUnit) {
             designUnit = { width: organized.width, height: organized.height, minX: 0, minY: 0, entries: [], groups: organized.groups };
             units.push(designUnit);
@@ -641,7 +650,7 @@
     if (staging && !staging.removed) staging.remove();
   });
   figma.ui.onmessage = async (message) => {
-    var _a, _b;
+    var _a, _b, _c, _d;
     if (!message || typeof message.type !== "string") return;
     if (message.type === "OPEN_DESKTOP_ASSISTANT_DOWNLOAD") {
       figma.openExternal("https://github.com/hhagain/html-to-figma-local/releases");
@@ -657,7 +666,7 @@
       return;
     }
     if (message.type === "SETTINGS") {
-      await figma.clientStorage.setAsync("h2f-settings-v1", { mode: ((_a = message.settings) == null ? void 0 : _a.mode) === "auto" ? "auto" : "visual", token: typeof ((_b = message.settings) == null ? void 0 : _b.token) === "string" ? message.settings.token.slice(0, 120) : "" });
+      await figma.clientStorage.setAsync("h2f-settings-v1", { mode: ((_a = message.settings) == null ? void 0 : _a.mode) === "auto" ? "auto" : "visual", smartLayout: ((_b = message.settings) == null ? void 0 : _b.smartLayout) !== false, longPage: ((_c = message.settings) == null ? void 0 : _c.longPage) !== false, token: typeof ((_d = message.settings) == null ? void 0 : _d.token) === "string" ? message.settings.token.slice(0, 120) : "" });
       return;
     }
     if (message.type === "CANCEL") {
@@ -677,7 +686,7 @@
     }
     if (message.type === "BATCH_START" && !active) {
       try {
-        batch = new ImportBatch(figma, message.id, message.plan, message.mode === "auto" ? "auto" : "visual");
+        batch = new ImportBatch(figma, message.id, message.plan, message.mode === "auto" ? "auto" : "visual", message.smartLayout !== false);
         active = true;
         cancelled = false;
         figma.ui.postMessage({ type: "BATCH_READY", id: batch.id });

@@ -54,6 +54,10 @@ if (session?.token) {
   input('service-token').value = session.token; $('pairing-code').textContent = session.token;
   $('local-pairing').hidden = false; $('connection-label').textContent = '本地服务已连接'; $('connection-dot').classList.add('connected');
 }
+const smartLayout=()=>input('smart-layout').checked;
+const longPage=()=>input('long-page').checked;
+function saveCapturePreferences(){try{localStorage.setItem('h2f-capture-preferences',JSON.stringify({smartLayout:smartLayout(),longPage:longPage()}));}catch{}message('SETTINGS',{settings:{mode:mode(),smartLayout:smartLayout(),longPage:longPage(),token:input('service-token').value}});}
+try{const saved=JSON.parse(localStorage.getItem('h2f-capture-preferences')||'null');if(typeof saved?.smartLayout==='boolean')input('smart-layout').checked=saved.smartLayout;if(typeof saved?.longPage==='boolean')input('long-page').checked=saved.longPage;}catch{}
 function mode(): ImportMode { return document.querySelector<HTMLInputElement>('input[name="mode"]:checked')?.value === 'auto' ? 'auto' : 'visual'; }
 function message(type: string, content: Record<string, unknown> = {}) { if (plugin) window.parent.postMessage({ pluginMessage: { type, ...content } }, '*'); }
 function status(text: string, error = false) { $('status').textContent = text; $('status').classList.toggle('error', error); }
@@ -81,12 +85,12 @@ function updateWarnings(diagnostics: Diagnostic[]) {
 }
 function showPrepared(doc: CaptureDocument) { const builder = new BundleBuilder(doc.name); builder.add(doc); showBundle(builder.bundle); }
 function showBundle(bundle: CaptureBundle) {
-  validateBundle(bundle); preparedBundle = bundle; prepared = hydratePage(bundle, 0);
+  validateBundle(bundle);const settings=bundle.importOptions||bundle.pages[0]?.importOptions;if(settings)input('smart-layout').checked=settings.smartLayout; preparedBundle = bundle; prepared = hydratePage(bundle, 0);
   pageStates = bundle.pages.map(() => ({ selected: true, state: 'pending' }));
   const stats = bundle.pages.reduce((sum, page) => { const s = countScene(page.root); for (const key of ['nodes', 'texts', 'images', 'vectors'] as const) sum[key] += s[key]; return sum; }, { nodes: 0, texts: 0, images: 0, vectors: 0 });
   $('report').hidden = false; $('ready-actions').hidden = false; $('prepare').hidden = true;
   $('report-title').textContent = bundle.pages.length > 1 ? `已准备好 ${bundle.pages.length} 页` : '已准备好';
-  $('report-summary').textContent = bundle.pages.length > 1 ? `${bundle.name} · ${bundle.pages.some(p => p.source.canvas) ? '保留原画布排布 · ' : bundle.pages.some(p => p.source.design) ? '按页面与功能分组 · ' : ''}图片资源已跨页去重` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)} px · ${prepared.name}`;
+  $('report-summary').textContent = bundle.pages.length > 1 ? `${bundle.name} · ${bundle.pages.some(p => p.source.canvas) ? '保留原画布排布 · ' : bundle.pages.some(p => p.source.design) ? (smartLayout()?'按页面与功能分组 · ':'按捕获顺序排列 · ') : ''}图片资源已跨页去重` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)} px · ${prepared.name}`;
   $('stat-nodes').textContent = String(stats.nodes); $('stat-text').textContent = String(stats.texts); $('stat-image').textContent = String(stats.images); $('stat-svg').textContent = String(stats.vectors);
   $('preview-size').textContent = bundle.pages.length > 1 ? `${bundle.pages.length} 页` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)}`;
   const diagnostics = bundle.pages.flatMap(page => page.diagnostics).slice(0, 100);
@@ -105,10 +109,10 @@ function showBundle(bundle: CaptureBundle) {
 }
 function renderPageList() {
   if (!preparedBundle) return;
-  $('page-list-section').hidden = preparedBundle.pages.length < 2 && !preparedBundle.pages[0]?.source.design;
+  $('page-list-section').hidden = preparedBundle.pages.length < 2 && !(smartLayout()&&preparedBundle.pages[0]?.source.design);
   $('page-list-title').textContent = `页面列表 · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`;
   const rows = document.createDocumentFragment();
-  const organization=designLayout(preparedBundle.pages.map(p=>({name:p.name,width:p.root.width,height:p.root.height,design:p.source.canvas?undefined:p.source.design})));
+  const organization=designLayout(preparedBundle.pages.map(p=>({name:p.name,width:p.root.width,height:p.root.height,design:p.source.canvas||!smartLayout()?undefined:p.source.design})));
   const grouped=new Set(organization.groups.flatMap(g=>g.indices)),ordered=[...organization.groups.flatMap(g=>g.indices),...preparedBundle.pages.map((_,i)=>i).filter(i=>!grouped.has(i))];
   const heads=new Map(organization.groups.map(g=>[g.indices[0],g]));
   ordered.forEach(i => {
@@ -233,6 +237,7 @@ function sendNextPage() {
   message('IMPORT_PAGE', { id: batchId, index: queuePosition, document: hydratePage(preparedBundle, index) });
 }
 function switchTab(next: string) {
+  $('long-page-option').hidden=next!=='url';
   tab = next;
   document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(btn => { const active = btn.dataset.tab === next; btn.classList.toggle('active', active); btn.setAttribute('aria-selected', String(active)); btn.tabIndex = active ? 0 : -1; });
   for (const key of ['file', 'code', 'url']) $(`${key}-panel`).hidden = key !== next;
@@ -419,7 +424,7 @@ async function api(path: string, payload?: unknown) {
   }
 }
 $('connect').addEventListener('click', async () => {
-  try { await api('/api/health'); $('connection-dot').classList.add('connected'); $('connection-label').textContent = '本地服务已连接'; status('本地服务连接成功。'); message('SETTINGS', { settings: { mode: mode(), token: input('service-token').value } }); }
+  try { await api('/api/health'); $('connection-dot').classList.add('connected'); $('connection-label').textContent = '本地服务已连接'; status('本地服务连接成功。'); message('SETTINGS', { settings: { mode: mode(), smartLayout:smartLayout(),longPage:longPage(),token: input('service-token').value } }); }
   catch (e) { $('connection-dot').classList.remove('connected'); status(errorText(e), true); }
 });
 $('prepare').addEventListener('click', async () => {
@@ -436,7 +441,7 @@ $('prepare').addEventListener('click', async () => {
         } else await prepareStates(url);
         return;
       }
-      const response = await api('/api/capture', { url, width: viewportWidth(), height: 900, selector: input('selector').value.trim() || 'body' });
+      const response = await api('/api/capture', { url, width: viewportWidth(), height: 900, selector: input('selector').value.trim() || 'body',longPage:longPage() });
       showPrepared(response.document); showRemotePreviews(response.preview);
     } else if (tab === 'file' && sourceFiles.length > 1) {
       const builder = new BundleBuilder(sourceName);
@@ -467,6 +472,7 @@ function download() {
   if (!selected.length) { status('请至少选择一页。', true); return; }
   let data: CaptureDocument | CaptureBundle = prepared;
   if (preparedBundle) { if (selected.length === 1) data = hydratePage(preparedBundle, selected[0]); else { const builder = new BundleBuilder(preparedBundle.name); selected.forEach(i => builder.add(hydratePage(preparedBundle!, i))); data = builder.bundle; } }
+  data={...data,importOptions:{smartLayout:smartLayout()}};
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
   const link = document.createElement('a'); link.href = url; link.download = `${prepared.name.replace(/[\\/:*?"<>|]/g, '-').slice(0, 100)}.h2f.json`;
   document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
@@ -478,11 +484,11 @@ function importPrepared() {
   queue = pageStates.map((p, i) => p.selected && p.state !== 'complete' ? i : -1).filter(i => i >= 0);
   if (!queue.length) { status(pageStates.some(p => p.selected) ? '所选页面都已导入；重新解析后可再次导入。' : '请至少选择一页。'); return; }
   captureStopped = false; importing = true; void reportHandoffProgress('importing', pageStates.filter(p => p.state === 'complete').length, 0); setBusy(true, true); renderPageList();
-  message('SETTINGS', { settings: { mode: mode(), token: input('service-token').value } });
+  message('SETTINGS', { settings: { mode: mode(), smartLayout:smartLayout(),longPage:longPage(),token: input('service-token').value } });
   if (preparedBundle.pages.length === 1 && !prepared.source.design) { status('正在加载字体并创建图层…'); message('IMPORT', { document: prepared, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId }); }
   else {
     batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`; queuePosition = 0;
-    message('BATCH_START', { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map(i => ({ name: preparedBundle!.pages[i].name, width: preparedBundle!.pages[i].root.width, height: preparedBundle!.pages[i].root.height, design: preparedBundle!.pages[i].source.design, canvas: preparedBundle!.pages[i].source.canvas })) });
+    message('BATCH_START', { id: batchId, mode: mode(),smartLayout:smartLayout(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map(i => ({ name: preparedBundle!.pages[i].name, width: preparedBundle!.pages[i].root.width, height: preparedBundle!.pages[i].root.height, design: preparedBundle!.pages[i].source.design, canvas: preparedBundle!.pages[i].source.canvas })) });
     status(`开始导入 ${queue.length} 页…`);
   }
 }
@@ -501,6 +507,8 @@ window.onmessage = event => {
   if (msg.type === 'CONTEXT') { updateFigmaContext(msg.context); return; }
   if (msg.type === 'SETTINGS') {
     updateFigmaContext(msg.context);
+    if(typeof msg.settings?.smartLayout==='boolean')input('smart-layout').checked=msg.settings.smartLayout;
+    if(typeof msg.settings?.longPage==='boolean')input('long-page').checked=msg.settings.longPage;
     if (typeof msg.settings?.token === 'string') input('service-token').value = msg.settings.token;
     if(msg.assistant && typeof msg.assistant.clientId==='string' && typeof msg.assistant.credential==='string')assistantCredentials=msg.assistant;
     if(plugin)void connectAssistant(false);
@@ -593,17 +601,17 @@ input('state-plan-file').addEventListener('change',async()=>{
 });
 async function prepareStates(url: string, suppliedPlan?: any) {
   let plan;try{plan=suppliedPlan || JSON.parse($<HTMLTextAreaElement>('state-plan').value);}catch{throw new Error('请先载入状态清单，或粘贴有效的 JSON');}
-  plan.url=url;plan.viewport={...plan.viewport,width:viewportWidth()};
+  plan={...plan,longPage:longPage()};plan.url=url;plan.viewport={...plan.viewport,width:viewportWidth()};
   const job=await api('/api/states',plan);activeStateJob=job.id;activeJobKind='states';
   while(true){
     const snapshot=await api(`/api/states/${job.id}`);const p=snapshot.progress;
-    if(p){$<HTMLProgressElement>('progress').value=Math.round((p.completed+p.failed)/p.total*100);status(`${captureStopped?'正在停止':'正在捕获'} ${Math.min(p.index+1,p.total)} / ${p.total}：${p.name} · 完成 ${p.completed}，失败 ${p.failed}`);}
+    if(p){$<HTMLProgressElement>('progress').value=Math.round((p.completed+p.failed+(p.merged||0))/p.total*100);status(`${captureStopped?'正在停止':'正在捕获'} ${Math.min(p.index+1,p.total)} / ${p.total}：${p.name} · 完成 ${p.completed}，失败 ${p.failed}`);}
     if(snapshot.status!=='running'){
       if(snapshot.status==='failed')throw new Error(snapshot.error||'状态捕获失败');
       const result=await api(`/api/states/${job.id}/result`);stateReport=result.report;
       if(result.bundle.pages.length){showBundle(result.bundle);showRemotePreviews(result.preview,job.id,result.previews||[]);}
       $('download-state-report').hidden=false;
-      status(`状态捕获${result.report.cancelled?'已停止':'完成'}：成功 ${result.report.completed} / ${result.report.total}，失败 ${result.report.failed}。${result.report.completed?'可选择页面后导入 Figma。':'请下载报告检查失败原因。'}`,!result.report.completed);
+      status(`状态捕获${result.report.cancelled?'已停止':'完成'}：成功 ${result.report.completed} / ${result.report.total}，失败 ${result.report.failed}。${result.report.merged?`合并 ${result.report.merged} 个滚动分段。`:''}${result.report.completed?'可选择页面后导入 Figma。':'请下载报告检查失败原因。'}`,!result.report.completed);
       break;
     }
     await new Promise(resolve=>setTimeout(resolve,700));
@@ -635,7 +643,7 @@ function selectedBundle() {
   if (!preparedBundle) throw new Error('请先捕获页面');
   const indices = pageStates.map((p, i) => p.selected ? i : -1).filter(i => i >= 0);
   if (!indices.length) throw new Error('请至少选择一页');
-  const builder = new BundleBuilder(preparedBundle.name); indices.forEach(i => builder.add(hydratePage(preparedBundle!, i))); return builder.bundle;
+  const builder = new BundleBuilder(preparedBundle.name); indices.forEach(i => builder.add(hydratePage(preparedBundle!, i))); builder.bundle.importOptions={smartLayout:smartLayout()};return builder.bundle;
 }
 function outgoingStatus(item: any) {
   outgoingPhase = item.status;
@@ -647,7 +655,7 @@ async function sendHandoff(direct = false) {
   try {
     const target = direct ? figmaTargets.find(t => t.id === $<HTMLSelectElement>('figma-target').value) : null;
     if (direct && !target) throw new Error('请先选择已连接的 Figma 目标页面');
-    const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map(p=>p.selected),preparedBundle?.pages.map(p=>p.source.design),mode(),target?.id,target?.contextVersion]);
+    const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map(p=>p.selected),preparedBundle?.pages.map(p=>p.source.design),smartLayout(),mode(),target?.id,target?.contextVersion]);
     // Keep the same request id after a transport failure; successful retries cannot duplicate a batch.
     const stableSignature = signature;
     if (stableSignature !== sendSignature || (direct && ['complete','partial','failed','cancelled','replaced'].includes(outgoingPhase))) { sendSignature = stableSignature; sendRequestId = randomId(); }
@@ -728,4 +736,6 @@ async function connectAssistant(interactive: boolean) {
 $('connect-assistant').addEventListener('click',()=>void connectAssistant(true));
 if(!plugin && session?.token){$('connect-assistant').hidden=true;$('assistant-help').textContent='当前工作台已连接本机捕获服务。';}
 
+input('smart-layout').addEventListener('change',()=>{saveCapturePreferences();if(preparedBundle){const text=$('report-summary').textContent||'';$('report-summary').textContent=smartLayout()?text.replace('按捕获顺序排列','按页面与功能分组'):text.replace('按页面与功能分组','按捕获顺序排列');renderPageList();}});
+input('long-page').addEventListener('change',()=>{saveCapturePreferences();invalidate();});
 message('READY');

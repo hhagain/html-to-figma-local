@@ -90,11 +90,12 @@ try {
   try {
     await page.waitForFunction(()=>document.querySelector('#figma-target')?.options.length>1);
     await page.locator('#figma-target').selectOption(target.id);
+    await page.locator('#smart-layout').uncheck();
     await page.locator('#direct-import').click();
     const latest=await(await fetch(address+'/api/handoffs/latest?receiverId='+receiverId,{headers:{'X-H2F-Token':credentials.credential}})).json();
     assert.ok(latest.handoff?.id);
     const transfer=await post('/api/handoffs/'+latest.handoff.id+'/claim',{receiverId,contextVersion},true);
-    assert.equal(transfer.autoImport,true);assert.equal(transfer.bundle.pages.length,1);
+    assert.equal(transfer.autoImport,true);assert.equal(transfer.bundle.importOptions.smartLayout,false);assert.equal(transfer.bundle.pages.length,1);
     await post('/api/handoffs/'+latest.handoff.id+'/progress',{receiverId,status:'complete',completed:1,failed:0},true);
     await page.waitForFunction(()=>document.querySelector('#handoff-send-status').textContent.includes('已导入 Figma：1 / 1'));
   } finally {clearInterval(timer);}
@@ -116,7 +117,7 @@ try {
   try {const portableWindow=await portableApp.firstWindow();await portableWindow.waitForURL(/\/desktop$/,{timeout:60000});await portableWindow.waitForFunction(()=>document.querySelector('#engine-title')?.textContent==='捕获引擎已就绪');await portableWindow.screenshot({path:path.join(out,'windows-portable.png'),fullPage:true});}finally{await portableApp.close();}
   await writeFile(path.join(out,'native-validation.json'),JSON.stringify({version:pkg.version,validatedAt:new Date().toISOString(),platform:process.platform,
     installerInstalled:true,packagedAppLaunched:true,installationOutsideCheckout:true,portableArchiveExtractedOutsideCheckout:true,portableServiceVerified:true,portableWindowLaunched:true,installedDependencyFilesVerified:installedDependencies.files,portableDependencyFilesVerified:portableDependencies.files,rendererNodeDisabled:true,pairingThroughNativeBridge:true,pluginExport:true,pluginIDPreserved:true,
-    nativeWindowsPathCapture:true,ctrlWheel:true,spaceDrag:true,fitAndActualZoom:true,desktopDirectHandoff:true,
+    nativeWindowsPathCapture:true,ctrlWheel:true,spaceDrag:true,fitAndActualZoom:true,desktopDirectHandoff:true,smartLayoutSwitchVerified:true,
     receiver:'automated receiver; real Windows Figma not tested',trayCloseKeepsService:true,restartKeepsPairing:true,quitStopsService:true},null,2)+'\n');
   console.log('Installed Windows assistant end-to-end validation passed.');
 } catch(error) {

@@ -10,6 +10,7 @@ export function validateStatePlan(input) {
   const base = validateCaptureRequest({ url: input.url, width: input.viewport?.width || 1440, height: input.viewport?.height || 1000, selector: input.selector || 'body' });
   if (!Array.isArray(input.states) || !input.states.length) throw new Error('状态清单至少需要一个状态');
   if (input.captureMode !== undefined && !['viewport', 'full'].includes(input.captureMode)) throw new Error('捕获模式必须是 viewport 或 full');
+  if(input.longPage!==undefined&&typeof input.longPage!=='boolean')throw new Error('单张长页设置必须为布尔值');
   const safeURL = value => resolveStateURL(value, base.url);
   let actionCount = 0;
   const steps = (value = []) => {
@@ -39,7 +40,7 @@ export function validateStatePlan(input) {
     return { id:s.id, name:s.name, ...(s.design?{design:structuredClone(s.design)}:{}), ...(s.expectedFingerprint?{expectedFingerprint:s.expectedFingerprint}:{}), group:typeof s.group==='string'?s.group.slice(0,80):'页面状态', url:safeURL(s.url), setup:s.setup!==false, selector, steps:steps(s.steps), captureMode:s.captureMode==='full'?'full':input.captureMode==='full'?'full':'viewport' };
   });
   if (input.notes !== undefined && (typeof input.notes !== 'string' || input.notes.length > 10000)) throw new Error('说明过长');
-  return { schemaVersion:1, name:input.name, url:base.url, viewport:{width:base.width,height:base.height}, selector:base.selector, setup, states, captureMode:input.captureMode||'viewport', notes:input.notes||'', snapshotDocument:input.snapshotDocument===true };
+  return { schemaVersion:1, name:input.name, url:base.url, viewport:{width:base.width,height:base.height}, selector:base.selector, setup, states, captureMode:input.captureMode||'viewport', notes:input.notes||'', snapshotDocument:input.snapshotDocument===true, longPage:input.longPage===true };
 }
 export async function runSteps(page, steps, signal) {
   for (let i=0;i<steps.length;i++) {
@@ -63,8 +64,9 @@ export async function runSteps(page, steps, signal) {
 }
 export async function captureStates(browser, rawPlan, {signal,onProgress,onState} = {}) {
   const plan=validateStatePlan(rawPlan); const {BundleBuilder}=await import('../dist/lib/bundle.js'); const builder=new BundleBuilder(plan.name);
-  const report={schemaVersion:1,name:plan.name,url:plan.url,viewport:plan.viewport,startedAt:new Date().toISOString(),completedAt:null,status:'running',total:plan.states.length,completed:0,failed:0,cancelled:false,notes:plan.notes,states:[],limitations:['状态清单是明确覆盖范围，不等于穷举输入与交互的所有组合。','捕获是可编辑的静态快照，事件、数据连接与运行逻辑不会转入 Figma。','默认只捕获当前视口，滚动区域的其他部分需另列状态。']};
+  const report={schemaVersion:1,name:plan.name,url:plan.url,viewport:plan.viewport,startedAt:new Date().toISOString(),completedAt:null,status:'running',total:plan.states.length,requested:plan.states.length,merged:0,completed:0,failed:0,cancelled:false,notes:plan.notes,states:[],limitations:['状态清单是明确覆盖范围，不等于穷举输入与交互的所有组合。','捕获是可编辑的静态快照，事件、数据连接与运行逻辑不会转入 Figma。',plan.longPage?'单张长页包含当前已加载的滚动内容；虚拟列表和无限滚动不代表全部数据已加载。':'默认只捕获当前视口，滚动区域的其他部分需另列状态。']};
   const source=await openCaptureSource(plan.url);
+  const longViews=new Map();
   const fingerprints=new Map(); let activeContext=null, activeClose=null, activePageReady=null; let preview=null;
   let documentSnapshot=null;const resourceCache=new Map();let cacheBytes=0;
   if(plan.snapshotDocument){
@@ -87,7 +89,7 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
     for(let i=0;i<plan.states.length;i++) {
       if(signal?.aborted) break;
       const state=plan.states[i], start=Date.now(); let blocked=0;
-      onProgress?.({status:'running',index:i,total:plan.states.length,name:state.name,completed:report.completed,failed:report.failed});
+      onProgress?.({status:'running',index:i,total:plan.states.length,name:state.name,completed:report.completed,failed:report.failed,merged:report.merged});
       const record={index:i,id:state.id,name:state.name,group:state.group,url:state.url,status:'running',nodes:0,blockedRequests:0,durationMs:0};
       let timer;
       try {
@@ -121,15 +123,23 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         if(signal?.aborted)throw new Error('捕获已取消');
         const actual=await inspectState(page,source.local);
         if(state.expectedFingerprint){if(actual.fingerprint!==state.expectedFingerprint)throw new Error('页面与探索时的状态不同，请重新探索；可能有异步数据或随机内容');}
+        const isScroll=state.design?.kind==='scroll'||state.steps.some(s=>s.type==='scroll');
+        const longKey=JSON.stringify([source.toSourceURL(page.url()),state.selector,state.design?.pageId||'',state.design?.viewId||actual.viewFingerprint]);
+        const previous=plan.longPage?longViews.get(longKey):null;
+        if(previous&&(isScroll||previous.isScroll)){
+          previous.document.source.longPage.mergedStateIds.push(state.id);record.status='merged';record.mergedInto=previous.id;record.pageIndex=previous.pageIndex;record.url=source.toSourceURL(page.url());report.merged++;report.total=plan.states.length-report.merged;continue;
+        }
         const options={url:page.url(),width:plan.viewport.width,height:plan.viewport.height,selector:state.selector};
-        const result=await captureLoadedPage(page,context,options,{viewportOnly:state.captureMode==='viewport',name:`${String(i+1).padStart(3,'0')} · ${state.group} · ${state.name}`,source});
+        const result=await captureLoadedPage(page,context,options,{viewportOnly:state.captureMode==='viewport',longPage:plan.longPage,name:`${String(i+1).padStart(3,'0')} · ${state.group} · ${state.name}`,source});
         const sourceURL=source.toSourceURL(page.url());
         const design=inferOrganization({url:sourceURL,entryURL:plan.url,heading:actual.heading,title:actual.title,dialog:actual.dialog,viewFingerprint:actual.viewFingerprint,...actual.structure,scrolls:actual.scrolls,name:state.name,actionKind:state.steps.some(s=>s.type==='scroll')?'滚动':'',parent:state.design,explicitGroup:!['交互探索','自动发现','页面状态'].includes(state.group)?state.group:undefined});
         result.document.source.design=state.design?{...state.design,scroll:design.scroll}:design;
+        if(plan.longPage){result.document.source.design.scroll={...result.document.source.design.scroll,x:0,y:0};if(result.document.source.design.kind==='scroll')result.document.source.design.kind='state';result.document.name=`${String(i+1).padStart(3,'0')} · ${result.document.source.design.pageName} · ${result.document.source.design.stateName} · 长页`;}
         result.document.source.state={id:state.id,name:state.name,group:state.group,stepCount:(state.setup?plan.setup.length:0)+state.steps.length};
         if(blocked) result.document.diagnostics.push({code:'NETWORK_BLOCKED',message:`隔离捕获阻止了 ${blocked} 个写请求或跨站跳转；请核对该状态是否完整`,count:1});
         builder.add(result.document);
         record.pageIndex=builder.bundle.pages.length-1;
+        if(plan.longPage)longViews.set(longKey,{id:state.id,pageIndex:record.pageIndex,document:result.document,isScroll});
         const sha=createHash('sha256').update(JSON.stringify(result.document.root)).digest('hex');
         if(fingerprints.has(sha))record.duplicateOf=fingerprints.get(sha);else fingerprints.set(sha,state.id);
         record.status='complete';record.nodes=result.document.stats.nodes;record.diagnostics=result.document.diagnostics;record.url=source.toSourceURL(page.url());record.sha256=sha;
@@ -141,7 +151,7 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
       } finally {
         clearTimeout(timer);await closeActive();activeContext=null;activeClose=null;activePageReady=null;
         record.durationMs=Date.now()-start;record.blockedRequests=blocked;report.states.push(record);
-        onProgress?.({status:record.status,index:i,total:plan.states.length,name:state.name,completed:report.completed,failed:report.failed,error:record.error});
+        onProgress?.({status:record.status,index:i,total:plan.states.length,name:state.name,completed:report.completed,failed:report.failed,merged:report.merged,error:record.error});
       }
     }
   } finally {signal?.removeEventListener('abort',abort);}

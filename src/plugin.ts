@@ -11,7 +11,7 @@ figma.ui.onmessage = async (message: any) => {
   if (message.type === 'OPEN_DESKTOP_ASSISTANT_DOWNLOAD') { figma.openExternal('https://github.com/hhagain/html-to-figma-local/releases'); return; }
   if (message.type === 'READY') { figma.ui.postMessage({ type: 'SETTINGS', settings: await figma.clientStorage.getAsync('h2f-settings-v1') || {}, assistant: await figma.clientStorage.getAsync('h2f-assistant-v1') || null, context: currentContext() }); return; }
   if (message.type === 'ASSISTANT_SETTINGS') { const a=message.assistant; if(a && /^figma-[a-f0-9-]{16,100}$/.test(a.clientId) && /^[a-f0-9]{64}$/.test(a.credential) && /^http:\/\/127\.0\.0\.1:(384[7-9]|385[01])$/.test(a.serviceURL)) await figma.clientStorage.setAsync('h2f-assistant-v1', {clientId:a.clientId,credential:a.credential,serviceURL:a.serviceURL}); return; }
-  if (message.type === 'SETTINGS') { await figma.clientStorage.setAsync('h2f-settings-v1', { mode: message.settings?.mode === 'auto' ? 'auto' : 'visual', token: typeof message.settings?.token === 'string' ? message.settings.token.slice(0, 120) : '' }); return; }
+  if (message.type === 'SETTINGS') { await figma.clientStorage.setAsync('h2f-settings-v1', { mode: message.settings?.mode === 'auto' ? 'auto' : 'visual', smartLayout:message.settings?.smartLayout!==false,longPage:message.settings?.longPage!==false, token: typeof message.settings?.token === 'string' ? message.settings.token.slice(0, 120) : '' }); return; }
   if (message.type === 'CANCEL') {
     cancelled = true; batch?.cancel();
     if (batch && !batch.processing) { const result = await batch.finish(); figma.ui.postMessage({ type: 'BATCH_COMPLETE', id: batch.id, result }); batch = null; active = false; }
@@ -19,7 +19,7 @@ figma.ui.onmessage = async (message: any) => {
   }
   if (['IMPORT','BATCH_START'].includes(message.type) && message.expectedPageId && message.expectedPageId !== figma.currentPage.id) { figma.ui.postMessage({type:'ERROR',message:'目标 Figma 页面已变化，未执行导入，请从助手重新选择目标。'});return; }
   if (message.type === 'BATCH_START' && !active) {
-    try { batch = new ImportBatch(figma, message.id, message.plan, message.mode === 'auto' ? 'auto' : 'visual'); active = true; cancelled = false; figma.ui.postMessage({ type: 'BATCH_READY', id: batch.id }); }
+    try { batch = new ImportBatch(figma, message.id, message.plan, message.mode === 'auto' ? 'auto' : 'visual', message.smartLayout!==false); active = true; cancelled = false; figma.ui.postMessage({ type: 'BATCH_READY', id: batch.id }); }
     catch (error) { figma.ui.postMessage({ type: 'ERROR', message: String(error) }); }
     return;
   }

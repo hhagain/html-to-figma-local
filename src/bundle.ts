@@ -1,6 +1,6 @@
-import { validateDocument, countScene, type CaptureDocument, type Asset, type SceneNode, type CanvasPlacement } from './schema';
+import { validateDocument, countScene, validImportSettings, type ImportSettings, type CaptureDocument, type Asset, type SceneNode, type CanvasPlacement } from './schema';
 export const BATCH_LIMITS = { nodes: 120000, assets: 2000, assetBytes: 64 * 1024 * 1024 };
-export interface CaptureBundle { schemaVersion: 1; format: 'h2f-bundle'; name: string; createdAt: string; pages: CaptureDocument[]; assets: Asset[]; errors: { name: string; message: string }[] }
+export interface CaptureBundle { schemaVersion: 1; format: 'h2f-bundle'; name: string; createdAt: string; importOptions?: ImportSettings; pages: CaptureDocument[]; assets: Asset[]; errors: { name: string; message: string }[] }
 export function isBundle(value: any): value is CaptureBundle { return value?.format === 'h2f-bundle'; }
 export function hydratePage(bundle: CaptureBundle, index: number): CaptureDocument {
   const page = bundle.pages[index]; if (!page) throw new Error('页面不存在');
@@ -48,6 +48,7 @@ export class BundleBuilder {
 export function validateBundle(value: unknown): asserts value is CaptureBundle {
   const b = value as CaptureBundle;
   if (!b || b.schemaVersion !== 1 || b.format !== 'h2f-bundle' || typeof b.name !== 'string' || b.name.length > 500 || !Array.isArray(b.pages) || !b.pages.length || !Array.isArray(b.assets) || b.assets.length > BATCH_LIMITS.assets || !Array.isArray(b.errors)) throw new Error('多页数据格式无效');
+  if(b.importOptions!==undefined&&!validImportSettings(b.importOptions))throw new Error('导入设置无效');
   const ids = new Set<string>(); let bytes = 0, nodes = 0;
   for (const a of b.assets) { if (!a || typeof a.id !== 'string' || ids.has(a.id) || typeof a.url !== 'string' || (a.base64 !== undefined && typeof a.base64 !== 'string')) throw new Error('共享资源无效'); ids.add(a.id); bytes += (a.base64?.length || 0) * .75; }
   if (bytes > BATCH_LIMITS.assetBytes) throw new Error('整批图片超过 64 MB');

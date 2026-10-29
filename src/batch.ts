@@ -9,16 +9,16 @@ export class ImportBatch {
   private nodeCount = 0; private assetBytes = 0; private assetIds = new Set<string>();
   private groupPlans = new Map<string, DesignGroup>(); private groups = new Map<string, SectionNode>(); private groupForIndex = new Map<number,string>();
   private context; private page: PageNode; private positions: { x: number; y: number }[]; private staging: FrameNode | null = null;
-  constructor(private api: PluginAPI, readonly id: string, private plan: ImportPlanPage[], private mode: ImportMode) {
+  constructor(private api: PluginAPI, readonly id: string, private plan: ImportPlanPage[], private mode: ImportMode, private smartLayout = true) {
     if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some(p => !p || typeof p.name !== 'string' || !Number.isFinite(p.width) || p.width <= 0 || p.width > 100000 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 100000 || (p.canvas !== undefined && !isCanvasPlacement(p.canvas)) || (p.design !== undefined && !validOrganization(p.design)))) throw new Error('批次计划无效');
     this.context = createImportContext(api); this.page = api.currentPage;
     const existing = this.page.children.filter(n => n.visible); const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
     type Unit = { width: number; height: number; minX: number; minY: number; entries: { index: number; x: number; y: number }[]; groups?: DesignGroup[] };
     const units: Unit[] = [], canvases = new Map<string, Unit>();
-    const organized=designLayout(plan.map(p=>p.canvas?{...p,design:undefined}:p)); let designUnit:Unit|undefined;
+    const organized=designLayout(plan.map(p=>p.canvas||!this.smartLayout?{...p,design:undefined}:p)); let designUnit:Unit|undefined;
     plan.forEach((p, index) => {
       const c = p.canvas;
-      if (!c && p.design) {
+      if (!c && p.design && this.smartLayout) {
         if(!designUnit){designUnit={width:organized.width,height:organized.height,minX:0,minY:0,entries:[],groups:organized.groups};units.push(designUnit);}
         const pos=organized.positions.get(index)!;designUnit.entries.push({index,x:pos.x,y:pos.y});this.groupForIndex.set(index,pos.groupId);return;
       }

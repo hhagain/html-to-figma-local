@@ -1,3 +1,4 @@
+import { expandLongPage } from './long-page.mjs';
 import { chromium } from 'playwright';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,7 +19,8 @@ export function validateCaptureRequest(data) {
   const width = Number(data.width ?? 1440), height = Number(data.height ?? 900);
   if (!Number.isInteger(width) || width < 320 || width > 3840 || !Number.isInteger(height) || height < 320 || height > 2160) throw new Error('浏览器尺寸不在允许范围内');
   const selector = data.selector || 'body'; if (typeof selector !== 'string' || selector.length > 500) throw new Error('CSS 选择器无效');
-  return { url: url.href, width, height, selector };
+  if(data.longPage!==undefined&&typeof data.longPage!=='boolean')throw new Error('单张长页设置必须为布尔值');
+  return { url: url.href, width, height, selector,...(data.longPage?{longPage:true}:{}) };
 }
 export async function captureURL(browser, request, { signal } = {}) {
   const options = validateCaptureRequest(request);
@@ -43,19 +45,22 @@ export async function captureURL(browser, request, { signal } = {}) {
     const response = await page.goto(source.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     if (source.local && response && !response.ok()) throw new Error(`本地页面无法读取：HTTP ${response.status()}`);
     await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
-    return await captureLoadedPage(page, context, options, { source });
+    return await captureLoadedPage(page, context, options, { source,longPage:options.longPage===true });
   } catch (error) {
     if (signal?.aborted) throw new Error('捕获已取消');
     throw error;
   } finally { clearTimeout(deadline); signal?.removeEventListener('abort', abort); await closeContext(); }
 }
 
-export async function captureLoadedPage(page, context, options, { viewportOnly = false, name, source } = {}) {
+export async function captureLoadedPage(page, context, options, { viewportOnly = false, longPage = false, name, source } = {}) {
+    const expansion=longPage?await expandLongPage(page,options.selector):null;
+    try {
     await page.evaluate(async () => { await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]); });
     await page.addScriptTag({ content: await readFile(path.join(project, 'dist/capture.js'), 'utf8') });
-    const document = await page.evaluate(async ({ selector,clipToViewport }) => window.HTMLToFigma.captureDOM(window.document, { selector,clipToViewport }), {...options,clipToViewport:viewportOnly});
-    if (viewportOnly) { document.root.width = options.width; document.root.height = options.height; document.root.clip = true; }
+    const document = await page.evaluate(async ({ selector,clipToViewport }) => window.HTMLToFigma.captureDOM(window.document, { selector,clipToViewport }), {...options,clipToViewport:viewportOnly&&!longPage});
+    if (viewportOnly&&!longPage) { document.root.width = options.width; document.root.height = options.height; document.root.clip = true; }
     if (name) document.name = name;
+    if(expansion)document.source.longPage={expanded:true,containers:expansion.containers,mergedStateIds:[]};
     let bytes = document.assets.reduce((n, a) => n + (a.base64?.length || 0) * .75, 0);
     for (const asset of document.assets) {
       if (!asset.base64) {
@@ -91,10 +96,12 @@ export async function captureLoadedPage(page, context, options, { viewportOnly =
     document.stats.missingAssets = document.assets.filter(a => !a.base64).length;
     if (document.diagnostics.length > 200) document.diagnostics = document.diagnostics.slice(0, 200);
     const { validateDocument } = await import('../dist/lib/schema.js'); validateDocument(document);
-    const full = !viewportOnly && document.root.height <= 12000 && document.root.width * document.root.height <= 28000000;
+    const full = (!viewportOnly||longPage) && document.root.height <= 12000 && document.root.width * document.root.height <= 28000000;
     let screenshot;
-    if (full && options.selector !== 'body' && options.selector !== 'html') screenshot = await page.locator(options.selector).first().screenshot({ type: 'jpeg', quality: 75, animations: 'disabled', timeout: 8000 });
+    if(longPage&&full&&options.selector!=='body'&&options.selector!=='html'){const clip=await page.locator(options.selector).first().evaluate(el=>{const r=el.getBoundingClientRect();return{x:Math.max(0,r.x+scrollX),y:Math.max(0,r.y+scrollY),width:r.width,height:r.height};});screenshot=await page.screenshot({type:'jpeg',quality:75,fullPage:true,clip,animations:'disabled',timeout:8000});}
+    else if (full && options.selector !== 'body' && options.selector !== 'html') screenshot = await page.locator(options.selector).first().screenshot({ type: 'jpeg', quality: 75, animations: 'disabled', timeout: 8000 });
     else screenshot = await page.screenshot({ type: 'jpeg', quality: 75, fullPage: full, animations: 'disabled', timeout: 8000 });
-    if (!full && !viewportOnly) document.diagnostics.push({ code: 'PREVIEW_CROPPED', message: '超长页面的预览仅显示首屏，图层数据包含完整捕获区域', count: 1 });
+    if (!full && (!viewportOnly||longPage)) document.diagnostics.push({ code: 'PREVIEW_CROPPED', message: '超长页面的预览仅显示首屏，图层数据包含完整捕获区域', count: 1 });
     return { document, preview: `data:image/jpeg;base64,${screenshot.toString('base64')}` };
+    }finally{await expansion?.restore();}
 }

@@ -210,6 +210,9 @@
     const canvas = value, max = 1e7;
     return typeof canvas.id === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(canvas.id) && [canvas.x, canvas.y].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= max) && [canvas.width, canvas.height].every((n) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= max);
   }
+  function validImportSettings(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value) && typeof value.smartLayout === "boolean";
+  }
   function countScene(root) {
     let nodes = 0, texts = 0, images = 0, vectors = 0;
     const walk = (n) => {
@@ -237,10 +240,15 @@
     const tuple = (v, len, min = 0) => Array.isArray(v) && v.length === len && v.every((x) => number(x, LIMITS.dimension, min));
     if (!object(input2) || input2.schemaVersion !== SCHEMA_VERSION) fail("\u7248\u672C\u4E0D\u517C\u5BB9\uFF0C\u8BF7\u4F7F\u7528\u672C\u63D2\u4EF6\u751F\u6210\u7684 .h2f.json \u6587\u4EF6");
     const doc = input2;
+    if (doc.importOptions !== void 0 && !validImportSettings(doc.importOptions)) fail("\u5BFC\u5165\u8BBE\u7F6E\u65E0\u6548");
     if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
     if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
     if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
     if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
+    if (doc.source.longPage !== void 0) {
+      const p = doc.source.longPage;
+      if (!object(p) || p.expanded !== true || !Array.isArray(p.containers) || p.containers.length > 32 || p.containers.some((c) => !object(c) || typeof c.name !== "string" || c.name.length > 150 || !number(c.width, LIMITS.dimension, 0.01) || !number(c.height, LIMITS.dimension, 0.01)) || !Array.isArray(p.mergedStateIds) || p.mergedStateIds.some((id) => typeof id !== "string" || !/^[\w-]{1,80}$/.test(id))) fail("\u957F\u9875\u4FE1\u606F\u65E0\u6548");
+    }
     if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail("\u8D44\u6E90\u6570\u91CF\u8D85\u9650");
     const ids = /* @__PURE__ */ new Set();
     let assetBytes = 0;
@@ -8027,6 +8035,7 @@
   function validateBundle(value) {
     const b = value;
     if (!b || b.schemaVersion !== 1 || b.format !== "h2f-bundle" || typeof b.name !== "string" || b.name.length > 500 || !Array.isArray(b.pages) || !b.pages.length || !Array.isArray(b.assets) || b.assets.length > BATCH_LIMITS.assets || !Array.isArray(b.errors)) throw new Error("\u591A\u9875\u6570\u636E\u683C\u5F0F\u65E0\u6548");
+    if (b.importOptions !== void 0 && !validImportSettings(b.importOptions)) throw new Error("\u5BFC\u5165\u8BBE\u7F6E\u65E0\u6548");
     const ids = /* @__PURE__ */ new Set();
     let bytes = 0, nodes = 0;
     for (const a of b.assets) {
@@ -8198,6 +8207,21 @@
     $("connection-label").textContent = "\u672C\u5730\u670D\u52A1\u5DF2\u8FDE\u63A5";
     $("connection-dot").classList.add("connected");
   }
+  var smartLayout = () => input("smart-layout").checked;
+  var longPage = () => input("long-page").checked;
+  function saveCapturePreferences() {
+    try {
+      localStorage.setItem("h2f-capture-preferences", JSON.stringify({ smartLayout: smartLayout(), longPage: longPage() }));
+    } catch {
+    }
+    message("SETTINGS", { settings: { mode: mode(), smartLayout: smartLayout(), longPage: longPage(), token: input("service-token").value } });
+  }
+  try {
+    const saved = JSON.parse(localStorage.getItem("h2f-capture-preferences") || "null");
+    if (typeof saved?.smartLayout === "boolean") input("smart-layout").checked = saved.smartLayout;
+    if (typeof saved?.longPage === "boolean") input("long-page").checked = saved.longPage;
+  } catch {
+  }
   function mode() {
     return document.querySelector('input[name="mode"]:checked')?.value === "auto" ? "auto" : "visual";
   }
@@ -8256,6 +8280,8 @@
   }
   function showBundle(bundle) {
     validateBundle(bundle);
+    const settings = bundle.importOptions || bundle.pages[0]?.importOptions;
+    if (settings) input("smart-layout").checked = settings.smartLayout;
     preparedBundle = bundle;
     prepared = hydratePage(bundle, 0);
     pageStates = bundle.pages.map(() => ({ selected: true, state: "pending" }));
@@ -8268,7 +8294,7 @@
     $("ready-actions").hidden = false;
     $("prepare").hidden = true;
     $("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} \u9875` : "\u5DF2\u51C6\u5907\u597D";
-    $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : bundle.pages.some((p) => p.source.design) ? "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
+    $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : bundle.pages.some((p) => p.source.design) ? smartLayout() ? "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4 \xB7 " : "\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
     $("stat-nodes").textContent = String(stats.nodes);
     $("stat-text").textContent = String(stats.texts);
     $("stat-image").textContent = String(stats.images);
@@ -8292,10 +8318,10 @@
   }
   function renderPageList() {
     if (!preparedBundle) return;
-    $("page-list-section").hidden = preparedBundle.pages.length < 2 && !preparedBundle.pages[0]?.source.design;
+    $("page-list-section").hidden = preparedBundle.pages.length < 2 && !(smartLayout() && preparedBundle.pages[0]?.source.design);
     $("page-list-title").textContent = `\u9875\u9762\u5217\u8868 \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
     const rows = document.createDocumentFragment();
-    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas ? void 0 : p.source.design })));
+    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas || !smartLayout() ? void 0 : p.source.design })));
     const grouped = new Set(organization.groups.flatMap((g) => g.indices)), ordered = [...organization.groups.flatMap((g) => g.indices), ...preparedBundle.pages.map((_, i2) => i2).filter((i2) => !grouped.has(i2))];
     const heads = new Map(organization.groups.map((g) => [g.indices[0], g]));
     ordered.forEach((i2) => {
@@ -8548,6 +8574,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     message("IMPORT_PAGE", { id: batchId, index: queuePosition, document: hydratePage(preparedBundle, index) });
   }
   function switchTab(next) {
+    $("long-page-option").hidden = next !== "url";
     tab = next;
     document.querySelectorAll("[data-tab]").forEach((btn) => {
       const active = btn.dataset.tab === next;
@@ -8884,7 +8911,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       $("connection-dot").classList.add("connected");
       $("connection-label").textContent = "\u672C\u5730\u670D\u52A1\u5DF2\u8FDE\u63A5";
       status("\u672C\u5730\u670D\u52A1\u8FDE\u63A5\u6210\u529F\u3002");
-      message("SETTINGS", { settings: { mode: mode(), token: input("service-token").value } });
+      message("SETTINGS", { settings: { mode: mode(), smartLayout: smartLayout(), longPage: longPage(), token: input("service-token").value } });
     } catch (e) {
       $("connection-dot").classList.remove("connected");
       status(errorText(e), true);
@@ -8912,7 +8939,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
           } else await prepareStates(url);
           return;
         }
-        const response = await api("/api/capture", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body" });
+        const response = await api("/api/capture", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", longPage: longPage() });
         showPrepared(response.document);
         showRemotePreviews(response.preview);
       } else if (tab === "file" && sourceFiles.length > 1) {
@@ -8983,6 +9010,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         data2 = builder.bundle;
       }
     }
+    data2 = { ...data2, importOptions: { smartLayout: smartLayout() } };
     const blob = new Blob([JSON.stringify(data2, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -9011,14 +9039,14 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     void reportHandoffProgress("importing", pageStates.filter((p) => p.state === "complete").length, 0);
     setBusy(true, true);
     renderPageList();
-    message("SETTINGS", { settings: { mode: mode(), token: input("service-token").value } });
+    message("SETTINGS", { settings: { mode: mode(), smartLayout: smartLayout(), longPage: longPage(), token: input("service-token").value } });
     if (preparedBundle.pages.length === 1 && !prepared.source.design) {
       status("\u6B63\u5728\u52A0\u8F7D\u5B57\u4F53\u5E76\u521B\u5EFA\u56FE\u5C42\u2026");
       message("IMPORT", { document: prepared, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId });
     } else {
       batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       queuePosition = 0;
-      message("BATCH_START", { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, design: preparedBundle.pages[i2].source.design, canvas: preparedBundle.pages[i2].source.canvas })) });
+      message("BATCH_START", { id: batchId, mode: mode(), smartLayout: smartLayout(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, design: preparedBundle.pages[i2].source.design, canvas: preparedBundle.pages[i2].source.canvas })) });
       status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} \u9875\u2026`);
     }
   }
@@ -9064,6 +9092,8 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     }
     if (msg.type === "SETTINGS") {
       updateFigmaContext(msg.context);
+      if (typeof msg.settings?.smartLayout === "boolean") input("smart-layout").checked = msg.settings.smartLayout;
+      if (typeof msg.settings?.longPage === "boolean") input("long-page").checked = msg.settings.longPage;
       if (typeof msg.settings?.token === "string") input("service-token").value = msg.settings.token;
       if (msg.assistant && typeof msg.assistant.clientId === "string" && typeof msg.assistant.credential === "string") assistantCredentials = msg.assistant;
       if (plugin) void connectAssistant(false);
@@ -9272,6 +9302,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     } catch {
       throw new Error("\u8BF7\u5148\u8F7D\u5165\u72B6\u6001\u6E05\u5355\uFF0C\u6216\u7C98\u8D34\u6709\u6548\u7684 JSON");
     }
+    plan = { ...plan, longPage: longPage() };
     plan.url = url;
     plan.viewport = { ...plan.viewport, width: viewportWidth() };
     const job = await api("/api/states", plan);
@@ -9281,7 +9312,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const snapshot = await api(`/api/states/${job.id}`);
       const p = snapshot.progress;
       if (p) {
-        $("progress").value = Math.round((p.completed + p.failed) / p.total * 100);
+        $("progress").value = Math.round((p.completed + p.failed + (p.merged || 0)) / p.total * 100);
         status(`${captureStopped ? "\u6B63\u5728\u505C\u6B62" : "\u6B63\u5728\u6355\u83B7"} ${Math.min(p.index + 1, p.total)} / ${p.total}\uFF1A${p.name} \xB7 \u5B8C\u6210 ${p.completed}\uFF0C\u5931\u8D25 ${p.failed}`);
       }
       if (snapshot.status !== "running") {
@@ -9293,7 +9324,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
           showRemotePreviews(result.preview, job.id, result.previews || []);
         }
         $("download-state-report").hidden = false;
-        status(`\u72B6\u6001\u6355\u83B7${result.report.cancelled ? "\u5DF2\u505C\u6B62" : "\u5B8C\u6210"}\uFF1A\u6210\u529F ${result.report.completed} / ${result.report.total}\uFF0C\u5931\u8D25 ${result.report.failed}\u3002${result.report.completed ? "\u53EF\u9009\u62E9\u9875\u9762\u540E\u5BFC\u5165 Figma\u3002" : "\u8BF7\u4E0B\u8F7D\u62A5\u544A\u68C0\u67E5\u5931\u8D25\u539F\u56E0\u3002"}`, !result.report.completed);
+        status(`\u72B6\u6001\u6355\u83B7${result.report.cancelled ? "\u5DF2\u505C\u6B62" : "\u5B8C\u6210"}\uFF1A\u6210\u529F ${result.report.completed} / ${result.report.total}\uFF0C\u5931\u8D25 ${result.report.failed}\u3002${result.report.merged ? `\u5408\u5E76 ${result.report.merged} \u4E2A\u6EDA\u52A8\u5206\u6BB5\u3002` : ""}${result.report.completed ? "\u53EF\u9009\u62E9\u9875\u9762\u540E\u5BFC\u5165 Figma\u3002" : "\u8BF7\u4E0B\u8F7D\u62A5\u544A\u68C0\u67E5\u5931\u8D25\u539F\u56E0\u3002"}`, !result.report.completed);
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 700));
@@ -9336,6 +9367,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!indices.length) throw new Error("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u9875");
     const builder = new BundleBuilder(preparedBundle.name);
     indices.forEach((i2) => builder.add(hydratePage(preparedBundle, i2)));
+    builder.bundle.importOptions = { smartLayout: smartLayout() };
     return builder.bundle;
   }
   function outgoingStatus(item) {
@@ -9351,7 +9383,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     try {
       const target = direct ? figmaTargets.find((t) => t.id === $("figma-target").value) : null;
       if (direct && !target) throw new Error("\u8BF7\u5148\u9009\u62E9\u5DF2\u8FDE\u63A5\u7684 Figma \u76EE\u6807\u9875\u9762");
-      const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map((p) => p.selected), preparedBundle?.pages.map((p) => p.source.design), mode(), target?.id, target?.contextVersion]);
+      const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map((p) => p.selected), preparedBundle?.pages.map((p) => p.source.design), smartLayout(), mode(), target?.id, target?.contextVersion]);
       const stableSignature = signature;
       if (stableSignature !== sendSignature || direct && ["complete", "partial", "failed", "cancelled", "replaced"].includes(outgoingPhase)) {
         sendSignature = stableSignature;
@@ -9536,5 +9568,17 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     $("connect-assistant").hidden = true;
     $("assistant-help").textContent = "\u5F53\u524D\u5DE5\u4F5C\u53F0\u5DF2\u8FDE\u63A5\u672C\u673A\u6355\u83B7\u670D\u52A1\u3002";
   }
+  input("smart-layout").addEventListener("change", () => {
+    saveCapturePreferences();
+    if (preparedBundle) {
+      const text = $("report-summary").textContent || "";
+      $("report-summary").textContent = smartLayout() ? text.replace("\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217", "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4") : text.replace("\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4", "\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217");
+      renderPageList();
+    }
+  });
+  input("long-page").addEventListener("change", () => {
+    saveCapturePreferences();
+    invalidate();
+  });
   message("READY");
 })();

@@ -33,9 +33,11 @@ export function isCanvasPlacement(value: unknown): value is CanvasPlacement {
     && [canvas.x, canvas.y].every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= max)
     && [canvas.width, canvas.height].every(n => typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= max);
 }
+export interface ImportSettings { smartLayout: boolean }
+export function validImportSettings(value: unknown): value is ImportSettings { return !!value && typeof value === 'object' && !Array.isArray(value) && typeof (value as ImportSettings).smartLayout === 'boolean'; }
 export interface CaptureDocument {
-  schemaVersion: 1; name: string; createdAt: string;
-  source: { title: string; url: string; viewport: { width: number; height: number }; selector: string; canvas?: CanvasPlacement; design?: DesignOrganization };
+  schemaVersion: 1; name: string; createdAt: string; importOptions?: ImportSettings;
+  source: { title: string; url: string; viewport: { width: number; height: number }; selector: string; canvas?: CanvasPlacement; design?: DesignOrganization; longPage?: { expanded: true; containers: { name: string; width: number; height: number }[]; mergedStateIds: string[] } };
   root: SceneNode; assets: Asset[]; diagnostics: Diagnostic[];
   stats: { nodes: number; texts: number; images: number; vectors: number; missingAssets: number };
 }
@@ -58,10 +60,12 @@ export function validateDocument(input: unknown): asserts input is CaptureDocume
   const tuple = (v: unknown, len: number, min = 0) => Array.isArray(v) && v.length === len && v.every(x => number(x, LIMITS.dimension, min));
   if (!object(input) || input.schemaVersion !== SCHEMA_VERSION) fail('版本不兼容，请使用本插件生成的 .h2f.json 文件');
   const doc = input as Record<string, any>;
+  if (doc.importOptions !== undefined && !validImportSettings(doc.importOptions)) fail('导入设置无效');
   if (typeof doc.name !== 'string' || doc.name.length > 500) fail('名称过长或缺失');
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== 'string' || typeof doc.source.selector !== 'string') fail('缺少页面信息');
   if (doc.source.canvas !== undefined && !isCanvasPlacement(doc.source.canvas)) fail('原画布位置信息无效');
   if (doc.source.design !== undefined && !validOrganization(doc.source.design)) fail('页面分类信息无效');
+  if (doc.source.longPage !== undefined) { const p=doc.source.longPage;if(!object(p)||p.expanded!==true||!Array.isArray(p.containers)||p.containers.length>32||p.containers.some((c:any)=>!object(c)||typeof c.name!=='string'||c.name.length>150||!number(c.width,LIMITS.dimension,.01)||!number(c.height,LIMITS.dimension,.01))||!Array.isArray(p.mergedStateIds)||p.mergedStateIds.some((id:any)=>typeof id!=='string'||!/^[\w-]{1,80}$/.test(id)))fail('长页信息无效'); }
   if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail('资源数量超限');
   const ids = new Set<string>(); let assetBytes = 0;
   for (const a of doc.assets) {
