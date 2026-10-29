@@ -123,14 +123,22 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         if(signal?.aborted)throw new Error('捕获已取消');
         const actual=await inspectState(page,source.local);
         if(state.expectedFingerprint){if(actual.fingerprint!==state.expectedFingerprint)throw new Error('页面与探索时的状态不同，请重新探索；可能有异步数据或随机内容');}
+        let viewFingerprint=actual.viewFingerprint;
+        if(plan.longPage){
+          // Compare content at a common scroll origin, excluding sticky copies and viewport effects.
+          // State replay is already verified above; input/filter values and newly loaded rows remain.
+          await page.evaluate(scrolls=>{for(const s of scrolls){if(s.container==='document')continue;const el=document.querySelector(s.container);if(el){el.scrollTop=0;el.scrollLeft=0;}}window.scrollTo(0,0);},actual.scrolls);
+          await delay(80,undefined,{signal});viewFingerprint=(await inspectState(page,source.local)).viewFingerprint;
+        }
         const isScroll=state.design?.kind==='scroll'||state.steps.some(s=>s.type==='scroll');
-        const longKey=JSON.stringify([source.toSourceURL(page.url()),state.selector,state.design?.pageId||'',state.design?.viewId||actual.viewFingerprint]);
+        const longKey=JSON.stringify([source.toSourceURL(page.url()),state.selector,state.design?.pageId||'',state.design?.viewId||viewFingerprint]);
         const previous=plan.longPage?longViews.get(longKey):null;
-        if(previous&&(isScroll||previous.isScroll)){
+        if(previous&&(isScroll||previous.isScroll)&&previous.viewFingerprint===viewFingerprint){
           previous.document.source.longPage.mergedStateIds.push(state.id);record.status='merged';record.mergedInto=previous.id;record.pageIndex=previous.pageIndex;record.url=source.toSourceURL(page.url());report.merged++;report.total=plan.states.length-report.merged;continue;
         }
         const options={url:page.url(),width:plan.viewport.width,height:plan.viewport.height,selector:state.selector};
         const result=await captureLoadedPage(page,context,options,{viewportOnly:state.captureMode==='viewport',longPage:plan.longPage,name:`${String(i+1).padStart(3,'0')} · ${state.group} · ${state.name}`,source});
+        if(previous&&previous.viewFingerprint!==viewFingerprint)result.document.diagnostics.push({code:'LONG_PAGE_CONTENT_CHANGED',message:'滚动后内容发生变化，保留独立长页以避免丢失新内容',count:1});
         const sourceURL=source.toSourceURL(page.url());
         const design=inferOrganization({url:sourceURL,entryURL:plan.url,heading:actual.heading,title:actual.title,dialog:actual.dialog,viewFingerprint:actual.viewFingerprint,...actual.structure,scrolls:actual.scrolls,name:state.name,actionKind:state.steps.some(s=>s.type==='scroll')?'滚动':'',parent:state.design,explicitGroup:!['交互探索','自动发现','页面状态'].includes(state.group)?state.group:undefined});
         result.document.source.design=state.design?{...state.design,scroll:design.scroll}:design;
@@ -139,7 +147,7 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         if(blocked) result.document.diagnostics.push({code:'NETWORK_BLOCKED',message:`隔离捕获阻止了 ${blocked} 个写请求或跨站跳转；请核对该状态是否完整`,count:1});
         builder.add(result.document);
         record.pageIndex=builder.bundle.pages.length-1;
-        if(plan.longPage)longViews.set(longKey,{id:state.id,pageIndex:record.pageIndex,document:result.document,isScroll});
+        if(plan.longPage)longViews.set(longKey,{id:state.id,pageIndex:record.pageIndex,document:result.document,isScroll,viewFingerprint});
         const sha=createHash('sha256').update(JSON.stringify(result.document.root)).digest('hex');
         if(fingerprints.has(sha))record.duplicateOf=fingerprints.get(sha);else fingerprints.set(sha,state.id);
         record.status='complete';record.nodes=result.document.stats.nodes;record.diagnostics=result.document.diagnostics;record.url=source.toSourceURL(page.url());record.sha256=sha;

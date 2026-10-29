@@ -1,4 +1,4 @@
-import test,{before,after}from'node:test';import assert from'node:assert/strict';import path from'node:path';import{readFile}from'node:fs/promises';
+import test,{before,after}from'node:test';import assert from'node:assert/strict';import path from'node:path';import{readFile,writeFile,mkdtemp,rm}from'node:fs/promises';import os from'node:os';
 import{launchBrowser,captureLoadedPage}from'../scripts/browser.mjs';import{captureStates,validateStatePlan}from'../scripts/state-capture.mjs';import{expandLongPage}from'../scripts/long-page.mjs';import{hydratePage}from'../dist/lib/bundle.js';import{importDocument}from'../dist/lib/importer.js';import{figmaWithLayout}from'./layout-figma.mjs';
 let browser;before(async()=>{browser=await launchBrowser();},{timeout:30000});after(async()=>{await browser?.close();});
 const flat=n=>[n,...(n.children||[]).flatMap(flat)],text=d=>flat(d.root).map(n=>n.text?.value||'').join('');
@@ -23,4 +23,19 @@ test('an active long dialog expands only its own scrolling content and keeps its
 });
 test('oversized scroll surfaces fail explicitly and restore styles rather than silently dropping content',async()=>{
  const context=await browser.newContext(),page=await context.newPage();try{await page.setContent('<div id="scroll" style="height:200px;overflow:auto"><div style="height:120000px">内容</div></div>');const before=await page.locator('#scroll').getAttribute('style');await assert.rejects(expandLongPage(page,'body'),/100000/);assert.equal(await page.locator('#scroll').getAttribute('style'),before);assert.throws(()=>validateStatePlan({...plan(),longPage:'yes'}),/布尔值/);}finally{await context.close();}
+});
+
+
+test('scroll-triggered new content is retained even when discovery classified it as the same view',async()=>{
+ const temp=await mkdtemp(path.join(os.tmpdir(),'h2f-long-lazy-'));try{
+  const original=await readFile('examples/long-scroll.html','utf8');await writeFile(path.join(temp,'index.html'),original.replace('</body>',`<script>document.querySelector('#scroller').addEventListener('scroll',()=>{const s=document.querySelector('#scroller');if(s.scrollTop>100&&!document.querySelector('#new-row')){const row=document.createElement('div');row.id='new-row';row.className='block';row.textContent='滚动后新加载的内容';s.append(row);}});</script></body>`));
+  const design={projectId:'lazy',moduleId:'module',moduleName:'计划',pageId:'page',pageName:'计划',level:'primary',viewId:'same-view',stateName:'默认',kind:'page',confidence:'high',reason:'主导航',scroll:{container:'#scroller',x:0,y:0}};
+  const input={...plan(),url:path.join(temp,'index.html'),states:[{id:'top',name:'顶部',design},{id:'lower',name:'底部',design:{...design,kind:'scroll',scroll:{container:'#scroller',x:0,y:900}},steps:[{type:'scroll',selector:'#scroller',y:900}]}]};
+  const r=await captureStates(browser,input);assert.equal(r.report.failed,0);assert.equal(r.bundle.pages.length,2);assert.equal(r.report.merged,0);assert.ok(text(hydratePage(r.bundle,1)).includes('滚动后新加载的内容'));assert.ok(r.bundle.pages[1].diagnostics.some(d=>d.code==='LONG_PAGE_CONTENT_CHANGED'));
+ }finally{await rm(temp,{recursive:true,force:true});}
+});
+
+
+test('sticky scroll-only UI changes normalize before merging a continuous page',async()=>{
+ const temp=await mkdtemp(path.join(os.tmpdir(),'h2f-long-sticky-'));try{const html=await readFile('examples/long-scroll.html','utf8');await writeFile(path.join(temp,'index.html'),html.replace('</body>',`<script>document.querySelector('#scroller').addEventListener('scroll',()=>{const scroll=document.querySelector('#scroller');document.querySelector('#topbar').textContent=scroll.scrollTop>100?'已滚动的导航':'顶部导航唯一';});</script></body>`));const r=await captureStates(browser,{...plan(),url:path.join(temp,'index.html')});assert.equal(r.report.failed,0);assert.equal(r.report.merged,1);assert.equal(r.bundle.pages.length,1);assert.ok(text(hydratePage(r.bundle,0)).includes('顶部导航唯一'));}finally{await rm(temp,{recursive:true,force:true});}
 });
