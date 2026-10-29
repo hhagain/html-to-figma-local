@@ -1,3 +1,10 @@
+// src/design-organization.ts
+var PAGE_LEVELS = { primary: "\u4E00\u7EA7\u9875\u9762", secondary: "\u4E8C\u7EA7\u9875\u9762", feature: "\u529F\u80FD\u9875\u9762", unclassified: "\u5F85\u786E\u8BA4\u9875\u9762" };
+function validOrganization(v) {
+  const o = v;
+  return !!o && typeof o === "object" && !Array.isArray(o) && ["projectId", "moduleId", "pageId", "viewId"].every((k) => typeof o[k] === "string" && /^[\w-]{1,200}$/.test(o[k])) && (o.parentPageId === void 0 || typeof o.parentPageId === "string" && /^[\w-]{1,200}$/.test(o.parentPageId)) && ["moduleName", "pageName", "stateName", "reason"].every((k) => typeof o[k] === "string" && o[k].length > 0 && o[k].length <= 500) && Object.prototype.hasOwnProperty.call(PAGE_LEVELS, o.level) && ["page", "dialog", "form", "selection", "scroll", "state"].includes(o.kind) && ["high", "medium", "low"].includes(o.confidence) && !!o.scroll && typeof o.scroll.container === "string" && o.scroll.container.length <= 700 && [o.scroll.x, o.scroll.y].every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1e7);
+}
+
 // src/schema.ts
 var SCHEMA_VERSION = 1;
 var LIMITS = { nodes: 6e3, depth: 64, text: 25e4, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 1e5 };
@@ -31,6 +38,7 @@ function validateDocument(input) {
   if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
   if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
+  if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
   if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail("\u8D44\u6E90\u6570\u91CF\u8D85\u9650");
   const ids = /* @__PURE__ */ new Set();
   let assetBytes = 0;

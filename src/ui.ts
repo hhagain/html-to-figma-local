@@ -1,3 +1,4 @@
+import { designLayout, PAGE_LEVELS } from './design-organization';
 import { normalizeCaptureAddress } from './capture-address';
 import { captureDOM, embedBrowserAssets } from './capture';
 import { validateDocument, countScene, type CaptureDocument, type Diagnostic, type ImportMode } from './schema';
@@ -85,7 +86,7 @@ function showBundle(bundle: CaptureBundle) {
   const stats = bundle.pages.reduce((sum, page) => { const s = countScene(page.root); for (const key of ['nodes', 'texts', 'images', 'vectors'] as const) sum[key] += s[key]; return sum; }, { nodes: 0, texts: 0, images: 0, vectors: 0 });
   $('report').hidden = false; $('ready-actions').hidden = false; $('prepare').hidden = true;
   $('report-title').textContent = bundle.pages.length > 1 ? `已准备好 ${bundle.pages.length} 页` : '已准备好';
-  $('report-summary').textContent = bundle.pages.length > 1 ? `${bundle.name} · ${bundle.pages.some(p => p.source.canvas) ? '保留原画布排布 · ' : ''}图片资源已跨页去重` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)} px · ${prepared.name}`;
+  $('report-summary').textContent = bundle.pages.length > 1 ? `${bundle.name} · ${bundle.pages.some(p => p.source.canvas) ? '保留原画布排布 · ' : bundle.pages.some(p => p.source.design) ? '按页面与功能分组 · ' : ''}图片资源已跨页去重` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)} px · ${prepared.name}`;
   $('stat-nodes').textContent = String(stats.nodes); $('stat-text').textContent = String(stats.texts); $('stat-image').textContent = String(stats.images); $('stat-svg').textContent = String(stats.vectors);
   $('preview-size').textContent = bundle.pages.length > 1 ? `${bundle.pages.length} 页` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)}`;
   const diagnostics = bundle.pages.flatMap(page => page.diagnostics).slice(0, 100);
@@ -104,15 +105,28 @@ function showBundle(bundle: CaptureBundle) {
 }
 function renderPageList() {
   if (!preparedBundle) return;
-  $('page-list-section').hidden = preparedBundle.pages.length < 2;
+  $('page-list-section').hidden = preparedBundle.pages.length < 2 && !preparedBundle.pages[0]?.source.design;
   $('page-list-title').textContent = `页面列表 · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`;
   const rows = document.createDocumentFragment();
-  preparedBundle.pages.forEach((page, i) => {
+  const organization=designLayout(preparedBundle.pages.map(p=>({name:p.name,width:p.root.width,height:p.root.height,design:p.source.canvas?undefined:p.source.design})));
+  const grouped=new Set(organization.groups.flatMap(g=>g.indices)),ordered=[...organization.groups.flatMap(g=>g.indices),...preparedBundle.pages.map((_,i)=>i).filter(i=>!grouped.has(i))];
+  const heads=new Map(organization.groups.map(g=>[g.indices[0],g]));
+  ordered.forEach(i => {
+    const page=preparedBundle!.pages[i],group=heads.get(i);
+    if(group){
+      const heading=document.createElement('div');heading.className='page-group-heading';
+      const name=document.createElement('strong');name.textContent=group.name;name.title=page.source.design!.reason;name.setAttribute('role','heading');name.setAttribute('aria-level','3');
+      const level=document.createElement('select');level.className='group-level';level.disabled=busy;level.setAttribute('aria-label',`调整 ${group.name} 的页面层级`);
+      for(const [value,label] of Object.entries(PAGE_LEVELS)){const option=document.createElement('option');option.value=value;option.textContent=label;level.append(option);}level.value=page.source.design!.level;
+      level.addEventListener('change',()=>{for(const index of group.indices){const d=preparedBundle!.pages[index].source.design!;d.level=level.value as keyof typeof PAGE_LEVELS;d.confidence='high';d.reason='用户调整页面类型';}renderPageList();});
+      heading.append(name,level);rows.append(heading);
+    }
     const row = document.createElement('div'); row.className = 'page-row'; row.dataset.previewActive = String(hasRemotePreview && previewPageIndex === i);
     const label = document.createElement('label'); label.className = 'page-select';
     const box = document.createElement('input'); box.type = 'checkbox'; box.checked = pageStates[i].selected; box.disabled = busy; box.setAttribute('aria-label', `选择 ${page.name}`);
     box.addEventListener('change', () => { pageStates[i].selected = box.checked; refreshImportAction(); $('page-list-title').textContent = `页面列表 · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`; });
     const title = document.createElement('span'); title.textContent = `${String(i + 1).padStart(3, '0')}  ${page.name}`; title.title = page.name;
+    if(page.source.design){const d=page.source.design;title.title+=`\n${PAGE_LEVELS[d.level]} · ${d.moduleName} / ${d.pageName}\n推断依据：${d.reason}`;title.dataset.pageLevel=d.level;}
     const state = document.createElement('small'); state.id = `page-state-${i}`; state.textContent = pageStates[i].detail || `${Math.round(page.root.width)} × ${Math.round(page.root.height)}`; state.dataset.state = pageStates[i].state;
     label.append(box, title); row.append(label, state);
     if (hasRemotePreview && !plugin) {
@@ -465,10 +479,10 @@ function importPrepared() {
   if (!queue.length) { status(pageStates.some(p => p.selected) ? '所选页面都已导入；重新解析后可再次导入。' : '请至少选择一页。'); return; }
   captureStopped = false; importing = true; void reportHandoffProgress('importing', pageStates.filter(p => p.state === 'complete').length, 0); setBusy(true, true); renderPageList();
   message('SETTINGS', { settings: { mode: mode(), token: input('service-token').value } });
-  if (preparedBundle.pages.length === 1) { status('正在加载字体并创建图层…'); message('IMPORT', { document: prepared, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId }); }
+  if (preparedBundle.pages.length === 1 && !prepared.source.design) { status('正在加载字体并创建图层…'); message('IMPORT', { document: prepared, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId }); }
   else {
     batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`; queuePosition = 0;
-    message('BATCH_START', { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map(i => ({ name: preparedBundle!.pages[i].name, width: preparedBundle!.pages[i].root.width, height: preparedBundle!.pages[i].root.height, canvas: preparedBundle!.pages[i].source.canvas })) });
+    message('BATCH_START', { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map(i => ({ name: preparedBundle!.pages[i].name, width: preparedBundle!.pages[i].root.width, height: preparedBundle!.pages[i].root.height, design: preparedBundle!.pages[i].source.design, canvas: preparedBundle!.pages[i].source.canvas })) });
     status(`开始导入 ${queue.length} 页…`);
   }
 }
@@ -499,7 +513,7 @@ window.onmessage = event => {
     queuePosition++; if (!captureStopped && queuePosition < queue.length) setTimeout(sendNextPage, 0);
   } else if (msg.type === 'BATCH_COMPLETE' && msg.id === batchId) {
     importing = false; setBusy(false); renderPageList();
-    $('report-title').textContent = msg.result.cancelled ? '批次已停止' : '多页导入完成';
+    $('report-title').textContent = msg.result.cancelled ? '批次已停止' : msg.result.total > 1 ? '多页导入完成' : '已导入 Figma';
     status(`本次完成 ${msg.result.completed} / ${msg.result.total} 页，失败 ${msg.result.failed} 页。${msg.result.cancelled ? '已完成页面保留，可继续导入剩余页面。' : '每页已创建独立 Frame。'}`);
     const remaining = pageStates.filter(p => p.selected && p.state !== 'complete').length; $('import').textContent = remaining ? `继续导入剩余 ${remaining} 页` : '所选页面已全部导入'; $<HTMLButtonElement>('import').disabled = remaining === 0;
     void reportHandoffProgress(msg.result.cancelled?'cancelled':msg.result.failed?'partial':'complete',pageStates.filter(p=>p.state==='complete').length,pageStates.filter(p=>p.state==='failed').length);
@@ -534,6 +548,7 @@ function renderDiscovery() {
     let route = ''; try { const address = new URL(page.destination || page.url); route = address.hash || decodeURIComponent(address.pathname.split('/').pop() || '/'); } catch {}
     detail.textContent = page.error ? `无法打开 · ${page.error}` : `${page.via} · ${page.via === '导航标签' && !page.destination ? '点击后捕获' : route}${page.checked ? '' : ' · 捕获时验证'}`;
     if (page.path) detail.textContent = `${page.via} · ${page.path}`;
+    if(page.design){detail.textContent=`${PAGE_LEVELS[page.design.level as keyof typeof PAGE_LEVELS]} · ${page.design.moduleName} / ${page.design.pageName}${page.design.kind==='scroll'?' · 长页分段':''}${page.design.confidence==='low'?' · 待确认':''}`;detail.title=page.design.reason;}
     copy.append(name, detail); row.append(checkbox, copy); rows.append(row);
   });
   $('discovery-list').replaceChildren(rows);
@@ -632,7 +647,7 @@ async function sendHandoff(direct = false) {
   try {
     const target = direct ? figmaTargets.find(t => t.id === $<HTMLSelectElement>('figma-target').value) : null;
     if (direct && !target) throw new Error('请先选择已连接的 Figma 目标页面');
-    const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map(p=>p.selected),mode(),target?.id,target?.contextVersion]);
+    const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map(p=>p.selected),preparedBundle?.pages.map(p=>p.source.design),mode(),target?.id,target?.contextVersion]);
     // Keep the same request id after a transport failure; successful retries cannot duplicate a batch.
     const stableSignature = signature;
     if (stableSignature !== sendSignature || (direct && ['complete','partial','failed','cancelled','replaced'].includes(outgoingPhase))) { sendSignature = stableSignature; sendRequestId = randomId(); }

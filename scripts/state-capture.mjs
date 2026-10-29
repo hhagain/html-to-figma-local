@@ -1,3 +1,4 @@
+import { inferOrganization, validOrganization } from '../dist/lib/design-organization.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { captureLoadedPage, validateCaptureRequest } from './browser.mjs';
 import { createHash } from 'node:crypto';
@@ -33,8 +34,9 @@ export function validateStatePlan(input) {
   const states = input.states.map((s,i) => {
     if (!s || typeof s.id !== 'string' || !/^[\w-]{1,80}$/.test(s.id) || ids.has(s.id) || typeof s.name !== 'string' || !s.name || s.name.length > 150) throw new Error(`第 ${i+1} 个状态的 id 或名称无效`);
     if(s.expectedFingerprint!==undefined&&!/^[a-f0-9]{64}$/.test(s.expectedFingerprint))throw new Error('状态校验摘要无效');
+    if(s.design!==undefined&&!validOrganization(s.design))throw new Error('页面分类信息无效');
     ids.add(s.id); const selector = s.selector || base.selector; if (typeof selector !== 'string' || selector.length > 700) throw new Error('捕获选择器无效');
-    return { id:s.id, name:s.name, ...(s.expectedFingerprint?{expectedFingerprint:s.expectedFingerprint}:{}), group:typeof s.group==='string'?s.group.slice(0,80):'页面状态', url:safeURL(s.url), setup:s.setup!==false, selector, steps:steps(s.steps), captureMode:s.captureMode==='full'?'full':input.captureMode==='full'?'full':'viewport' };
+    return { id:s.id, name:s.name, ...(s.design?{design:structuredClone(s.design)}:{}), ...(s.expectedFingerprint?{expectedFingerprint:s.expectedFingerprint}:{}), group:typeof s.group==='string'?s.group.slice(0,80):'页面状态', url:safeURL(s.url), setup:s.setup!==false, selector, steps:steps(s.steps), captureMode:s.captureMode==='full'?'full':input.captureMode==='full'?'full':'viewport' };
   });
   if (input.notes !== undefined && (typeof input.notes !== 'string' || input.notes.length > 10000)) throw new Error('说明过长');
   return { schemaVersion:1, name:input.name, url:base.url, viewport:{width:base.width,height:base.height}, selector:base.selector, setup, states, captureMode:input.captureMode||'viewport', notes:input.notes||'', snapshotDocument:input.snapshotDocument===true };
@@ -117,9 +119,13 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         await delay(120, undefined, { signal });
         await page.evaluate(async()=>{await Promise.race([document.fonts.ready,new Promise(resolve=>setTimeout(resolve,1500))]);});
         if(signal?.aborted)throw new Error('捕获已取消');
-        if(state.expectedFingerprint){const actual=await inspectState(page,source.local);if(actual.fingerprint!==state.expectedFingerprint)throw new Error('页面与探索时的状态不同，请重新探索；可能有异步数据或随机内容');}
+        const actual=await inspectState(page,source.local);
+        if(state.expectedFingerprint){if(actual.fingerprint!==state.expectedFingerprint)throw new Error('页面与探索时的状态不同，请重新探索；可能有异步数据或随机内容');}
         const options={url:page.url(),width:plan.viewport.width,height:plan.viewport.height,selector:state.selector};
         const result=await captureLoadedPage(page,context,options,{viewportOnly:state.captureMode==='viewport',name:`${String(i+1).padStart(3,'0')} · ${state.group} · ${state.name}`,source});
+        const sourceURL=source.toSourceURL(page.url());
+        const design=inferOrganization({url:sourceURL,entryURL:plan.url,heading:actual.heading,title:actual.title,dialog:actual.dialog,viewFingerprint:actual.viewFingerprint,...actual.structure,scrolls:actual.scrolls,name:state.name,actionKind:state.steps.some(s=>s.type==='scroll')?'滚动':'',parent:state.design,explicitGroup:!['交互探索','自动发现','页面状态'].includes(state.group)?state.group:undefined});
+        result.document.source.design=state.design?{...state.design,scroll:design.scroll}:design;
         result.document.source.state={id:state.id,name:state.name,group:state.group,stepCount:(state.setup?plan.setup.length:0)+state.steps.length};
         if(blocked) result.document.diagnostics.push({code:'NETWORK_BLOCKED',message:`隔离捕获阻止了 ${blocked} 个写请求或跨站跳转；请核对该状态是否完整`,count:1});
         builder.add(result.document);

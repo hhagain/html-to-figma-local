@@ -1,3 +1,5 @@
+import { inferOrganization } from '../dist/lib/design-organization.js';
+import { inspectState } from './interaction-inspector.mjs';
 import { exploreStates } from './explore-states.mjs';
 import { validateCaptureRequest } from './browser.mjs';
 import { openCaptureSource, resolveStateURL } from './capture-source.mjs';
@@ -101,11 +103,14 @@ export async function discoverPages(browser, rawRequest, { signal, onProgress } 
         if (item === entry) { title = inspected.title || title; item.name = inspected.candidates.find(c => c.selected)?.name || inspected.title || '当前页面'; }
         else if (item.via === '本地文件' && inspected.title) item.name = inspected.title;
         item.checked = true; item.destination = source.toSourceURL(page.url());
+        const observation=await inspectState(page,source.local);
+        item.design=inferOrganization({url:item.destination,entryURL:options.url,heading:observation.heading,title:observation.title,dialog:observation.dialog,viewFingerprint:observation.viewFingerprint,...observation.structure,scrolls:observation.scrolls,name:item.name,actionKind:item.via==='页面链接'?'详情':'导航',parent:item.parentDesign,parentURL:item.parentURL});
+        if(item.design.level==='primary')item.name=item.design.moduleName;
         for (const candidate of inspected.candidates) {
           if (candidate.kind === 'link') {
             try {
               const url = resolveStateURL(source.toSourceURL(candidate.url), options.url);
-              add('url:' + canonical(url), { name: candidate.name, url, steps: [] }, '页面链接', item.depth + 1);
+              add('url:' + canonical(url), { name: candidate.name, url, steps: [],parentDesign:item.design,parentURL:item.destination }, '页面链接', item.depth + 1);
             } catch { /* Outside the entry's origin/directory. */ }
           } else {
             const location = new URL(item.url); location.hash = '';
@@ -114,7 +119,7 @@ export async function discoverPages(browser, rawRequest, { signal, onProgress } 
             if (item.steps.some(step => step.selector === candidate.selector)) continue;
             const steps = [...item.steps, { type: 'click', selector: candidate.selector }];
             if (candidate.waitSelected) steps.push({ type: 'wait', selector: `${candidate.selector}[aria-selected="true"]` });
-            add(key, { name: candidate.name, url: item.url, steps }, '导航标签', item.depth + 1);
+            add(key, { name: candidate.name, url: item.url, steps,parentDesign:item.design,parentURL:item.destination }, '导航标签', item.depth + 1);
           }
         }
         // Local projects may have standalone pages with no links from index.html.
@@ -134,7 +139,7 @@ export async function discoverPages(browser, rawRequest, { signal, onProgress } 
     report.limited ||= queue.length > 0 || timedOut;
   } finally { clearTimeout(deadline); signal?.removeEventListener('abort', abort); await closeContext(); }
   report.cancelled = !!signal?.aborted; report.status = report.cancelled ? 'cancelled' : errors.length || report.limited ? 'partial' : 'complete';
-  const states = pages.map(({ id, name, url, steps }) => ({ id, name, url, steps, group: '自动发现', selector: options.selector }));
+  const states = pages.map(({ id, name, url, steps, design }) => ({ id, name, url, steps, ...(design?{design}:{}), group: '自动发现', selector: options.selector }));
   const plan = { schemaVersion: 1, name: title, url: options.url, viewport: { width: options.width, height: options.height }, selector: options.selector, captureMode: 'viewport', states };
   return { plan, pages, report };
 }

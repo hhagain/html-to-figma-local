@@ -1,3 +1,76 @@
+// src/design-organization.ts
+var PAGE_LEVELS = { primary: "\u4E00\u7EA7\u9875\u9762", secondary: "\u4E8C\u7EA7\u9875\u9762", feature: "\u529F\u80FD\u9875\u9762", unclassified: "\u5F85\u786E\u8BA4\u9875\u9762" };
+function validOrganization(v) {
+  const o = v;
+  return !!o && typeof o === "object" && !Array.isArray(o) && ["projectId", "moduleId", "pageId", "viewId"].every((k) => typeof o[k] === "string" && /^[\w-]{1,200}$/.test(o[k])) && (o.parentPageId === void 0 || typeof o.parentPageId === "string" && /^[\w-]{1,200}$/.test(o.parentPageId)) && ["moduleName", "pageName", "stateName", "reason"].every((k) => typeof o[k] === "string" && o[k].length > 0 && o[k].length <= 500) && Object.prototype.hasOwnProperty.call(PAGE_LEVELS, o.level) && ["page", "dialog", "form", "selection", "scroll", "state"].includes(o.kind) && ["high", "medium", "low"].includes(o.confidence) && !!o.scroll && typeof o.scroll.container === "string" && o.scroll.container.length <= 700 && [o.scroll.x, o.scroll.y].every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1e7);
+}
+function designLayout(pages) {
+  const sections = /* @__PURE__ */ new Map();
+  pages.forEach((p, index) => {
+    if (!p.design) return;
+    const d = p.design, key = [d.projectId, d.moduleId, d.level, d.pageId].join(":");
+    const s = sections.get(key);
+    if (s) s.indices.push(index);
+    else sections.set(key, { design: d, indices: [index] });
+  });
+  const modules = /* @__PURE__ */ new Map();
+  for (const [id, s] of sections) {
+    const key = s.design.projectId + ":" + s.design.moduleId;
+    if (!modules.has(key)) modules.set(key, /* @__PURE__ */ new Map());
+    modules.get(key).set(id, s);
+  }
+  const groups = [], positions = /* @__PURE__ */ new Map();
+  let moduleY = 0, width = 0;
+  for (const sectionMap of modules.values()) {
+    let columnX = 0, moduleHeight = 0;
+    for (const level of Object.keys(PAGE_LEVELS)) {
+      let sectionY = moduleY, columnWidth = 0;
+      for (const [id, s] of sectionMap) {
+        if (s.design.level !== level) continue;
+        const views = /* @__PURE__ */ new Map();
+        for (const i of s.indices) {
+          const key = pages[i].design.viewId;
+          const v = views.get(key);
+          if (v) v.push(i);
+          else views.set(key, [i]);
+        }
+        let x = 80, y = 112, rowHeight = 0, maxRight = 80;
+        const local = /* @__PURE__ */ new Map();
+        for (const view of views.values()) {
+          view.sort((a, b) => pages[a].design.scroll.y - pages[b].design.scroll.y || pages[a].design.scroll.x - pages[b].design.scroll.x || a - b);
+          const viewWidth = view.reduce((sum, i) => sum + pages[i].width, 0) + 24 * Math.max(0, view.length - 1);
+          const viewHeight = view.reduce((max, i) => Math.max(max, pages[i].height), 0);
+          if (x > 80 && x + viewWidth > 4800) {
+            x = 80;
+            y += rowHeight + 120;
+            rowHeight = 0;
+          }
+          let partX = x;
+          for (const i of view) {
+            local.set(i, { x: partX, y });
+            partX += pages[i].width + 24;
+          }
+          maxRight = Math.max(maxRight, x + viewWidth);
+          x += viewWidth + 96;
+          rowHeight = Math.max(rowHeight, viewHeight);
+        }
+        const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
+        for (const [i, p] of local) positions.set(i, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
+        groups.push({ id, name: `${PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+        sectionY += sectionHeight + 160;
+        columnWidth = Math.max(columnWidth, sectionWidth);
+      }
+      if (columnWidth) {
+        columnX += columnWidth + 200;
+        moduleHeight = Math.max(moduleHeight, sectionY - moduleY);
+      }
+    }
+    width = Math.max(width, Math.max(0, columnX - 200));
+    moduleY += moduleHeight + 240;
+  }
+  return { positions, groups, width, height: Math.max(0, moduleY - 240) };
+}
+
 // src/schema.ts
 var SCHEMA_VERSION = 1;
 var LIMITS = { nodes: 6e3, depth: 64, text: 25e4, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 1e5 };
@@ -36,6 +109,7 @@ function validateDocument(input) {
   if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
   if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
+  if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
   if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail("\u8D44\u6E90\u6570\u91CF\u8D85\u9650");
   const ids = /* @__PURE__ */ new Set();
   let assetBytes = 0;
@@ -379,15 +453,30 @@ var ImportBatch = class {
     this.nodeCount = 0;
     this.assetBytes = 0;
     this.assetIds = /* @__PURE__ */ new Set();
+    this.groupPlans = /* @__PURE__ */ new Map();
+    this.groups = /* @__PURE__ */ new Map();
+    this.groupForIndex = /* @__PURE__ */ new Map();
     this.staging = null;
-    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some((p) => !p || typeof p.name !== "string" || !Number.isFinite(p.width) || p.width <= 0 || p.width > 1e5 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 1e5 || p.canvas !== void 0 && !isCanvasPlacement(p.canvas))) throw new Error("\u6279\u6B21\u8BA1\u5212\u65E0\u6548");
+    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some((p) => !p || typeof p.name !== "string" || !Number.isFinite(p.width) || p.width <= 0 || p.width > 1e5 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 1e5 || p.canvas !== void 0 && !isCanvasPlacement(p.canvas) || p.design !== void 0 && !validOrganization(p.design))) throw new Error("\u6279\u6B21\u8BA1\u5212\u65E0\u6548");
     this.context = createImportContext(api);
     this.page = api.currentPage;
     const existing = this.page.children.filter((n) => n.visible);
     const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
     const units = [], canvases = /* @__PURE__ */ new Map();
+    const organized = designLayout(plan.map((p) => p.canvas ? { ...p, design: void 0 } : p));
+    let designUnit;
     plan.forEach((p, index) => {
       const c = p.canvas;
+      if (!c && p.design) {
+        if (!designUnit) {
+          designUnit = { width: organized.width, height: organized.height, minX: 0, minY: 0, entries: [], groups: organized.groups };
+          units.push(designUnit);
+        }
+        const pos = organized.positions.get(index);
+        designUnit.entries.push({ index, x: pos.x, y: pos.y });
+        this.groupForIndex.set(index, pos.groupId);
+        return;
+      }
       if (!c) {
         units.push({ width: p.width, height: p.height, minX: 0, minY: 0, entries: [{ index, x: 0, y: 0 }] });
         return;
@@ -413,6 +502,7 @@ var ImportBatch = class {
         y += rowHeight + 120;
         rowHeight = 0;
       }
+      for (const group of unit.groups || []) this.groupPlans.set(group.id, { ...group, x: x + group.x, y: y + group.y });
       for (const entry of unit.entries) this.positions[entry.index] = { x: x + entry.x - unit.minX, y: y + entry.y - unit.minY };
       x += unit.width - unit.minX + 120;
       rowHeight = Math.max(rowHeight, unit.height - unit.minY);
@@ -445,6 +535,36 @@ var ImportBatch = class {
       const result = await importDocument(this.api, document, { mode: this.mode, context: this.context, page: this.page, focus: false, position: this.positions[index], cancelled: () => this.cancelled, progress, onStaging: (node) => {
         this.staging = node;
       } });
+      const groupId = this.groupForIndex.get(index), spec = groupId ? this.groupPlans.get(groupId) : void 0;
+      if (spec) {
+        try {
+          const node = await this.api.getNodeByIdAsync(result.nodeId);
+          if (node && "x" in node) {
+            let section = this.groups.get(spec.id);
+            if (!section) {
+              section = this.api.createSection();
+              this.page.appendChild(section);
+              section.name = spec.name;
+              section.resizeWithoutConstraints(spec.width, spec.height);
+              section.x = spec.x;
+              section.y = spec.y;
+              section.setPluginData("h2fDesignGroup", spec.id);
+              this.groups.set(spec.id, section);
+            }
+            section.appendChild(node);
+            node.x = this.positions[index].x - spec.x;
+            node.y = this.positions[index].y - spec.y;
+            node.setPluginData("h2fOrganization", JSON.stringify(document.source.design));
+          }
+        } catch {
+          const section = this.groups.get(spec.id);
+          if (section && !section.children.length) {
+            section.remove();
+            this.groups.delete(spec.id);
+          }
+          result.diagnostics.push({ code: "GROUP_LAYOUT_FALLBACK", message: "\u5F53\u524D\u73AF\u5883\u672A\u80FD\u521B\u5EFA\u5206\u7C7B\u5206\u533A\uFF0C\u4FDD\u7559\u9875\u9762\u7684\u5206\u7EC4\u5750\u6807", count: 1 });
+        }
+      }
       const entry = { index, name: document.name, nodeId: result.nodeId, result };
       this.results.push(entry);
       this.next++;
@@ -466,8 +586,10 @@ var ImportBatch = class {
       if (n && "visible" in n) nodes.push(n);
     }
     if (nodes.length && this.api.currentPage.id === this.page.id) {
-      this.page.selection = nodes.length > 12 ? [nodes[0]] : nodes;
-      this.api.viewport.scrollAndZoomIntoView(nodes.length > 12 ? [nodes[0]] : nodes);
+      const sections = [...this.groups.values()].filter((n) => !n.removed && n.children.length);
+      const focus = sections.length ? sections.slice(0, 12) : nodes.length > 12 ? [nodes[0]] : nodes;
+      this.page.selection = focus;
+      this.api.viewport.scrollAndZoomIntoView(focus);
     }
     return { total: this.total, completed: this.results.filter((r) => r.nodeId).length, failed: this.results.filter((r) => r.error && r.error !== "\u5BFC\u5165\u5DF2\u53D6\u6D88").length, cancelled: this.cancelled, results: this.results };
   }

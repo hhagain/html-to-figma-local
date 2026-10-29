@@ -1,3 +1,4 @@
+import { validOrganization, type DesignOrganization } from './design-organization';
 export const SCHEMA_VERSION = 1 as const;
 export const LIMITS = { nodes: 6000, depth: 64, text: 250000, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 100000 };
 export type Color = { r: number; g: number; b: number; a: number };
@@ -34,7 +35,7 @@ export function isCanvasPlacement(value: unknown): value is CanvasPlacement {
 }
 export interface CaptureDocument {
   schemaVersion: 1; name: string; createdAt: string;
-  source: { title: string; url: string; viewport: { width: number; height: number }; selector: string; canvas?: CanvasPlacement };
+  source: { title: string; url: string; viewport: { width: number; height: number }; selector: string; canvas?: CanvasPlacement; design?: DesignOrganization };
   root: SceneNode; assets: Asset[]; diagnostics: Diagnostic[];
   stats: { nodes: number; texts: number; images: number; vectors: number; missingAssets: number };
 }
@@ -60,6 +61,7 @@ export function validateDocument(input: unknown): asserts input is CaptureDocume
   if (typeof doc.name !== 'string' || doc.name.length > 500) fail('名称过长或缺失');
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== 'string' || typeof doc.source.selector !== 'string') fail('缺少页面信息');
   if (doc.source.canvas !== undefined && !isCanvasPlacement(doc.source.canvas)) fail('原画布位置信息无效');
+  if (doc.source.design !== undefined && !validOrganization(doc.source.design)) fail('页面分类信息无效');
   if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail('资源数量超限');
   const ids = new Set<string>(); let assetBytes = 0;
   for (const a of doc.assets) {

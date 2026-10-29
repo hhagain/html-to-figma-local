@@ -23,6 +23,9 @@ export function inspectInteractiveDOM({ local = false } = {}) {
   const scope = dialogs.at(-1) || document.body;
   const heading = text(scope.querySelector('h1,h2,[role="heading"]') || scope).slice(0, 70);
   const controls = [...scope.querySelectorAll('button,a[href],summary,[role="button"],[role="tab"],input,select,textarea,[data-action],[onclick]')].filter(visible);
+  const primaryControls = [...document.querySelectorAll('header nav [role="tab"], header nav a, [data-primary-nav] button, [data-primary-nav] a, nav[aria-label*="主要"] [role="tab"], nav[aria-label*="主导航"] a, footer nav a')].filter(visible);
+  const primary = primaryControls.find(el => el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-current') === 'page');
+  const structure = { primary: primary ? { name: text(primary), key: primary.getAttribute('data-id') || primary.getAttribute('href') || primary.id || text(primary) } : null, hasPrimaryNavigation: primaryControls.length >= 2 };
   const candidates = [], skipped = [], families = new Map();
   const add = candidate => {
     const count = families.get(candidate.family) || 0;
@@ -73,7 +76,8 @@ export function inspectInteractiveDOM({ local = false } = {}) {
     const kind = role === 'tab' || el.closest('nav,[role=navigation]') ? '导航' : dialogs.length ? '弹窗操作' : /详情|查看|明细/.test(name) ? '详情' : '交互';
     const steps = [{ type: 'click', selector: css }];
     if (el.hasAttribute('aria-selected')) steps.push({ type: 'wait', selector: css + '[aria-selected="true"]' });
-    add({ name, kind, family, key, steps, global: role === 'tab' || !!el.closest('header,footer'), priority: role === 'tab' ? 0 : /设置|添加|新增|详情|筛选|展开|编辑|分析|手动|记一笔/.test(name) ? 1 : /prev|next|period|month/.test(action) ? 4 : 2 });
+    const region=el.closest('section,[role=region]');const featureName=region?.querySelector('h2,h3,[role=heading]');
+    add({ name, kind, family, key, steps,featureName:featureName?text(featureName):undefined, global: role === 'tab' || !!el.closest('header,footer'), priority: role === 'tab' ? 0 : /设置|添加|新增|详情|筛选|展开|编辑|分析|手动|记一笔/.test(name) ? 1 : /prev|next|period|month/.test(action) ? 4 : 2 });
   }
   for (const form of scope.querySelectorAll('form')) {
     const fields = [...form.querySelectorAll('input,textarea')].filter(el => visible(el) && !el.disabled && !el.readOnly && !['hidden','file','password','checkbox','radio','submit','button'].includes(el.type));
@@ -97,6 +101,7 @@ export function inspectInteractiveDOM({ local = false } = {}) {
     }
     el = walker.nextNode();
   }
+  const viewSignature = signatureParts.join('\n');
   // Top/bottom samples expose clipped scroll content without enumerating every pixel.
   const scrollables = [...scope.querySelectorAll('*')].filter(el => visible(el) && el.clientHeight > 100 && el.scrollHeight > el.clientHeight + 100 && /auto|scroll/.test(getComputedStyle(el).overflowY)).slice(0, 2);
   for (const el of scrollables) {
@@ -104,10 +109,12 @@ export function inspectInteractiveDOM({ local = false } = {}) {
     if (el.scrollTop < el.scrollHeight - el.clientHeight - 40 && css.length < 650) add({ name: '下半部分', kind: '滚动', family: 'scroll:' + css, key: 'scroll:' + css, steps: [{ type: 'scroll', selector: css, y: el.scrollHeight - el.clientHeight }], priority: 5 });
     signatureParts.push('scroll:' + css + ':' + Math.round(el.scrollTop / 20));
   }
+  const scrolls = scrollables.map(el => ({container: selector(el),x: el.scrollLeft,y: el.scrollTop}));
+  if (!scrolls.length) scrolls.push({container:'document',x:window.scrollX,y:window.scrollY});
   candidates.sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
-  return { title: document.title.slice(0, 100), heading, dialog: dialogs.length > 0, signature: signatureParts.join('\n'), candidates: candidates.slice(0, 45), skipped: [...skipped, ...(candidates.length > 45 ? [{ name: '控件数量', reason: '每个状态最多探索 45 个候选动作' }] : [])] };
+  return { title: document.title.slice(0, 100), heading, dialog: dialogs.length > 0, structure, scrolls, viewSignature, signature: signatureParts.join('\n'), candidates: candidates.slice(0, 45), skipped: [...skipped, ...(candidates.length > 45 ? [{ name: '控件数量', reason: '每个状态最多探索 45 个候选动作' }] : [])] };
 }
 export async function inspectState(page, local) {
   const state = await page.evaluate(inspectInteractiveDOM, { local });
-  return { ...state, fingerprint: createHash('sha256').update(state.signature).digest('hex') };
+  return { ...state, viewFingerprint: createHash('sha256').update(state.viewSignature).digest('hex'), fingerprint: createHash('sha256').update(state.signature).digest('hex') };
 }

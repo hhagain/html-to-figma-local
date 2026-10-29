@@ -1,3 +1,4 @@
+import { inferOrganization } from '../dist/lib/design-organization.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openCaptureSource } from './capture-source.mjs';
 import { runSteps } from './state-capture.mjs';
@@ -39,8 +40,9 @@ export async function exploreStates(browser, options, { signal, onProgress } = {
         if (fingerprints.has(current.fingerprint)) { report.duplicates++; continue; }
         fingerprints.add(current.fingerprint); title = current.title || title;
         const path = work.path.length ? work.path : [current.heading || current.title || '初始页面'];
-        const name = work.depth === 0 ? current.heading || current.title || '初始页面' : current.dialog && current.heading ? current.heading + (['表单','校验','选择','滚动'].includes(work.kind) ? ' · ' + work.name : '') : work.name;
+        const name = work.depth === 0 ? current.structure.primary?.name || current.heading || current.title || '初始页面' : current.dialog && current.heading ? current.heading + (['表单','校验','选择','滚动'].includes(work.kind) ? ' · ' + work.name : '') : work.name;
         const entry = { id: `state-${pages.length + 1}`, name: name.slice(0, 120), url: work.url, destination: source.toSourceURL(page.url()), steps: [...work.steps, { type: 'wait', ms: 180 }], checked: true, via: current.dialog ? '弹窗 / 表单' : work.kind, depth: work.depth, path: path.join(' → ').slice(0, 500), fingerprint: current.fingerprint };
+        entry.design = inferOrganization({url:entry.destination,entryURL:options.url,heading:current.heading,title:current.title,dialog:current.dialog,viewFingerprint:current.viewFingerprint,...current.structure,scrolls:current.scrolls,name:entry.name,actionKind:work.kind,triggerFamily:work.family,featureName:work.featureName,parent:work.parentDesign,parentURL:work.parentURL});
         pages.push(entry); report.found = pages.length;
         for (const skip of current.skipped) { report.skippedControls++; if (report.skipped.length < 300) report.skipped.push({ state: entry.name, ...skip }); }
         if (work.depth >= options.maxDepth) { dropped += current.candidates.length; continue; }
@@ -49,7 +51,7 @@ export async function exploreStates(browser, options, { signal, onProgress } = {
           if(candidate.global){if(globalActions.has(candidate.key))continue;globalActions.add(candidate.key);}
           const key = current.fingerprint + ':' + candidate.key; if (attempted.has(key)) continue; attempted.add(key);
           if (queue.length >= options.maxActions * 3) { dropped++; continue; }
-          queue[['表单','校验'].includes(candidate.kind)?'unshift':'push']({ url: work.url, name: candidate.name, steps: [...work.steps, ...candidate.steps.map(step => ({ ...step, timeoutMs: 2500 })), { type: 'wait', ms: 160 }], keys: [...work.keys, candidate.key], depth: work.depth + 1, kind: candidate.kind, path: [...path, candidate.name] });
+          queue[['表单','校验'].includes(candidate.kind)?'unshift':'push']({ url: work.url, name: candidate.name, steps: [...work.steps, ...candidate.steps.map(step => ({ ...step, timeoutMs: 2500 })), { type: 'wait', ms: 160 }], keys: [...work.keys, candidate.key], depth: work.depth + 1, kind: candidate.kind, path: [...path, candidate.name], parentDesign:entry.design,parentURL:entry.destination,family:candidate.family,featureName:candidate.featureName });
         }
         if (!listedLocal && source.local) {
           listedLocal = true;
@@ -63,6 +65,6 @@ export async function exploreStates(browser, options, { signal, onProgress } = {
   report.remaining = queue.length + dropped; report.limited = report.remaining > 0 || timedOut; report.cancelled = !!signal?.aborted;
   report.status = report.cancelled ? 'cancelled' : report.limited || report.errors.length ? 'partial' : 'complete';
   report.pending = queue.slice(0, 100).map(({ name, depth, path }) => ({ name, depth, path: path.join(' → ').slice(0, 500) }));
-  const states = pages.map(({ id, name, url, steps, fingerprint }) => ({ id, name, url, steps, expectedFingerprint: fingerprint, group: '交互探索', selector: options.selector }));
+  const states = pages.map(({ id, name, url, steps, fingerprint, design }) => ({ id, name, url, steps, design, expectedFingerprint: fingerprint, group: '交互探索', selector: options.selector }));
   return { plan: { schemaVersion: 1, name: title, url: options.url, viewport: { width: options.width, height: options.height }, selector: options.selector, captureMode: 'viewport', states }, pages, report };
 }

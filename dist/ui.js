@@ -1,5 +1,78 @@
 "use strict";
 (() => {
+  // src/design-organization.ts
+  var PAGE_LEVELS = { primary: "\u4E00\u7EA7\u9875\u9762", secondary: "\u4E8C\u7EA7\u9875\u9762", feature: "\u529F\u80FD\u9875\u9762", unclassified: "\u5F85\u786E\u8BA4\u9875\u9762" };
+  function validOrganization(v) {
+    const o = v;
+    return !!o && typeof o === "object" && !Array.isArray(o) && ["projectId", "moduleId", "pageId", "viewId"].every((k) => typeof o[k] === "string" && /^[\w-]{1,200}$/.test(o[k])) && (o.parentPageId === void 0 || typeof o.parentPageId === "string" && /^[\w-]{1,200}$/.test(o.parentPageId)) && ["moduleName", "pageName", "stateName", "reason"].every((k) => typeof o[k] === "string" && o[k].length > 0 && o[k].length <= 500) && Object.prototype.hasOwnProperty.call(PAGE_LEVELS, o.level) && ["page", "dialog", "form", "selection", "scroll", "state"].includes(o.kind) && ["high", "medium", "low"].includes(o.confidence) && !!o.scroll && typeof o.scroll.container === "string" && o.scroll.container.length <= 700 && [o.scroll.x, o.scroll.y].every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1e7);
+  }
+  function designLayout(pages) {
+    const sections = /* @__PURE__ */ new Map();
+    pages.forEach((p, index) => {
+      if (!p.design) return;
+      const d = p.design, key = [d.projectId, d.moduleId, d.level, d.pageId].join(":");
+      const s = sections.get(key);
+      if (s) s.indices.push(index);
+      else sections.set(key, { design: d, indices: [index] });
+    });
+    const modules = /* @__PURE__ */ new Map();
+    for (const [id, s] of sections) {
+      const key = s.design.projectId + ":" + s.design.moduleId;
+      if (!modules.has(key)) modules.set(key, /* @__PURE__ */ new Map());
+      modules.get(key).set(id, s);
+    }
+    const groups = [], positions = /* @__PURE__ */ new Map();
+    let moduleY = 0, width = 0;
+    for (const sectionMap of modules.values()) {
+      let columnX = 0, moduleHeight = 0;
+      for (const level of Object.keys(PAGE_LEVELS)) {
+        let sectionY = moduleY, columnWidth = 0;
+        for (const [id, s] of sectionMap) {
+          if (s.design.level !== level) continue;
+          const views = /* @__PURE__ */ new Map();
+          for (const i2 of s.indices) {
+            const key = pages[i2].design.viewId;
+            const v = views.get(key);
+            if (v) v.push(i2);
+            else views.set(key, [i2]);
+          }
+          let x = 80, y = 112, rowHeight = 0, maxRight = 80;
+          const local = /* @__PURE__ */ new Map();
+          for (const view of views.values()) {
+            view.sort((a, b) => pages[a].design.scroll.y - pages[b].design.scroll.y || pages[a].design.scroll.x - pages[b].design.scroll.x || a - b);
+            const viewWidth = view.reduce((sum, i2) => sum + pages[i2].width, 0) + 24 * Math.max(0, view.length - 1);
+            const viewHeight = view.reduce((max, i2) => Math.max(max, pages[i2].height), 0);
+            if (x > 80 && x + viewWidth > 4800) {
+              x = 80;
+              y += rowHeight + 120;
+              rowHeight = 0;
+            }
+            let partX = x;
+            for (const i2 of view) {
+              local.set(i2, { x: partX, y });
+              partX += pages[i2].width + 24;
+            }
+            maxRight = Math.max(maxRight, x + viewWidth);
+            x += viewWidth + 96;
+            rowHeight = Math.max(rowHeight, viewHeight);
+          }
+          const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
+          for (const [i2, p] of local) positions.set(i2, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
+          groups.push({ id, name: `${PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+          sectionY += sectionHeight + 160;
+          columnWidth = Math.max(columnWidth, sectionWidth);
+        }
+        if (columnWidth) {
+          columnX += columnWidth + 200;
+          moduleHeight = Math.max(moduleHeight, sectionY - moduleY);
+        }
+      }
+      width = Math.max(width, Math.max(0, columnX - 200));
+      moduleY += moduleHeight + 240;
+    }
+    return { positions, groups, width, height: Math.max(0, moduleY - 240) };
+  }
+
   // src/capture-address.ts
   function normalizeCaptureAddress(input2) {
     if (typeof input2 !== "string" || !input2.trim()) throw new Error("\u8BF7\u8F93\u5165\u7F51\u9875\u5730\u5740\u6216\u672C\u5730 HTML \u8DEF\u5F84");
@@ -167,6 +240,7 @@
     if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
     if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
     if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
+    if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
     if (!Array.isArray(doc.assets) || doc.assets.length > LIMITS.assets) fail("\u8D44\u6E90\u6570\u91CF\u8D85\u9650");
     const ids = /* @__PURE__ */ new Set();
     let assetBytes = 0;
@@ -8194,7 +8268,7 @@
     $("ready-actions").hidden = false;
     $("prepare").hidden = true;
     $("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} \u9875` : "\u5DF2\u51C6\u5907\u597D";
-    $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
+    $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : bundle.pages.some((p) => p.source.design) ? "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
     $("stat-nodes").textContent = String(stats.nodes);
     $("stat-text").textContent = String(stats.texts);
     $("stat-image").textContent = String(stats.images);
@@ -8218,10 +8292,45 @@
   }
   function renderPageList() {
     if (!preparedBundle) return;
-    $("page-list-section").hidden = preparedBundle.pages.length < 2;
+    $("page-list-section").hidden = preparedBundle.pages.length < 2 && !preparedBundle.pages[0]?.source.design;
     $("page-list-title").textContent = `\u9875\u9762\u5217\u8868 \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
     const rows = document.createDocumentFragment();
-    preparedBundle.pages.forEach((page, i2) => {
+    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas ? void 0 : p.source.design })));
+    const grouped = new Set(organization.groups.flatMap((g) => g.indices)), ordered = [...organization.groups.flatMap((g) => g.indices), ...preparedBundle.pages.map((_, i2) => i2).filter((i2) => !grouped.has(i2))];
+    const heads = new Map(organization.groups.map((g) => [g.indices[0], g]));
+    ordered.forEach((i2) => {
+      const page = preparedBundle.pages[i2], group = heads.get(i2);
+      if (group) {
+        const heading = document.createElement("div");
+        heading.className = "page-group-heading";
+        const name = document.createElement("strong");
+        name.textContent = group.name;
+        name.title = page.source.design.reason;
+        name.setAttribute("role", "heading");
+        name.setAttribute("aria-level", "3");
+        const level = document.createElement("select");
+        level.className = "group-level";
+        level.disabled = busy;
+        level.setAttribute("aria-label", `\u8C03\u6574 ${group.name} \u7684\u9875\u9762\u5C42\u7EA7`);
+        for (const [value, label2] of Object.entries(PAGE_LEVELS)) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = label2;
+          level.append(option);
+        }
+        level.value = page.source.design.level;
+        level.addEventListener("change", () => {
+          for (const index of group.indices) {
+            const d = preparedBundle.pages[index].source.design;
+            d.level = level.value;
+            d.confidence = "high";
+            d.reason = "\u7528\u6237\u8C03\u6574\u9875\u9762\u7C7B\u578B";
+          }
+          renderPageList();
+        });
+        heading.append(name, level);
+        rows.append(heading);
+      }
       const row = document.createElement("div");
       row.className = "page-row";
       row.dataset.previewActive = String(hasRemotePreview && previewPageIndex === i2);
@@ -8240,6 +8349,13 @@
       const title = document.createElement("span");
       title.textContent = `${String(i2 + 1).padStart(3, "0")}  ${page.name}`;
       title.title = page.name;
+      if (page.source.design) {
+        const d = page.source.design;
+        title.title += `
+${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
+\u63A8\u65AD\u4F9D\u636E\uFF1A${d.reason}`;
+        title.dataset.pageLevel = d.level;
+      }
       const state = document.createElement("small");
       state.id = `page-state-${i2}`;
       state.textContent = pageStates[i2].detail || `${Math.round(page.root.width)} \xD7 ${Math.round(page.root.height)}`;
@@ -8896,13 +9012,13 @@
     setBusy(true, true);
     renderPageList();
     message("SETTINGS", { settings: { mode: mode(), token: input("service-token").value } });
-    if (preparedBundle.pages.length === 1) {
+    if (preparedBundle.pages.length === 1 && !prepared.source.design) {
       status("\u6B63\u5728\u52A0\u8F7D\u5B57\u4F53\u5E76\u521B\u5EFA\u56FE\u5C42\u2026");
       message("IMPORT", { document: prepared, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId });
     } else {
       batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       queuePosition = 0;
-      message("BATCH_START", { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, canvas: preparedBundle.pages[i2].source.canvas })) });
+      message("BATCH_START", { id: batchId, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, design: preparedBundle.pages[i2].source.design, canvas: preparedBundle.pages[i2].source.canvas })) });
       status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} \u9875\u2026`);
     }
   }
@@ -8973,7 +9089,7 @@
       importing = false;
       setBusy(false);
       renderPageList();
-      $("report-title").textContent = msg.result.cancelled ? "\u6279\u6B21\u5DF2\u505C\u6B62" : "\u591A\u9875\u5BFC\u5165\u5B8C\u6210";
+      $("report-title").textContent = msg.result.cancelled ? "\u6279\u6B21\u5DF2\u505C\u6B62" : msg.result.total > 1 ? "\u591A\u9875\u5BFC\u5165\u5B8C\u6210" : "\u5DF2\u5BFC\u5165 Figma";
       status(`\u672C\u6B21\u5B8C\u6210 ${msg.result.completed} / ${msg.result.total} \u9875\uFF0C\u5931\u8D25 ${msg.result.failed} \u9875\u3002${msg.result.cancelled ? "\u5DF2\u5B8C\u6210\u9875\u9762\u4FDD\u7559\uFF0C\u53EF\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59\u9875\u9762\u3002" : "\u6BCF\u9875\u5DF2\u521B\u5EFA\u72EC\u7ACB Frame\u3002"}`);
       const remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
       $("import").textContent = remaining ? `\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59 ${remaining} \u9875` : "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165";
@@ -9055,6 +9171,10 @@
       }
       detail.textContent = page.error ? `\u65E0\u6CD5\u6253\u5F00 \xB7 ${page.error}` : `${page.via} \xB7 ${page.via === "\u5BFC\u822A\u6807\u7B7E" && !page.destination ? "\u70B9\u51FB\u540E\u6355\u83B7" : route}${page.checked ? "" : " \xB7 \u6355\u83B7\u65F6\u9A8C\u8BC1"}`;
       if (page.path) detail.textContent = `${page.via} \xB7 ${page.path}`;
+      if (page.design) {
+        detail.textContent = `${PAGE_LEVELS[page.design.level]} \xB7 ${page.design.moduleName} / ${page.design.pageName}${page.design.kind === "scroll" ? " \xB7 \u957F\u9875\u5206\u6BB5" : ""}${page.design.confidence === "low" ? " \xB7 \u5F85\u786E\u8BA4" : ""}`;
+        detail.title = page.design.reason;
+      }
       copy.append(name, detail);
       row.append(checkbox, copy);
       rows.append(row);
@@ -9231,7 +9351,7 @@
     try {
       const target = direct ? figmaTargets.find((t) => t.id === $("figma-target").value) : null;
       if (direct && !target) throw new Error("\u8BF7\u5148\u9009\u62E9\u5DF2\u8FDE\u63A5\u7684 Figma \u76EE\u6807\u9875\u9762");
-      const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map((p) => p.selected), mode(), target?.id, target?.contextVersion]);
+      const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map((p) => p.selected), preparedBundle?.pages.map((p) => p.source.design), mode(), target?.id, target?.contextVersion]);
       const stableSignature = signature;
       if (stableSignature !== sendSignature || direct && ["complete", "partial", "failed", "cancelled", "replaced"].includes(outgoingPhase)) {
         sendSignature = stableSignature;
