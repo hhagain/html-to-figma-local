@@ -544,8 +544,8 @@ function explorationSettings() {
   return { maxDepth: integer('exploration-depth', '探索深度'), maxActions: integer('exploration-actions', '尝试次数'), maxPages: integer('exploration-states', '状态数'), timeoutMs: minutes === null ? null : minutes * 60000, sampling: $<HTMLSelectElement>('exploration-sampling').value, retryFailures: input('exploration-retry').checked };
 }
 function updateExplorationSettings(save = true) {
-  const describe = (id: string, unit: string) => Number(input(id).value) ? `${input(id).value} ${unit}` : `${unit}不限`;
-  $('exploration-budget-label').textContent = `${describe('exploration-minutes', '分钟')} · ${describe('exploration-actions', '次')} · ${describe('exploration-depth', '层')}`;
+  const describe = (id: string, unit: string, unlimited: string) => Number(input(id).value) ? `${input(id).value} ${unit}` : unlimited;
+  $('exploration-budget-label').textContent = `${describe('exploration-minutes', '分钟', '不限时长')} · ${describe('exploration-actions', '次', '不限次数')} · ${describe('exploration-depth', '层', '不限深度')}`;
   if (save) try { localStorage.setItem('h2f-exploration-options', JSON.stringify(Object.fromEntries(explorationFields.map(id => [id, id === 'exploration-retry' ? input(id).checked : input(id).value])))); } catch {}
 }
 for (const id of explorationFields) $(id).addEventListener('change', () => { $<HTMLSelectElement>('exploration-preset').value = 'custom'; updateExplorationSettings(); });

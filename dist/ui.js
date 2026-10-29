@@ -9197,8 +9197,8 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     return { maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
   }
   function updateExplorationSettings(save = true) {
-    const describe = (id, unit) => Number(input(id).value) ? `${input(id).value} ${unit}` : `${unit}\u4E0D\u9650`;
-    $("exploration-budget-label").textContent = `${describe("exploration-minutes", "\u5206\u949F")} \xB7 ${describe("exploration-actions", "\u6B21")} \xB7 ${describe("exploration-depth", "\u5C42")}`;
+    const describe = (id, unit, unlimited) => Number(input(id).value) ? `${input(id).value} ${unit}` : unlimited;
+    $("exploration-budget-label").textContent = `${describe("exploration-minutes", "\u5206\u949F", "\u4E0D\u9650\u65F6\u957F")} \xB7 ${describe("exploration-actions", "\u6B21", "\u4E0D\u9650\u6B21\u6570")} \xB7 ${describe("exploration-depth", "\u5C42", "\u4E0D\u9650\u6DF1\u5EA6")}`;
     if (save) try {
       localStorage.setItem("h2f-exploration-options", JSON.stringify(Object.fromEntries(explorationFields.map((id) => [id, id === "exploration-retry" ? input(id).checked : input(id).value]))));
     } catch {
