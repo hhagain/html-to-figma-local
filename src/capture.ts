@@ -110,11 +110,40 @@ export async function captureDOM(doc: Document = document, options: CaptureOptio
     const clone = el.cloneNode(true) as Element;
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); clone.setAttribute('width', String(rect.width)); clone.setAttribute('height', String(rect.height));
     const originals = [el, ...el.querySelectorAll('*')], copies = [clone, ...clone.querySelectorAll('*')];
-    const properties = ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'fill-rule', 'clip-rule', 'opacity', 'fill-opacity', 'stroke-opacity', 'font-family', 'font-size', 'font-weight'];
+    const properties = ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'fill-rule', 'clip-rule', 'opacity', 'fill-opacity', 'stroke-opacity', 'font-family', 'font-size', 'font-weight'];
     originals.forEach((original, i) => {
       const copy = copies[i], style = win.getComputedStyle(original);
       for (const attr of Array.from(copy.attributes)) if (/^on/i.test(attr.name)) copy.removeAttribute(attr.name);
       for (const prop of properties) { const value = style.getPropertyValue(prop); if (value && !value.includes('url(')) copy.setAttribute(prop, value); }
+      // CSS transforms disappear with the stylesheet. Resolve each descendant's
+      // transform origin into an SVG matrix while keeping the outer wrapper geometry.
+      if (i > 0 && style.transform !== 'none') {
+        try {
+          const matrix = new DOMMatrixReadOnly(style.transform), [ox, oy] = style.transformOrigin.split(/\s+/).map(px);
+          if (matrix.is2D) copy.setAttribute('transform', `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e + ox - matrix.a * ox - matrix.c * oy} ${matrix.f + oy - matrix.b * ox - matrix.d * oy})`);
+        } catch { warn('SVG_TRANSFORM', 'SVG 内部变换未能换算', el.id || 'SVG'); }
+      }
+      // Figma's SVG reader does not calibrate dash lengths using pathLength.
+      // Bake browser-computed distances into user units before handing off the SVG.
+      const geometry = original as SVGGeometryElement;
+      const nominal = Number(original.getAttribute('pathLength'));
+      if (nominal > 0 && typeof geometry.getTotalLength === 'function') {
+        try {
+          const actual = geometry.getTotalLength(), ratio = actual / nominal;
+          if (Number.isFinite(ratio) && actual > 0) {
+            for (const prop of ['stroke-dasharray', 'stroke-dashoffset']) {
+              const value = style.getPropertyValue(prop);
+              if (!value || value === 'none') continue;
+              const parts = value.split(/[\s,]+/).filter(Boolean);
+              // Percentages are viewport based and are unaffected by pathLength (SVG 2).
+              if (parts.every(part => /^[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?(?:px|%)?$/i.test(part))) {
+                copy.setAttribute(prop, parts.map(part => part.endsWith('%') ? part : String(Math.round(parseFloat(part) * ratio * 1e6) / 1e6)).join(' '));
+              } else throw new Error('unsupported SVG distance');
+            }
+            copy.removeAttribute('pathLength');
+          }
+        } catch { warn('SVG_PATH_LENGTH', 'SVG 路径长度未能换算，虚线效果可能存在差异', el.id || 'SVG'); }
+      }
       copy.removeAttribute('class'); copy.removeAttribute('style');
       if (['script', 'foreignobject'].includes(copy.tagName.toLowerCase())) { copy.remove(); warn('SVG_UNSUPPORTED', 'SVG 中的脚本和 foreignObject 未导入', el.id || 'SVG'); }
       const href = copy.getAttribute('href') || copy.getAttribute('xlink:href');
@@ -128,6 +157,9 @@ export async function captureDOM(doc: Document = document, options: CaptureOptio
   const walk = (el: Element, parent: { x: number; y: number }, depth: number, inheritedClip?: ClipBounds): SceneNode | null => {
     if (depth > LIMITS.depth) throw new Error('页面嵌套过深，请缩小捕获区域');
     if (['SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'NOSCRIPT', 'TEMPLATE'].includes(el.tagName) || el.hasAttribute('data-h2f-ignore')) return null;
+    for (let parent = el.parentElement; parent; parent = parent.parentElement) {
+      if (parent.tagName === 'DETAILS' && !(parent as HTMLDetailsElement).open && !parent.querySelector(':scope > summary')?.contains(el)) return null;
+    }
     const cs = win.getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return null;
     let rect = el.getBoundingClientRect();
@@ -249,7 +281,8 @@ export async function captureDOM(doc: Document = document, options: CaptureOptio
     }
     if (el.shadowRoot) warn('SHADOW_DOM', 'Shadow DOM 的内部内容未捕获', name);
     n.children = [];
-    for (const child of ['input','textarea','select'].includes(tag) ? [] : Array.from(el.childNodes)) {
+    const children = ['input','textarea','select'].includes(tag) ? [] : tag === 'details' && !(el as HTMLDetailsElement).open ? Array.from(el.children).filter(child => child.tagName === 'SUMMARY').slice(0, 1) : Array.from(el.childNodes);
+    for (const child of children) {
       if (child.nodeType === 3) n.children.push(...textNodes(child as Text, rect, cs, textPaints));
       else if (child.nodeType === 1) { const childNode = walk(child as Element, rect, depth + 1, childClip); if (childNode) n.children.push(childNode); }
     }

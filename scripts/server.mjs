@@ -12,6 +12,7 @@ const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const mime = { '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf' };
 export async function createAppServer({ port = 3847, root = path.join(project, 'examples'), token = randomBytes(18).toString('hex'), desktop = null } = {}) {
   const sourceRoot = await realpath(root); let browserPromise, capturing = false;
+  const explorations = new Map();
   const jobs = new Map(), previews = createPreviewStore(), handoffs = createHandoffStore();
   const pruneJobs = async () => { for (const [id, job] of jobs) if (job.status !== 'running' && jobs.size >= 2) { jobs.delete(id); await previews.forget(id).catch(() => {}); } };
   const readJSON = async (req, limit = 2 * 1024 * 1024) => { const chunks=[];let bytes=0;for await(const chunk of req){bytes+=chunk.length;if(bytes>limit)throw new Error(`请求超过 ${limit/1024/1024} MB，请分批发送`);chunks.push(chunk);}return JSON.parse(Buffer.concat(chunks).toString('utf8')); };
@@ -47,25 +48,37 @@ export async function createAppServer({ port = 3847, root = path.join(project, '
           else if(req.method==='POST'&&handoffRoute[2]){const body=await readJSON(req);const receiver=receiverIdentity(req,body);json(res,200,handoffRoute[2]==='claim'?handoffs.claim(handoffRoute[1],receiver,body.contextVersion):handoffs.progress(handoffRoute[1],receiver,body));}
           else json(res,405,{error:'不支持的传输操作'});
         }catch(error){json(res,409,{error:error.message});}return;}
-        if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: '0.11.0', capturing, desktop: !!desktop }); return; }
+        if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: '0.12.0', capturing, desktop: !!desktop }); return; }
         if (url.pathname === '/api/discover' && req.method === 'POST') {
           if (capturing) { json(res,409,{error:'已有发现或捕获任务正在运行，请稍后重试'});return; }
           let request;try{request=validateDiscoveryRequest(await readJSON(req));}catch(error){json(res,400,{error:error.message});return;}
           if(capturing){json(res,409,{error:'已有发现或捕获任务正在运行，请稍后重试'});return;}
+          const owner=identity(req),binding=JSON.stringify([request.url,request.width,request.height,request.selector]);
+          let exploration=request.resumeId?explorations.get(request.resumeId):null;
+          if(request.resumeId&&(!exploration||exploration.owner!==owner||Date.now()-exploration.updatedAt>24*60*60*1000)){json(res,410,{error:'探索进度已过期或不属于此连接，请重新探索'});return;}
+          if(exploration){explorations.delete(exploration.id);explorations.set(exploration.id,exploration);}
+          if(exploration&&(!request.exploreInteractions||exploration.binding!==binding)){json(res,400,{error:'入口、视口或捕获区域已改变，请重新探索'});return;}
+          if(request.exploreInteractions&&!exploration){
+            for(const [key,value] of explorations)if(Date.now()-value.updatedAt>24*60*60*1000)explorations.delete(key);
+            while(explorations.size>=4)explorations.delete(explorations.keys().next().value);
+            exploration={id:randomBytes(12).toString('hex'),owner,binding,checkpoint:null,updatedAt:Date.now()};explorations.set(exploration.id,exploration);
+          }
           capturing=true;await pruneJobs();
           const id=randomBytes(12).toString('hex'),controller=new AbortController();
-          const job={id,kind:'discover',status:'running',progress:{name:'准备发现页面',found:0,scanned:0},controller};jobs.set(id,job);capturing=true;
+          const job={id,owner,kind:'discover',status:'running',progress:{name:'准备发现页面',found:0,scanned:0},controller};jobs.set(id,job);capturing=true;
           desktop?.onActivity({phase:'capturing',name:'正在发现页面',completed:0});json(res,202,snapshot(job));
           job.task=(async()=>{try{
             browserPromise ||= launchBrowser().catch(error=>{browserPromise=undefined;throw error;});
-            job.result=await discoverPages(await browserPromise,request,{signal:controller.signal,onProgress:progress=>{job.progress=progress;}});
+            const {checkpoint,...result}=await discoverPages(await browserPromise,request,{signal:controller.signal,checkpoint:exploration?.checkpoint,onProgress:progress=>{job.progress=progress;}});
+            if(exploration){exploration.checkpoint=checkpoint;exploration.updatedAt=Date.now();result.session={id:exploration.id,canResume:result.report.canResume};}
+            job.result=result;
             job.status=job.result.report.status;
           }catch(error){job.status=controller.signal.aborted?'cancelled':'failed';job.error=error.message;}
           finally{capturing=false;desktop?.onActivity({phase:'idle',name:'页面发现已结束'});}})();return;
         }
         if (url.pathname === '/api/states' && req.method === 'POST') {
           if (capturing) { json(res, 409, { error: '已有捕获任务正在运行，请稍后重试' }); return; }
-          let plan; try { plan = validateStatePlan(await readJSON(req)); } catch(e) { json(res,400,{error:e.message});return; }
+          let plan; try { plan = validateStatePlan(await readJSON(req,128*1024*1024)); } catch(e) { json(res,400,{error:e.message});return; }
           if(capturing){json(res,409,{error:'已有发现或捕获任务正在运行，请稍后重试'});return;}
           capturing=true;await pruneJobs();
           const id=randomBytes(12).toString('hex'), controller=new AbortController();
@@ -93,7 +106,7 @@ export async function createAppServer({ port = 3847, root = path.join(project, '
         }
         const stateRoute=url.pathname.match(/^\/api\/(states|discover)\/([a-f0-9]{24})(?:\/(result|cancel))?$/);
         if(stateRoute){
-          const job=jobs.get(stateRoute[2]);if(!job||job.kind!==stateRoute[1]){json(res,404,{error:'状态任务不存在或已过期'});return;}
+          const job=jobs.get(stateRoute[2]);if(!job||job.kind!==stateRoute[1]||job.owner&&job.owner!==identity(req)){json(res,404,{error:'状态任务不存在或已过期'});return;}
           if(stateRoute[3]==='cancel'&&req.method==='POST'){job.controller.abort();json(res,200,snapshot(job));return;}
           if(stateRoute[3]==='result'&&req.method==='GET'){
             if(!job.result){json(res,job.status==='running'?409:422,{error:job.error||'状态捕获尚未完成'});return;}

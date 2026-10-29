@@ -80,7 +80,7 @@ node scripts/state-gallery.mjs artifacts/admin-states
 | scroll | selector、x、y | 指定可滚动容器的位置 |
 | wait | selector、state、text、ms | 等待可见元素/文本或短暂过渡 |
 
-选择器匹配多个元素时应提供明确的 `index`，避免误点击。每状态最多 80 步、整批最多 8000 个操作，不设固定状态数上限。清单不接受任意 JavaScript `evaluate`。
+选择器匹配多个元素时应提供明确的 `index`，避免误点击。不设固定的状态数、每状态步数或整批操作数上限；HTTP 清单请求保留 128 MB 传输预算，捕获数据仍受图层、资源和内存预算约束。清单不接受任意 JavaScript `evaluate`。
 
 ## 快照模式
 

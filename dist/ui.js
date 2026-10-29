@@ -451,13 +451,41 @@
       clone.setAttribute("width", String(rect.width));
       clone.setAttribute("height", String(rect.height));
       const originals = [el, ...el.querySelectorAll("*")], copies = [clone, ...clone.querySelectorAll("*")];
-      const properties = ["fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "font-family", "font-size", "font-weight"];
+      const properties = ["fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset", "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "font-family", "font-size", "font-weight"];
       originals.forEach((original, i2) => {
         const copy = copies[i2], style = win.getComputedStyle(original);
         for (const attr of Array.from(copy.attributes)) if (/^on/i.test(attr.name)) copy.removeAttribute(attr.name);
         for (const prop of properties) {
           const value = style.getPropertyValue(prop);
           if (value && !value.includes("url(")) copy.setAttribute(prop, value);
+        }
+        if (i2 > 0 && style.transform !== "none") {
+          try {
+            const matrix = new DOMMatrixReadOnly(style.transform), [ox, oy] = style.transformOrigin.split(/\s+/).map(px);
+            if (matrix.is2D) copy.setAttribute("transform", `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e + ox - matrix.a * ox - matrix.c * oy} ${matrix.f + oy - matrix.b * ox - matrix.d * oy})`);
+          } catch {
+            warn("SVG_TRANSFORM", "SVG \u5185\u90E8\u53D8\u6362\u672A\u80FD\u6362\u7B97", el.id || "SVG");
+          }
+        }
+        const geometry = original;
+        const nominal = Number(original.getAttribute("pathLength"));
+        if (nominal > 0 && typeof geometry.getTotalLength === "function") {
+          try {
+            const actual = geometry.getTotalLength(), ratio = actual / nominal;
+            if (Number.isFinite(ratio) && actual > 0) {
+              for (const prop of ["stroke-dasharray", "stroke-dashoffset"]) {
+                const value = style.getPropertyValue(prop);
+                if (!value || value === "none") continue;
+                const parts = value.split(/[\s,]+/).filter(Boolean);
+                if (parts.every((part) => /^[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?(?:px|%)?$/i.test(part))) {
+                  copy.setAttribute(prop, parts.map((part) => part.endsWith("%") ? part : String(Math.round(parseFloat(part) * ratio * 1e6) / 1e6)).join(" "));
+                } else throw new Error("unsupported SVG distance");
+              }
+              copy.removeAttribute("pathLength");
+            }
+          } catch {
+            warn("SVG_PATH_LENGTH", "SVG \u8DEF\u5F84\u957F\u5EA6\u672A\u80FD\u6362\u7B97\uFF0C\u865A\u7EBF\u6548\u679C\u53EF\u80FD\u5B58\u5728\u5DEE\u5F02", el.id || "SVG");
+          }
         }
         copy.removeAttribute("class");
         copy.removeAttribute("style");
@@ -478,6 +506,9 @@
     const walk = (el, parent, depth, inheritedClip) => {
       if (depth > LIMITS.depth) throw new Error("\u9875\u9762\u5D4C\u5957\u8FC7\u6DF1\uFF0C\u8BF7\u7F29\u5C0F\u6355\u83B7\u533A\u57DF");
       if (["SCRIPT", "STYLE", "LINK", "META", "HEAD", "NOSCRIPT", "TEMPLATE"].includes(el.tagName) || el.hasAttribute("data-h2f-ignore")) return null;
+      for (let parent2 = el.parentElement; parent2; parent2 = parent2.parentElement) {
+        if (parent2.tagName === "DETAILS" && !parent2.open && !parent2.querySelector(":scope > summary")?.contains(el)) return null;
+      }
       const cs = win.getComputedStyle(el);
       if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) return null;
       let rect = el.getBoundingClientRect();
@@ -615,7 +646,8 @@
       }
       if (el.shadowRoot) warn("SHADOW_DOM", "Shadow DOM \u7684\u5185\u90E8\u5185\u5BB9\u672A\u6355\u83B7", name);
       n.children = [];
-      for (const child of ["input", "textarea", "select"].includes(tag) ? [] : Array.from(el.childNodes)) {
+      const children = ["input", "textarea", "select"].includes(tag) ? [] : tag === "details" && !el.open ? Array.from(el.children).filter((child) => child.tagName === "SUMMARY").slice(0, 1) : Array.from(el.childNodes);
+      for (const child of children) {
         if (child.nodeType === 3) n.children.push(...textNodes(child, rect, cs, textPaints));
         else if (child.nodeType === 1) {
           const childNode = walk(child, rect, depth + 1, childClip);
@@ -8174,7 +8206,7 @@
   var discoverySelection = [];
   var autoStates = () => tab === "url" && $("url-mode").value === "states" && $("state-input-mode").value !== "recipe";
   function requestKey() {
-    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value, $("exploration-depth").value]);
+    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value]);
   }
   function refreshPrepareAction() {
     const label = busy ? "\u5904\u7406\u4E2D\u2026" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} \u9875\uFF09` : $("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
@@ -9154,10 +9186,51 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     clearDiscovery();
     syncStateInput();
   });
-  $("exploration-depth").addEventListener("change", () => {
-    invalidate();
-    clearDiscovery();
+  var explorationFields = ["exploration-depth", "exploration-actions", "exploration-minutes", "exploration-states", "exploration-sampling", "exploration-retry"];
+  function explorationSettings() {
+    const integer = (id, label) => {
+      const value = input(id).valueAsNumber;
+      if (!Number.isSafeInteger(value) || value < 0) throw new Error(label + "\u8BF7\u586B\u5199 0 \u6216\u6B63\u6574\u6570");
+      return value === 0 ? null : value;
+    };
+    const minutes = integer("exploration-minutes", "\u63A2\u7D22\u65F6\u957F");
+    return { maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
+  }
+  function updateExplorationSettings(save = true) {
+    const describe = (id, unit) => Number(input(id).value) ? `${input(id).value} ${unit}` : `${unit}\u4E0D\u9650`;
+    $("exploration-budget-label").textContent = `${describe("exploration-minutes", "\u5206\u949F")} \xB7 ${describe("exploration-actions", "\u6B21")} \xB7 ${describe("exploration-depth", "\u5C42")}`;
+    if (save) try {
+      localStorage.setItem("h2f-exploration-options", JSON.stringify(Object.fromEntries(explorationFields.map((id) => [id, id === "exploration-retry" ? input(id).checked : input(id).value]))));
+    } catch {
+    }
+  }
+  for (const id of explorationFields) $(id).addEventListener("change", () => {
+    $("exploration-preset").value = "custom";
+    updateExplorationSettings();
   });
+  $("exploration-preset").addEventListener("change", () => {
+    const presets = { recommended: [4, 300, 3, "representative"], deep: [10, 3e3, 30, "all"], unlimited: [0, 0, 0, "all"] };
+    const preset = presets[$("exploration-preset").value];
+    if (!preset) return;
+    ["exploration-depth", "exploration-actions", "exploration-minutes"].forEach((id, i2) => {
+      input(id).value = String(preset[i2]);
+    });
+    input("exploration-states").value = "0";
+    $("exploration-sampling").value = preset[3];
+    updateExplorationSettings();
+  });
+  try {
+    const saved = JSON.parse(localStorage.getItem("h2f-exploration-options") || "null");
+    if (saved) {
+      for (const id of explorationFields) {
+        if (id === "exploration-retry" && typeof saved[id] === "boolean") input(id).checked = saved[id];
+        else if (typeof saved[id] === "string") input(id).value = saved[id];
+      }
+      $("exploration-preset").value = "custom";
+    }
+  } catch {
+  }
+  updateExplorationSettings(false);
   for (const id of ["page-url", "viewport-width", "selector"]) $(id).addEventListener("input", clearDiscovery);
   $("rediscover-pages").addEventListener("click", () => {
     clearDiscovery();
@@ -9212,7 +9285,17 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     $("discovery-list").replaceChildren(rows);
     const report = discovery.report;
     $("discovery-summary").textContent = `${report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62\u3002" : ""}\u5DF2\u9A8C\u8BC1 ${discovery.pages.filter((p) => p.checked).length} \u9875${report.errors.length ? `\uFF0C${report.errors.length} \u9875\u65E0\u6CD5\u6253\u5F00` : ""}\u3002${report.limited ? "\u8FBE\u5230\u626B\u63CF\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\uFF0C\u5269\u4F59\u5019\u9009\u9875\u4F1A\u5728\u6355\u83B7\u65F6\u9A8C\u8BC1\u3002" : "\u52FE\u9009\u9875\u9762\u540E\u70B9\u51FB\u201C\u5F00\u59CB\u6355\u83B7\u201D\u3002"}`;
-    if (report.mode === "interactions") $("discovery-summary").textContent = `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001\uFF0C\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.errors.length} \u6B21\u3002${report.limited ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u672A\u63A2\u7D22\uFF1B\u5DF2\u8FBE\u5230\u672C\u6B21\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\u3002` : "\u672C\u6B21\u961F\u5217\u5DF2\u5904\u7406\u3002"} \u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u53D7\u9650\u6216\u91CD\u590D\u63A7\u4EF6\uFF1B\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+    if (report.mode === "interactions") {
+      const reasons = { time: "\u672C\u8F6E\u65F6\u957F\u5DF2\u7528\u5B8C", actions: "\u672C\u8F6E\u5C1D\u8BD5\u6B21\u6570\u5DF2\u7528\u5B8C", states: "\u672C\u8F6E\u65B0\u589E\u72B6\u6001\u6570\u5DF2\u8FBE\u5230\u4E0A\u9650", depth: "\u90E8\u5206\u52A8\u4F5C\u8D85\u8FC7\u63A2\u7D22\u6DF1\u5EA6", cancelled: "\u5DF2\u624B\u52A8\u505C\u6B62", queue: "\u53EF\u63A2\u7D22\u961F\u5217\u5DF2\u5904\u7406" };
+      const stopped = (report.stopReasons || []).map((reason) => reasons[reason] || reason).join("\uFF1B");
+      const skipped = report.skippedByReason;
+      $("discovery-summary").textContent = `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+    }
+    const canResume = report.mode === "interactions" && !!discovery.session?.canResume;
+    $("continue-exploration").hidden = !canResume;
+    $("continue-exploration").disabled = busy;
+    $("exploration-resume-help").hidden = !canResume;
+    $("exploration-resume-help").textContent = `\u5DF2\u4FDD\u7559\u63A2\u7D22\u8FDB\u5EA6\u3002\u53EF\u63D0\u9AD8\u6DF1\u5EA6\u3001\u5EF6\u957F\u65F6\u957F\u6216\u5207\u6362\u4E3A\u904D\u5386\u63A7\u4EF6\u540E\u7EE7\u7EED\uFF1B\u5DF2\u52FE\u9009\u72B6\u6001\u4F1A\u4FDD\u7559\u3002${report.depthDeferred ? "\u5F53\u524D\u6DF1\u5EA6\u4E0D\u53D8\u65F6\uFF0C\u8FD9\u90E8\u5206\u52A8\u4F5C\u4ECD\u4F1A\u4FDD\u7559\u5F85\u63A2\u7D22\u3002" : ""}`;
     count();
   }
   $("discovery-select-all").addEventListener("click", () => {
@@ -9227,11 +9310,14 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     invalidate();
     renderDiscovery();
   });
-  async function discoverAutomaticPages(url) {
-    clearDiscovery();
-    status("\u6B63\u5728\u6253\u5F00\u5165\u53E3\u5E76\u53D1\u73B0\u9875\u9762\u2026");
+  async function discoverAutomaticPages(url, resume = false) {
+    const selected = new Map(resume && discovery ? discovery.pages.map((page, i2) => [page.id, discoverySelection[i2]]) : []);
+    const resumeId = resume ? discovery?.session?.id : void 0;
+    const settings = explorationSettings();
+    if (!resume) clearDiscovery();
+    status(resume ? "\u6B63\u5728\u6062\u590D\u63A2\u7D22\u8FDB\u5EA6\u2026" : "\u6B63\u5728\u6253\u5F00\u5165\u53E3\u5E76\u53D1\u73B0\u9875\u9762\u2026");
     const key = requestKey();
-    const job = await api("/api/discover", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", exploreInteractions: $("state-input-mode").value === "explore", maxDepth: Number($("exploration-depth").value) });
+    const job = await api("/api/discover", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", exploreInteractions: $("state-input-mode").value === "explore", ...settings, ...resumeId ? { resumeId } : {} });
     activeStateJob = job.id;
     activeJobKind = "discover";
     while (true) {
@@ -9241,7 +9327,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         if (snapshot.error) throw new Error(snapshot.error);
         discovery = await api(`/api/discover/${job.id}/result`);
         discoveryKey = key;
-        discoverySelection = discovery.pages.map((p2) => !p2.error);
+        discoverySelection = discovery.pages.map((p2) => selected.has(p2.id) ? selected.get(p2.id) : !p2.error);
         renderDiscovery();
         status(discovery.report.mode === "interactions" ? `${discovery.report.cancelled ? "\u63A2\u7D22\u5DF2\u505C\u6B62" : "\u672C\u8F6E\u63A2\u7D22\u7ED3\u675F"}\uFF1A\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u72B6\u6001${discovery.report.limited ? "\uFF0C\u4ECD\u6709\u672A\u63A2\u7D22\u52A8\u4F5C" : ""}\u3002\u8BF7\u67E5\u770B\u62A5\u544A\u5E76\u52FE\u9009\u6355\u83B7\u3002` : `${discovery.report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62" : "\u53D1\u73B0\u5B8C\u6210"}\uFF1A${discovery.pages.length} \u4E2A\u5019\u9009\u9875\u9762\uFF0C\u8BF7\u52FE\u9009\u540E\u5F00\u59CB\u6355\u83B7\u3002`, !discoverySelection.some(Boolean));
         break;
@@ -9249,6 +9335,21 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
+  $("continue-exploration").addEventListener("click", async () => {
+    if (busy || !discovery?.session?.canResume) return;
+    captureStopped = false;
+    invalidate();
+    setBusy(true);
+    try {
+      await discoverAutomaticPages(normalizeCaptureAddress(input("page-url").value.trim()), true);
+    } catch (error) {
+      status(errorText(error), true);
+    } finally {
+      activeStateJob = null;
+      setBusy(false);
+      renderDiscovery();
+    }
+  });
   function downloadDiscoveryFile(data2, filename) {
     const url = URL.createObjectURL(new Blob([JSON.stringify(data2, null, 2)], { type: "application/json" }));
     const link = document.createElement("a");

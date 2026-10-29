@@ -6,11 +6,19 @@ import { openCaptureSource, resolveStateURL } from './capture-source.mjs';
 
 export function validateDiscoveryRequest(input) {
   const options = validateCaptureRequest(input);
-  const maxPages = input.maxPages ?? null;
+  const maxPages = input.maxPages === 0 ? null : input.maxPages ?? null;
   if (maxPages !== null && (!Number.isSafeInteger(maxPages) || maxPages < 1)) throw new Error('自动发现页面预算必须是正整数');
-  const maxDepth = input.maxDepth ?? 4, maxActions = input.maxActions ?? 300, timeoutMs = input.timeoutMs ?? 180000;
-  if (!Number.isInteger(maxDepth) || maxDepth < 1 || maxDepth > 6 || !Number.isInteger(maxActions) || maxActions < 1 || maxActions > 1000 || !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600000) throw new Error('探索范围无效');
-  return { ...options, maxPages, maxDepth, maxActions, timeoutMs, exploreInteractions: input.exploreInteractions === true };
+  const budget = (key, fallback, minimum = 1) => {
+    const value = input[key] === undefined ? fallback : input[key];
+    if (value === null || value === 0) return null;
+    if (!Number.isSafeInteger(value) || value < minimum) throw new Error('探索范围无效：' + key);
+    return value;
+  };
+  const maxDepth = budget('maxDepth', 4), maxActions = budget('maxActions', 300), timeoutMs = budget('timeoutMs', 180000, 1000);
+  if (input.sampling !== undefined && !['representative', 'all'].includes(input.sampling)) throw new Error('探索取样方式无效');
+  if (input.resumeId !== undefined && !/^[a-f0-9]{24}$/.test(input.resumeId)) throw new Error('探索会话标识无效');
+  if (input.retryFailures !== undefined && typeof input.retryFailures !== 'boolean') throw new Error('重试设置无效');
+  return { ...options, maxPages, maxDepth, maxActions, timeoutMs, sampling: input.sampling || 'representative', retryFailures: input.retryFailures === true, resumeId: input.resumeId, exploreInteractions: input.exploreInteractions === true };
 }
 
 // Only enumerate navigation controls. Never execute page-provided scripts as recipes.
@@ -51,9 +59,9 @@ function inspectNavigation() {
   return { title: document.title.slice(0, 120), candidates, skipped };
 }
 
-export async function discoverPages(browser, rawRequest, { signal, onProgress } = {}) {
+export async function discoverPages(browser, rawRequest, { signal, onProgress, checkpoint } = {}) {
   const options = validateDiscoveryRequest(rawRequest);
-  if(options.exploreInteractions)return exploreStates(browser,options,{signal,onProgress});
+  if(options.exploreInteractions)return exploreStates(browser,options,{signal,onProgress,checkpoint});
   const source = await openCaptureSource(options.url);
   const pages = [], known = new Map(), queue = [], errors = [];
   const report = { status: 'running', found: 0, scanned: 0, blockedRequests: 0, skippedControls: 0, limited: false, cancelled: false, errors, maxPages: options.maxPages };

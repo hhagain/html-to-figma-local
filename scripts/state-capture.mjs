@@ -1,3 +1,4 @@
+import { normalizeLongPageScroll } from './long-page.mjs';
 import { inferOrganization, validOrganization } from '../dist/lib/design-organization.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { captureLoadedPage, validateCaptureRequest } from './browser.mjs';
@@ -12,11 +13,10 @@ export function validateStatePlan(input) {
   if (input.captureMode !== undefined && !['viewport', 'full'].includes(input.captureMode)) throw new Error('捕获模式必须是 viewport 或 full');
   if(input.longPage!==undefined&&typeof input.longPage!=='boolean')throw new Error('单张长页设置必须为布尔值');
   const safeURL = value => resolveStateURL(value, base.url);
-  let actionCount = 0;
   const steps = (value = []) => {
-    if (!Array.isArray(value) || value.length > 80) throw new Error('每个状态最多 80 个操作');
+    if (!Array.isArray(value)) throw new Error('状态操作需要数组');
     return value.map(a => {
-      if (++actionCount > 8000 || !a || !ACTIONS.has(a.type)) throw new Error('不支持的状态操作或操作数量超限');
+      if (!a || !ACTIONS.has(a.type)) throw new Error('不支持的状态操作');
       if (a.type !== 'wait' && (typeof a.selector !== 'string' || !a.selector || a.selector.length > 700)) throw new Error('操作需要有效的 CSS 选择器');
       if (a.selector !== undefined && (typeof a.selector !== 'string' || a.selector.length > 700)) throw new Error('选择器无效');
       if (a.value !== undefined && (typeof a.value !== 'string' || a.value.length > 20000)) throw new Error('输入值无效');
@@ -96,7 +96,8 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         activeContext=await browser.newContext({viewport:plan.viewport,deviceScaleFactor:1,colorScheme:'light',reducedMotion:'reduce',serviceWorkers:'block',locale:'zh-CN'});
         const context=activeContext;activeClose=null;
         if(signal?.aborted)throw new Error('捕获已取消');
-        timer=setTimeout(()=>void closeActive(),60000); timer.unref();
+        const replaySteps=[...(state.setup?plan.setup:[]),...state.steps],replayBudget=60000+replaySteps.reduce((sum,step)=>sum+(step.type==='wait'&&!step.selector?step.ms||0:step.timeoutMs||7000),0);
+        timer=setTimeout(()=>void closeActive(),Math.min(replayBudget,2147483647)); timer.unref();
         await context.route('**/*',async route=>{
           const req=route.request(),url=new URL(req.url());
           if(!['http:','https:','data:','blob:'].includes(url.protocol)||!['GET','HEAD','OPTIONS'].includes(req.method())) { blocked++; return route.abort(); }
@@ -123,15 +124,15 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         if(signal?.aborted)throw new Error('捕获已取消');
         const actual=await inspectState(page,source.local);
         if(state.expectedFingerprint){if(actual.fingerprint!==state.expectedFingerprint)throw new Error('页面与探索时的状态不同，请重新探索；可能有异步数据或随机内容');}
-        let viewFingerprint=actual.viewFingerprint;
+        let viewFingerprint=actual.viewFingerprint,scrollNormalization=null;
         if(plan.longPage){
           // Compare content at a common scroll origin, excluding sticky copies and viewport effects.
           // State replay is already verified above; input/filter values and newly loaded rows remain.
-          await page.evaluate(scrolls=>{for(const s of scrolls){if(s.container==='document')continue;const el=document.querySelector(s.container);if(el){el.scrollTop=0;el.scrollLeft=0;}}window.scrollTo(0,0);},actual.scrolls);
+          scrollNormalization=await normalizeLongPageScroll(page,state.selector);
           await delay(80,undefined,{signal});viewFingerprint=(await inspectState(page,source.local)).viewFingerprint;
         }
         const isScroll=state.design?.kind==='scroll'||state.steps.some(s=>s.type==='scroll');
-        const longKey=JSON.stringify([source.toSourceURL(page.url()),state.selector,state.design?.pageId||'',state.design?.viewId||viewFingerprint]);
+        const longKey=JSON.stringify([source.toSourceURL(page.url()),state.selector,state.design?.pageId||'',state.design?.viewId||viewFingerprint,scrollNormalization?.preservedScrolls||[]]);
         const previous=plan.longPage?longViews.get(longKey):null;
         if(previous&&(isScroll||previous.isScroll)&&previous.viewFingerprint===viewFingerprint){
           previous.document.source.longPage.mergedStateIds.push(state.id);record.status='merged';record.mergedInto=previous.id;record.pageIndex=previous.pageIndex;record.url=source.toSourceURL(page.url());report.merged++;report.total=plan.states.length-report.merged;continue;
@@ -142,7 +143,7 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         const sourceURL=source.toSourceURL(page.url());
         const design=inferOrganization({url:sourceURL,entryURL:plan.url,heading:actual.heading,title:actual.title,dialog:actual.dialog,viewFingerprint:actual.viewFingerprint,...actual.structure,scrolls:actual.scrolls,name:state.name,actionKind:state.steps.some(s=>s.type==='scroll')?'滚动':'',parent:state.design,explicitGroup:!['交互探索','自动发现','页面状态'].includes(state.group)?state.group:undefined});
         result.document.source.design=state.design?{...state.design,scroll:design.scroll}:design;
-        if(plan.longPage){result.document.source.design.scroll={...result.document.source.design.scroll,x:0,y:0};if(result.document.source.design.kind==='scroll')result.document.source.design.kind='state';result.document.name=`${String(i+1).padStart(3,'0')} · ${result.document.source.design.pageName} · ${result.document.source.design.stateName} · 长页`;}
+        if(plan.longPage){const scroll=result.document.source.design.scroll;if(scrollNormalization?.primaryScrolls.includes(scroll.container)||scroll.container==='document'&&scrollNormalization?.documentReset){result.document.source.design.scroll={...scroll,x:0,y:0};if(result.document.source.design.kind==='scroll')result.document.source.design.kind='state';}result.document.name=`${String(i+1).padStart(3,'0')} · ${result.document.source.design.pageName} · ${result.document.source.design.stateName} · 长页`;}
         result.document.source.state={id:state.id,name:state.name,group:state.group,stepCount:(state.setup?plan.setup.length:0)+state.steps.length};
         if(blocked) result.document.diagnostics.push({code:'NETWORK_BLOCKED',message:`隔离捕获阻止了 ${blocked} 个写请求或跨站跳转；请核对该状态是否完整`,count:1});
         builder.add(result.document);

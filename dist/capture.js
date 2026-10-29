@@ -267,13 +267,41 @@
       clone.setAttribute("width", String(rect.width));
       clone.setAttribute("height", String(rect.height));
       const originals = [el, ...el.querySelectorAll("*")], copies = [clone, ...clone.querySelectorAll("*")];
-      const properties = ["fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "font-family", "font-size", "font-weight"];
+      const properties = ["fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset", "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "font-family", "font-size", "font-weight"];
       originals.forEach((original, i) => {
         const copy = copies[i], style = win.getComputedStyle(original);
         for (const attr of Array.from(copy.attributes)) if (/^on/i.test(attr.name)) copy.removeAttribute(attr.name);
         for (const prop of properties) {
           const value = style.getPropertyValue(prop);
           if (value && !value.includes("url(")) copy.setAttribute(prop, value);
+        }
+        if (i > 0 && style.transform !== "none") {
+          try {
+            const matrix = new DOMMatrixReadOnly(style.transform), [ox, oy] = style.transformOrigin.split(/\s+/).map(px);
+            if (matrix.is2D) copy.setAttribute("transform", `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e + ox - matrix.a * ox - matrix.c * oy} ${matrix.f + oy - matrix.b * ox - matrix.d * oy})`);
+          } catch {
+            warn("SVG_TRANSFORM", "SVG \u5185\u90E8\u53D8\u6362\u672A\u80FD\u6362\u7B97", el.id || "SVG");
+          }
+        }
+        const geometry = original;
+        const nominal = Number(original.getAttribute("pathLength"));
+        if (nominal > 0 && typeof geometry.getTotalLength === "function") {
+          try {
+            const actual = geometry.getTotalLength(), ratio = actual / nominal;
+            if (Number.isFinite(ratio) && actual > 0) {
+              for (const prop of ["stroke-dasharray", "stroke-dashoffset"]) {
+                const value = style.getPropertyValue(prop);
+                if (!value || value === "none") continue;
+                const parts = value.split(/[\s,]+/).filter(Boolean);
+                if (parts.every((part) => /^[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?(?:px|%)?$/i.test(part))) {
+                  copy.setAttribute(prop, parts.map((part) => part.endsWith("%") ? part : String(Math.round(parseFloat(part) * ratio * 1e6) / 1e6)).join(" "));
+                } else throw new Error("unsupported SVG distance");
+              }
+              copy.removeAttribute("pathLength");
+            }
+          } catch {
+            warn("SVG_PATH_LENGTH", "SVG \u8DEF\u5F84\u957F\u5EA6\u672A\u80FD\u6362\u7B97\uFF0C\u865A\u7EBF\u6548\u679C\u53EF\u80FD\u5B58\u5728\u5DEE\u5F02", el.id || "SVG");
+          }
         }
         copy.removeAttribute("class");
         copy.removeAttribute("style");
@@ -294,6 +322,9 @@
     const walk = (el, parent, depth, inheritedClip) => {
       if (depth > LIMITS.depth) throw new Error("\u9875\u9762\u5D4C\u5957\u8FC7\u6DF1\uFF0C\u8BF7\u7F29\u5C0F\u6355\u83B7\u533A\u57DF");
       if (["SCRIPT", "STYLE", "LINK", "META", "HEAD", "NOSCRIPT", "TEMPLATE"].includes(el.tagName) || el.hasAttribute("data-h2f-ignore")) return null;
+      for (let parent2 = el.parentElement; parent2; parent2 = parent2.parentElement) {
+        if (parent2.tagName === "DETAILS" && !parent2.open && !parent2.querySelector(":scope > summary")?.contains(el)) return null;
+      }
       const cs = win.getComputedStyle(el);
       if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) return null;
       let rect = el.getBoundingClientRect();
@@ -431,7 +462,8 @@
       }
       if (el.shadowRoot) warn("SHADOW_DOM", "Shadow DOM \u7684\u5185\u90E8\u5185\u5BB9\u672A\u6355\u83B7", name);
       n.children = [];
-      for (const child of ["input", "textarea", "select"].includes(tag) ? [] : Array.from(el.childNodes)) {
+      const children = ["input", "textarea", "select"].includes(tag) ? [] : tag === "details" && !el.open ? Array.from(el.children).filter((child) => child.tagName === "SUMMARY").slice(0, 1) : Array.from(el.childNodes);
+      for (const child of children) {
         if (child.nodeType === 3) n.children.push(...textNodes(child, rect, cs, textPaints));
         else if (child.nodeType === 1) {
           const childNode = walk(child, rect, depth + 1, childClip);

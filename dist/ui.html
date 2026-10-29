@@ -23,22 +23,29 @@
 .page-group-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 6px;color:var(--text,#334155);font-size:12px}.page-group-heading strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.page-group-heading .group-level{width:110px;flex:none;min-height:30px;margin:0;padding:4px 6px;font-size:11px;border-radius:6px}.group-level:focus-visible{outline:2px solid #4460ed;outline-offset:2px}
 
 .capture-preferences{display:grid;gap:12px;padding:14px 0}.preference-row{display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0}.preference-row input[type=checkbox]{width:16px;height:16px;flex:none;margin:3px 0 0;accent-color:#4460ed}.preference-row span{display:grid;gap:2px}.preference-row strong{font-size:13px;font-weight:600}.preference-row small{font-size:11px;line-height:1.5;color:#64748b}.preference-row:has(input:focus-visible){outline:2px solid #4460ed;outline-offset:5px;border-radius:4px}
+
+#exploration-options{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:4px 12px 12px}#exploration-options>summary{font-size:12px;min-height:36px;color:var(--ink);padding-top:8px}#exploration-budget-label{font-size:11px;color:#586979;margin-left:5px}#exploration-options:not([open]){padding-bottom:4px}.exploration-grid{margin:12px 0}.exploration-retry{margin:12px 0 0;font-size:12px;gap:8px;align-items:center}#continue-exploration{width:100%;margin-top:12px;min-height:40px;font-size:12px}#exploration-resume-help{margin-bottom:10px}#exploration-options select{max-width:100%}
 </style></head><body><div class="app-shell"><main class="panel"><header class="app-header"><div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="brand-copy"><h1>HTML to Figma</h1><p>从页面，到可编辑的设计。</p></div><span class="local-badge"><i></i>LOCAL</span></header><section class="source-section"><div class="section-heading"><h2>导入内容</h2><button type="button" class="text-button" id="demo">试用示例 <span aria-hidden="true">↗</span></button></div><div class="tabs" role="tablist" aria-label="内容来源"><button class="tab active" role="tab" aria-selected="true" aria-controls="file-panel" id="file-tab" data-tab="file">文件</button><button class="tab" role="tab" aria-selected="false" aria-controls="code-panel" id="code-tab" data-tab="code" tabindex="-1">HTML 代码</button><button class="tab" role="tab" aria-selected="false" aria-controls="url-panel" id="url-tab" data-tab="url" tabindex="-1">网页链接</button></div><div id="file-panel" role="tabpanel" aria-labelledby="file-tab"><button type="button" id="drop-zone" class="drop-zone"><span class="upload-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><strong id="file-label">拖入文件，或批量选择</strong><span>支持 HTML / JSON，多页逐页导入</span></button><input id="file-input" type="file" accept=".html,.htm,.json" multiple hidden><p class="helper">支持静态 HTML 与 Tailwind；动态页面请用网页链接。</p></div><div id="code-panel" role="tabpanel" aria-labelledby="code-tab" hidden><label class="sr-only" for="html-code">HTML 代码</label><textarea id="html-code" spellcheck="false" placeholder="<!doctype html>&#10;<html>&#10;  把完整 HTML 粘贴到这里…&#10;</html>"></textarea></div><div id="url-panel" role="tabpanel" aria-labelledby="url-tab" hidden><label for="url-mode">捕获方式</label><select id="url-mode"><option value="single">当前页面</option><option value="states">多状态捕获</option></select><label for="page-url" class="url-label">页面地址</label><input id="page-url" type="text" autocomplete="off" spellcheck="false" placeholder="https://… 或 C:\项目\index.html / Users/…/index.html"><p class="helper">支持 C:\…、/Users/…、Users/… 和 file:/// 路径，可保留 %20 与 #/ 路由。</p>
 <div id="state-plan-panel" class="state-plan-panel" hidden>
 <label for="state-input-mode">页面来源</label><select id="state-input-mode"><option value="explore">自动探索交互（推荐）</option><option value="auto">仅发现导航页面</option><option value="recipe">状态清单（高级）</option></select>
 <div id="state-auto-panel">
-<p id="discovery-intro" class="helper">自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。</p><div id="exploration-options"><label for="exploration-depth">探索深度</label><select id="exploration-depth"><option value="3">3 层 · 较快</option><option value="4" selected>4 层 · 推荐</option><option value="6">6 层 · 更深入</option></select><p class="helper">本轮按 300 次尝试、3 分钟的预算探索，不限制导入页数。不会穷举全部输入组合。</p></div>
+<p id="discovery-intro" class="helper">自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。</p><details id="exploration-options"><summary>探索设置 <span id="exploration-budget-label">3 分钟 · 300 次 · 4 层</span></summary>
+<label for="exploration-preset">探索范围</label><select id="exploration-preset"><option value="recommended">推荐 · 代表样本</option><option value="deep">深入 · 30 分钟 / 3000 次</option><option value="unlimited">尽量遍历 · 无总上限</option><option value="custom">自定义</option></select>
+<div class="form-grid exploration-grid"><div><label for="exploration-depth">交互深度</label><input id="exploration-depth" type="number" min="0" step="1" value="4"></div><div><label for="exploration-actions">每轮尝试次数</label><input id="exploration-actions" type="number" min="0" step="1" value="300"></div><div><label for="exploration-minutes">每轮时长（分钟）</label><input id="exploration-minutes" type="number" min="0" step="1" value="3"></div><div><label for="exploration-states">每轮新增状态数</label><input id="exploration-states" type="number" min="0" step="1" value="0"></div></div>
+<label for="exploration-sampling">控件范围</label><select id="exploration-sampling"><option value="representative">同类控件取代表样本（较快）</option><option value="all">遍历已识别的控件与选项</option></select>
+<label class="check-label exploration-retry"><input id="exploration-retry" type="checkbox" checked>继续时重试失败动作</label>
+<p class="helper">填 0 表示该项不限。次数、时长和新增状态数按每轮计算，深度按完整操作路径计算。无总上限仍可手动停止；单个操作保留超时保护。队列保留至助手退出或会话过期。</p></details>
 <div id="discovery-results" hidden>
 <div class="section-heading"><strong id="discovery-title" aria-live="polite">发现的页面</strong><button id="rediscover-pages" type="button" class="text-button">重新发现</button></div>
 <div class="discovery-toolbar"><span id="discovery-count" aria-live="polite"></span><div><button id="discovery-select-all" type="button" class="text-button">全选</button><button id="discovery-clear" type="button" class="text-button">清空</button></div></div>
 <div id="discovery-list" class="discovery-list" role="group" aria-label="选择需要捕获的页面"></div>
-<p id="discovery-summary" class="helper"></p><button id="download-discovery-report" type="button" class="text-button">下载探索报告</button><button id="download-generated-plan" type="button" class="text-button">导出已选状态清单</button>
+<p id="discovery-summary" class="helper"></p><button id="continue-exploration" type="button" class="secondary-button" hidden>继续探索</button><p id="exploration-resume-help" class="helper" hidden></p><button id="download-discovery-report" type="button" class="text-button">下载探索报告</button><button id="download-generated-plan" type="button" class="text-button">导出已选状态清单</button>
 </div>
 <p class="helper">文件选择、设备权限、远程登录和已填写表单的提交会跳过；请查看探索报告中的未覆盖项。</p>
 </div>
 <div id="state-recipe-panel" hidden>
 <div class="section-heading"><strong id="state-plan-label">交互状态清单</strong><button id="choose-state-plan" type="button" class="text-button">选择清单</button></div><input id="state-plan-file" type="file" accept=".json" hidden><button id="load-demo-states" type="button" class="secondary-button">载入 multi-app-admin 示例</button><details><summary>编辑状态清单 JSON</summary><label for="state-plan" class="sr-only">状态清单 JSON</label><textarea id="state-plan" spellcheck="false" placeholder="载入清单后可调整每个状态的操作步骤"></textarea></details><p class="helper">每个状态独立运行，捕获可见页面后转为静态图层。</p>
-</div></div><div class="connection-box"><div class="connection-title"><span class="status-dot" id="connection-dot"></span><strong id="connection-label">连接本地捕获助手</strong><a id="download-assistant" class="assistant-download" href="https://github.com/hhagain/html-to-figma-local/releases" target="_blank" rel="noopener noreferrer" title="在浏览器中打开 Windows / macOS 桌面助手下载页" hidden>下载桌面助手<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 4h6v6M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div><button id="connect-assistant" class="secondary-button assistant-connect" type="button">连接桌面助手</button><p id="assistant-help">双击打开捕获助手。首次配对确认一次，之后自动重连。</p><div id="assistant-pair-code" class="pair-code" role="status" hidden></div><details class="manual-connection"><summary>手动连接（开发模式）</summary><label class="sr-only" for="service-token">本地服务连接码</label><input id="service-token" type="password" autocomplete="off" placeholder="粘贴本地服务连接码"><button id="connect" class="text-button" type="button">检测连接</button><p class="helper">兼容命令行服务。助手用户无需使用此项。</p></details></div></div></section><section id="handoff-inbox" class="handoff-inbox" hidden aria-label="桌面助手捕获结果"><strong id="handoff-title">桌面助手有新的捕获结果</strong><p id="handoff-description"></p><button id="receive-handoff" class="primary-button" type="button">接收并导入当前页面</button><p class="helper">接收后按桌面助手中的勾选与布局设置导入。</p></section><section class="options-section"><div class="section-heading"><h2>画布与布局</h2><span class="muted small">保留真实尺寸</span></div><div class="form-grid"><div><label for="viewport-width">浏览器宽度 <span class="muted">px</span></label><input id="viewport-width" type="number" value="1440" min="320" max="3840" step="1"></div><div><label for="selector">捕获区域 <span class="muted">CSS</span></label><input id="selector" value="body" placeholder="body 或 .container" spellcheck="false"></div></div><div id="split-options" class="split-options"><label class="check-label"><input id="split-pages" type="checkbox" checked>自动拆分多页面 <span class="muted">逐页处理</span></label><label for="page-selector">页面选择器 <span class="muted">可选</span></label><input id="page-selector" placeholder="自动识别 Pencil / .page / .slide" spellcheck="false"></div><details id="advanced"><summary>资源基础地址</summary><label class="sr-only" for="base-url">资源基础地址</label><input id="base-url" type="url" placeholder="https://example.com/path/"><p class="helper">用于相对路径的图片和样式。本地资源建议通过本地服务捕获。</p></details><div class="capture-preferences"><label class="preference-row"><input id="smart-layout" type="checkbox" checked><span><strong>智能排版</strong><small>按模块、页面层级和功能状态分组</small></span></label><label class="preference-row" id="long-page-option" hidden><input id="long-page" type="checkbox" checked><span><strong>单张长页</strong><small>展开滚动内容，同一状态生成一个长 Frame</small></span></label></div><fieldset class="mode-group"><legend class="sr-only">布局模式</legend><label class="mode-card selected"><input type="radio" name="mode" value="visual" checked><span class="radio-mark"></span><span><strong>视觉还原</strong><small>保留页面中的实际位置与尺寸</small></span><span class="recommended">推荐</span></label><label class="mode-card"><input type="radio" name="mode" value="auto"><span class="radio-mark"></span><span><strong>智能 Auto Layout</strong><small>保持原始尺寸，仅转换布局一致的容器</small></span></label></fieldset></section><section id="report" class="report" hidden aria-label="转换结果"><div class="report-top"><span class="report-icon" aria-hidden="true">✓</span><div><strong id="report-title">已准备好</strong><p id="report-summary"></p></div></div><div class="stat-row"><span><b id="stat-nodes">0</b> 图层</span><span><b id="stat-text">0</b> 文字</span><span><b id="stat-image">0</b> 图片</span><span><b id="stat-svg">0</b> SVG</span></div><details id="warnings" hidden><summary id="warning-title">转换说明</summary><ul id="warning-list"></ul></details></section><section id="page-list-section" class="page-list-section" hidden><div class="section-heading"><h2 id="page-list-title">页面列表</h2><div><button id="select-all-pages" class="text-button" type="button">全选</button><button id="select-no-pages" class="text-button" type="button">清空</button></div></div><div id="page-list" class="page-list"></div></section><div id="status" class="status" role="status" aria-live="polite"></div><button id="download-state-report" class="text-button" type="button" hidden>下载状态覆盖报告</button><div id="progress-wrap" class="progress-wrap" hidden><progress id="progress" max="100" value="0"></progress><button id="cancel" class="text-button" type="button">取消</button></div><footer class="action-footer"><button type="button" id="prepare" class="primary-button"><span id="prepare-label">解析并预览</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div id="direct-target" class="direct-target" hidden><label for="figma-target">导入目标</label><select id="figma-target"></select><p id="figma-target-help" class="helper">在 Figma 中打开插件后，目标文件与页面会显示在这里。</p></div><div class="ready-actions" id="ready-actions" hidden><button id="direct-import" class="primary-button" type="button" hidden>直接导入 Figma</button><button id="send-handoff" class="primary-button" type="button" hidden>发送到 Figma 插件</button><button type="button" id="import" class="primary-button">导入到 Figma</button><button type="button" id="download" class="secondary-button">导出数据</button></div><p id="handoff-send-status" class="handoff-send-status" role="status" hidden></p><p class="footer-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 2.5 4v4c0 3.2 5.5 6.5 5.5 6.5S13.5 11.2 13.5 8V4L8 1.5Z" stroke="currentColor" stroke-width="1.2"/><path d="m5.5 8 1.7 1.7L10.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>本地解析 · 无上传接口 · v0.11.0</p></footer></main><aside class="preview-panel"><header class="preview-header"><div><span class="eyebrow">CAPTURE STUDIO</span><h2>页面预览</h2></div><span class="preview-size" id="preview-size">等待内容</span></header><div id="preview-controls" class="preview-controls" hidden><button id="preview-prev" type="button" class="secondary-button" aria-label="预览上一页">上一页</button><label for="preview-page" class="sr-only">选择预览页面</label><select id="preview-page" aria-label="选择预览页面"></select><button id="preview-next" type="button" class="secondary-button" aria-label="预览下一页">下一页</button></div><div id="preview-zoom-controls" class="preview-zoom-controls" role="group" aria-label="预览缩放" hidden><button id="preview-zoom-out" class="secondary-button" type="button" aria-label="缩小预览">−</button><output id="preview-zoom-value" aria-live="polite">100%</output><button id="preview-zoom-in" class="secondary-button" type="button" aria-label="放大预览">＋</button><button id="preview-zoom-actual" class="text-button" type="button">100%</button><button id="preview-zoom-fit" class="text-button" type="button">适应窗口</button></div><p id="preview-caption" class="preview-caption" aria-live="polite" hidden></p><p id="preview-shortcuts" class="preview-shortcuts" hidden>Ctrl / ⌘ + 滚轮缩放 · 按住空格并用左键拖拽</p><div class="preview-stage" id="preview-stage" tabindex="0" aria-label="页面预览，按住空格可拖拽"><div id="preview-empty" class="preview-empty"><div class="empty-illustration" aria-hidden="true"><span class="mock-window"><i></i><i></i><i></i><b></b><em></em><em></em><em></em></span><span class="mock-cursor"><svg viewBox="0 0 32 32" fill="none"><path d="m5 3 21 15-11 2-5 10L5 3Z" fill="#2c5d48" stroke="white" stroke-width="2"/></svg></span></div><h3>让网页成为设计的起点</h3><p>导入 HTML 或试用示例，查看页面并生成 Figma 数据。</p><div class="feature-tags"><span>可编辑文字</span><span>图片与 SVG</span><span>真实布局</span></div></div><div id="preview-message" class="preview-message" hidden><p id="preview-message-text" role="status"></p><button id="preview-retry" type="button" class="secondary-button" hidden>重新加载预览</button></div><div id="frame-container" hidden></div><img draggable="false" id="remote-preview" alt="网页捕获预览" hidden></div><footer class="preview-footer"><span>01 / 在这里捕获页面</span><span>02 / 在 Figma 插件中导入数据</span></footer><details class="setup-help"><summary>在 Figma 中加载插件</summary><p>桌面端菜单 → Plugins → Development → Import plugin from manifest，选择项目目录中的 <code>manifest.json</code>。随后将导出的 .h2f.json 拖入插件。</p><p id="local-pairing" hidden>本次本地服务连接码：<code id="pairing-code"></code><button id="copy-token" type="button" class="text-button">复制</button></p></details></aside></div><div id="capture-host"></div><script>"use strict";
+</div></div><div class="connection-box"><div class="connection-title"><span class="status-dot" id="connection-dot"></span><strong id="connection-label">连接本地捕获助手</strong><a id="download-assistant" class="assistant-download" href="https://github.com/hhagain/html-to-figma-local/releases" target="_blank" rel="noopener noreferrer" title="在浏览器中打开 Windows / macOS 桌面助手下载页" hidden>下载桌面助手<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 4h6v6M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div><button id="connect-assistant" class="secondary-button assistant-connect" type="button">连接桌面助手</button><p id="assistant-help">双击打开捕获助手。首次配对确认一次，之后自动重连。</p><div id="assistant-pair-code" class="pair-code" role="status" hidden></div><details class="manual-connection"><summary>手动连接（开发模式）</summary><label class="sr-only" for="service-token">本地服务连接码</label><input id="service-token" type="password" autocomplete="off" placeholder="粘贴本地服务连接码"><button id="connect" class="text-button" type="button">检测连接</button><p class="helper">兼容命令行服务。助手用户无需使用此项。</p></details></div></div></section><section id="handoff-inbox" class="handoff-inbox" hidden aria-label="桌面助手捕获结果"><strong id="handoff-title">桌面助手有新的捕获结果</strong><p id="handoff-description"></p><button id="receive-handoff" class="primary-button" type="button">接收并导入当前页面</button><p class="helper">接收后按桌面助手中的勾选与布局设置导入。</p></section><section class="options-section"><div class="section-heading"><h2>画布与布局</h2><span class="muted small">保留真实尺寸</span></div><div class="form-grid"><div><label for="viewport-width">浏览器宽度 <span class="muted">px</span></label><input id="viewport-width" type="number" value="1440" min="320" max="3840" step="1"></div><div><label for="selector">捕获区域 <span class="muted">CSS</span></label><input id="selector" value="body" placeholder="body 或 .container" spellcheck="false"></div></div><div id="split-options" class="split-options"><label class="check-label"><input id="split-pages" type="checkbox" checked>自动拆分多页面 <span class="muted">逐页处理</span></label><label for="page-selector">页面选择器 <span class="muted">可选</span></label><input id="page-selector" placeholder="自动识别 Pencil / .page / .slide" spellcheck="false"></div><details id="advanced"><summary>资源基础地址</summary><label class="sr-only" for="base-url">资源基础地址</label><input id="base-url" type="url" placeholder="https://example.com/path/"><p class="helper">用于相对路径的图片和样式。本地资源建议通过本地服务捕获。</p></details><div class="capture-preferences"><label class="preference-row"><input id="smart-layout" type="checkbox" checked><span><strong>智能排版</strong><small>按模块、页面层级和功能状态分组</small></span></label><label class="preference-row" id="long-page-option" hidden><input id="long-page" type="checkbox" checked><span><strong>单张长页</strong><small>展开页面主滚动区，保留卡片与弹窗的内部滚动</small></span></label></div><fieldset class="mode-group"><legend class="sr-only">布局模式</legend><label class="mode-card selected"><input type="radio" name="mode" value="visual" checked><span class="radio-mark"></span><span><strong>视觉还原</strong><small>保留页面中的实际位置与尺寸</small></span><span class="recommended">推荐</span></label><label class="mode-card"><input type="radio" name="mode" value="auto"><span class="radio-mark"></span><span><strong>智能 Auto Layout</strong><small>保持原始尺寸，仅转换布局一致的容器</small></span></label></fieldset></section><section id="report" class="report" hidden aria-label="转换结果"><div class="report-top"><span class="report-icon" aria-hidden="true">✓</span><div><strong id="report-title">已准备好</strong><p id="report-summary"></p></div></div><div class="stat-row"><span><b id="stat-nodes">0</b> 图层</span><span><b id="stat-text">0</b> 文字</span><span><b id="stat-image">0</b> 图片</span><span><b id="stat-svg">0</b> SVG</span></div><details id="warnings" hidden><summary id="warning-title">转换说明</summary><ul id="warning-list"></ul></details></section><section id="page-list-section" class="page-list-section" hidden><div class="section-heading"><h2 id="page-list-title">页面列表</h2><div><button id="select-all-pages" class="text-button" type="button">全选</button><button id="select-no-pages" class="text-button" type="button">清空</button></div></div><div id="page-list" class="page-list"></div></section><div id="status" class="status" role="status" aria-live="polite"></div><button id="download-state-report" class="text-button" type="button" hidden>下载状态覆盖报告</button><div id="progress-wrap" class="progress-wrap" hidden><progress id="progress" max="100" value="0"></progress><button id="cancel" class="text-button" type="button">取消</button></div><footer class="action-footer"><button type="button" id="prepare" class="primary-button"><span id="prepare-label">解析并预览</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div id="direct-target" class="direct-target" hidden><label for="figma-target">导入目标</label><select id="figma-target"></select><p id="figma-target-help" class="helper">在 Figma 中打开插件后，目标文件与页面会显示在这里。</p></div><div class="ready-actions" id="ready-actions" hidden><button id="direct-import" class="primary-button" type="button" hidden>直接导入 Figma</button><button id="send-handoff" class="primary-button" type="button" hidden>发送到 Figma 插件</button><button type="button" id="import" class="primary-button">导入到 Figma</button><button type="button" id="download" class="secondary-button">导出数据</button></div><p id="handoff-send-status" class="handoff-send-status" role="status" hidden></p><p class="footer-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 2.5 4v4c0 3.2 5.5 6.5 5.5 6.5S13.5 11.2 13.5 8V4L8 1.5Z" stroke="currentColor" stroke-width="1.2"/><path d="m5.5 8 1.7 1.7L10.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>本地解析 · 无上传接口 · v0.12.0</p></footer></main><aside class="preview-panel"><header class="preview-header"><div><span class="eyebrow">CAPTURE STUDIO</span><h2>页面预览</h2></div><span class="preview-size" id="preview-size">等待内容</span></header><div id="preview-controls" class="preview-controls" hidden><button id="preview-prev" type="button" class="secondary-button" aria-label="预览上一页">上一页</button><label for="preview-page" class="sr-only">选择预览页面</label><select id="preview-page" aria-label="选择预览页面"></select><button id="preview-next" type="button" class="secondary-button" aria-label="预览下一页">下一页</button></div><div id="preview-zoom-controls" class="preview-zoom-controls" role="group" aria-label="预览缩放" hidden><button id="preview-zoom-out" class="secondary-button" type="button" aria-label="缩小预览">−</button><output id="preview-zoom-value" aria-live="polite">100%</output><button id="preview-zoom-in" class="secondary-button" type="button" aria-label="放大预览">＋</button><button id="preview-zoom-actual" class="text-button" type="button">100%</button><button id="preview-zoom-fit" class="text-button" type="button">适应窗口</button></div><p id="preview-caption" class="preview-caption" aria-live="polite" hidden></p><p id="preview-shortcuts" class="preview-shortcuts" hidden>Ctrl / ⌘ + 滚轮缩放 · 按住空格并用左键拖拽</p><div class="preview-stage" id="preview-stage" tabindex="0" aria-label="页面预览，按住空格可拖拽"><div id="preview-empty" class="preview-empty"><div class="empty-illustration" aria-hidden="true"><span class="mock-window"><i></i><i></i><i></i><b></b><em></em><em></em><em></em></span><span class="mock-cursor"><svg viewBox="0 0 32 32" fill="none"><path d="m5 3 21 15-11 2-5 10L5 3Z" fill="#2c5d48" stroke="white" stroke-width="2"/></svg></span></div><h3>让网页成为设计的起点</h3><p>导入 HTML 或试用示例，查看页面并生成 Figma 数据。</p><div class="feature-tags"><span>可编辑文字</span><span>图片与 SVG</span><span>真实布局</span></div></div><div id="preview-message" class="preview-message" hidden><p id="preview-message-text" role="status"></p><button id="preview-retry" type="button" class="secondary-button" hidden>重新加载预览</button></div><div id="frame-container" hidden></div><img draggable="false" id="remote-preview" alt="网页捕获预览" hidden></div><footer class="preview-footer"><span>01 / 在这里捕获页面</span><span>02 / 在 Figma 插件中导入数据</span></footer><details class="setup-help"><summary>在 Figma 中加载插件</summary><p>桌面端菜单 → Plugins → Development → Import plugin from manifest，选择项目目录中的 <code>manifest.json</code>。随后将导出的 .h2f.json 拖入插件。</p><p id="local-pairing" hidden>本次本地服务连接码：<code id="pairing-code"></code><button id="copy-token" type="button" class="text-button">复制</button></p></details></aside></div><div id="capture-host"></div><script>"use strict";
 (() => {
   // src/design-organization.ts
   var PAGE_LEVELS = { primary: "\u4E00\u7EA7\u9875\u9762", secondary: "\u4E8C\u7EA7\u9875\u9762", feature: "\u529F\u80FD\u9875\u9762", unclassified: "\u5F85\u786E\u8BA4\u9875\u9762" };
@@ -491,13 +498,41 @@
       clone.setAttribute("width", String(rect.width));
       clone.setAttribute("height", String(rect.height));
       const originals = [el, ...el.querySelectorAll("*")], copies = [clone, ...clone.querySelectorAll("*")];
-      const properties = ["fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "font-family", "font-size", "font-weight"];
+      const properties = ["fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset", "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "font-family", "font-size", "font-weight"];
       originals.forEach((original, i2) => {
         const copy = copies[i2], style = win.getComputedStyle(original);
         for (const attr of Array.from(copy.attributes)) if (/^on/i.test(attr.name)) copy.removeAttribute(attr.name);
         for (const prop of properties) {
           const value = style.getPropertyValue(prop);
           if (value && !value.includes("url(")) copy.setAttribute(prop, value);
+        }
+        if (i2 > 0 && style.transform !== "none") {
+          try {
+            const matrix = new DOMMatrixReadOnly(style.transform), [ox, oy] = style.transformOrigin.split(/\s+/).map(px);
+            if (matrix.is2D) copy.setAttribute("transform", `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e + ox - matrix.a * ox - matrix.c * oy} ${matrix.f + oy - matrix.b * ox - matrix.d * oy})`);
+          } catch {
+            warn("SVG_TRANSFORM", "SVG \u5185\u90E8\u53D8\u6362\u672A\u80FD\u6362\u7B97", el.id || "SVG");
+          }
+        }
+        const geometry = original;
+        const nominal = Number(original.getAttribute("pathLength"));
+        if (nominal > 0 && typeof geometry.getTotalLength === "function") {
+          try {
+            const actual = geometry.getTotalLength(), ratio = actual / nominal;
+            if (Number.isFinite(ratio) && actual > 0) {
+              for (const prop of ["stroke-dasharray", "stroke-dashoffset"]) {
+                const value = style.getPropertyValue(prop);
+                if (!value || value === "none") continue;
+                const parts = value.split(/[\s,]+/).filter(Boolean);
+                if (parts.every((part) => /^[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?(?:px|%)?$/i.test(part))) {
+                  copy.setAttribute(prop, parts.map((part) => part.endsWith("%") ? part : String(Math.round(parseFloat(part) * ratio * 1e6) / 1e6)).join(" "));
+                } else throw new Error("unsupported SVG distance");
+              }
+              copy.removeAttribute("pathLength");
+            }
+          } catch {
+            warn("SVG_PATH_LENGTH", "SVG \u8DEF\u5F84\u957F\u5EA6\u672A\u80FD\u6362\u7B97\uFF0C\u865A\u7EBF\u6548\u679C\u53EF\u80FD\u5B58\u5728\u5DEE\u5F02", el.id || "SVG");
+          }
         }
         copy.removeAttribute("class");
         copy.removeAttribute("style");
@@ -518,6 +553,9 @@
     const walk = (el, parent, depth, inheritedClip) => {
       if (depth > LIMITS.depth) throw new Error("\u9875\u9762\u5D4C\u5957\u8FC7\u6DF1\uFF0C\u8BF7\u7F29\u5C0F\u6355\u83B7\u533A\u57DF");
       if (["SCRIPT", "STYLE", "LINK", "META", "HEAD", "NOSCRIPT", "TEMPLATE"].includes(el.tagName) || el.hasAttribute("data-h2f-ignore")) return null;
+      for (let parent2 = el.parentElement; parent2; parent2 = parent2.parentElement) {
+        if (parent2.tagName === "DETAILS" && !parent2.open && !parent2.querySelector(":scope > summary")?.contains(el)) return null;
+      }
       const cs = win.getComputedStyle(el);
       if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) return null;
       let rect = el.getBoundingClientRect();
@@ -655,7 +693,8 @@
       }
       if (el.shadowRoot) warn("SHADOW_DOM", "Shadow DOM \u7684\u5185\u90E8\u5185\u5BB9\u672A\u6355\u83B7", name);
       n.children = [];
-      for (const child of ["input", "textarea", "select"].includes(tag) ? [] : Array.from(el.childNodes)) {
+      const children = ["input", "textarea", "select"].includes(tag) ? [] : tag === "details" && !el.open ? Array.from(el.children).filter((child) => child.tagName === "SUMMARY").slice(0, 1) : Array.from(el.childNodes);
+      for (const child of children) {
         if (child.nodeType === 3) n.children.push(...textNodes(child, rect, cs, textPaints));
         else if (child.nodeType === 1) {
           const childNode = walk(child, rect, depth + 1, childClip);
@@ -8214,7 +8253,7 @@
   var discoverySelection = [];
   var autoStates = () => tab === "url" && $("url-mode").value === "states" && $("state-input-mode").value !== "recipe";
   function requestKey() {
-    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value, $("exploration-depth").value]);
+    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value]);
   }
   function refreshPrepareAction() {
     const label = busy ? "\u5904\u7406\u4E2D\u2026" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} \u9875\uFF09` : $("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
@@ -9194,10 +9233,51 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     clearDiscovery();
     syncStateInput();
   });
-  $("exploration-depth").addEventListener("change", () => {
-    invalidate();
-    clearDiscovery();
+  var explorationFields = ["exploration-depth", "exploration-actions", "exploration-minutes", "exploration-states", "exploration-sampling", "exploration-retry"];
+  function explorationSettings() {
+    const integer = (id, label) => {
+      const value = input(id).valueAsNumber;
+      if (!Number.isSafeInteger(value) || value < 0) throw new Error(label + "\u8BF7\u586B\u5199 0 \u6216\u6B63\u6574\u6570");
+      return value === 0 ? null : value;
+    };
+    const minutes = integer("exploration-minutes", "\u63A2\u7D22\u65F6\u957F");
+    return { maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
+  }
+  function updateExplorationSettings(save = true) {
+    const describe = (id, unit) => Number(input(id).value) ? `${input(id).value} ${unit}` : `${unit}\u4E0D\u9650`;
+    $("exploration-budget-label").textContent = `${describe("exploration-minutes", "\u5206\u949F")} \xB7 ${describe("exploration-actions", "\u6B21")} \xB7 ${describe("exploration-depth", "\u5C42")}`;
+    if (save) try {
+      localStorage.setItem("h2f-exploration-options", JSON.stringify(Object.fromEntries(explorationFields.map((id) => [id, id === "exploration-retry" ? input(id).checked : input(id).value]))));
+    } catch {
+    }
+  }
+  for (const id of explorationFields) $(id).addEventListener("change", () => {
+    $("exploration-preset").value = "custom";
+    updateExplorationSettings();
   });
+  $("exploration-preset").addEventListener("change", () => {
+    const presets = { recommended: [4, 300, 3, "representative"], deep: [10, 3e3, 30, "all"], unlimited: [0, 0, 0, "all"] };
+    const preset = presets[$("exploration-preset").value];
+    if (!preset) return;
+    ["exploration-depth", "exploration-actions", "exploration-minutes"].forEach((id, i2) => {
+      input(id).value = String(preset[i2]);
+    });
+    input("exploration-states").value = "0";
+    $("exploration-sampling").value = preset[3];
+    updateExplorationSettings();
+  });
+  try {
+    const saved = JSON.parse(localStorage.getItem("h2f-exploration-options") || "null");
+    if (saved) {
+      for (const id of explorationFields) {
+        if (id === "exploration-retry" && typeof saved[id] === "boolean") input(id).checked = saved[id];
+        else if (typeof saved[id] === "string") input(id).value = saved[id];
+      }
+      $("exploration-preset").value = "custom";
+    }
+  } catch {
+  }
+  updateExplorationSettings(false);
   for (const id of ["page-url", "viewport-width", "selector"]) $(id).addEventListener("input", clearDiscovery);
   $("rediscover-pages").addEventListener("click", () => {
     clearDiscovery();
@@ -9252,7 +9332,17 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     $("discovery-list").replaceChildren(rows);
     const report = discovery.report;
     $("discovery-summary").textContent = `${report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62\u3002" : ""}\u5DF2\u9A8C\u8BC1 ${discovery.pages.filter((p) => p.checked).length} \u9875${report.errors.length ? `\uFF0C${report.errors.length} \u9875\u65E0\u6CD5\u6253\u5F00` : ""}\u3002${report.limited ? "\u8FBE\u5230\u626B\u63CF\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\uFF0C\u5269\u4F59\u5019\u9009\u9875\u4F1A\u5728\u6355\u83B7\u65F6\u9A8C\u8BC1\u3002" : "\u52FE\u9009\u9875\u9762\u540E\u70B9\u51FB\u201C\u5F00\u59CB\u6355\u83B7\u201D\u3002"}`;
-    if (report.mode === "interactions") $("discovery-summary").textContent = `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001\uFF0C\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.errors.length} \u6B21\u3002${report.limited ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u672A\u63A2\u7D22\uFF1B\u5DF2\u8FBE\u5230\u672C\u6B21\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\u3002` : "\u672C\u6B21\u961F\u5217\u5DF2\u5904\u7406\u3002"} \u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u53D7\u9650\u6216\u91CD\u590D\u63A7\u4EF6\uFF1B\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+    if (report.mode === "interactions") {
+      const reasons = { time: "\u672C\u8F6E\u65F6\u957F\u5DF2\u7528\u5B8C", actions: "\u672C\u8F6E\u5C1D\u8BD5\u6B21\u6570\u5DF2\u7528\u5B8C", states: "\u672C\u8F6E\u65B0\u589E\u72B6\u6001\u6570\u5DF2\u8FBE\u5230\u4E0A\u9650", depth: "\u90E8\u5206\u52A8\u4F5C\u8D85\u8FC7\u63A2\u7D22\u6DF1\u5EA6", cancelled: "\u5DF2\u624B\u52A8\u505C\u6B62", queue: "\u53EF\u63A2\u7D22\u961F\u5217\u5DF2\u5904\u7406" };
+      const stopped = (report.stopReasons || []).map((reason) => reasons[reason] || reason).join("\uFF1B");
+      const skipped = report.skippedByReason;
+      $("discovery-summary").textContent = `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+    }
+    const canResume = report.mode === "interactions" && !!discovery.session?.canResume;
+    $("continue-exploration").hidden = !canResume;
+    $("continue-exploration").disabled = busy;
+    $("exploration-resume-help").hidden = !canResume;
+    $("exploration-resume-help").textContent = `\u5DF2\u4FDD\u7559\u63A2\u7D22\u8FDB\u5EA6\u3002\u53EF\u63D0\u9AD8\u6DF1\u5EA6\u3001\u5EF6\u957F\u65F6\u957F\u6216\u5207\u6362\u4E3A\u904D\u5386\u63A7\u4EF6\u540E\u7EE7\u7EED\uFF1B\u5DF2\u52FE\u9009\u72B6\u6001\u4F1A\u4FDD\u7559\u3002${report.depthDeferred ? "\u5F53\u524D\u6DF1\u5EA6\u4E0D\u53D8\u65F6\uFF0C\u8FD9\u90E8\u5206\u52A8\u4F5C\u4ECD\u4F1A\u4FDD\u7559\u5F85\u63A2\u7D22\u3002" : ""}`;
     count();
   }
   $("discovery-select-all").addEventListener("click", () => {
@@ -9267,11 +9357,14 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     invalidate();
     renderDiscovery();
   });
-  async function discoverAutomaticPages(url) {
-    clearDiscovery();
-    status("\u6B63\u5728\u6253\u5F00\u5165\u53E3\u5E76\u53D1\u73B0\u9875\u9762\u2026");
+  async function discoverAutomaticPages(url, resume = false) {
+    const selected = new Map(resume && discovery ? discovery.pages.map((page, i2) => [page.id, discoverySelection[i2]]) : []);
+    const resumeId = resume ? discovery?.session?.id : void 0;
+    const settings = explorationSettings();
+    if (!resume) clearDiscovery();
+    status(resume ? "\u6B63\u5728\u6062\u590D\u63A2\u7D22\u8FDB\u5EA6\u2026" : "\u6B63\u5728\u6253\u5F00\u5165\u53E3\u5E76\u53D1\u73B0\u9875\u9762\u2026");
     const key = requestKey();
-    const job = await api("/api/discover", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", exploreInteractions: $("state-input-mode").value === "explore", maxDepth: Number($("exploration-depth").value) });
+    const job = await api("/api/discover", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", exploreInteractions: $("state-input-mode").value === "explore", ...settings, ...resumeId ? { resumeId } : {} });
     activeStateJob = job.id;
     activeJobKind = "discover";
     while (true) {
@@ -9281,7 +9374,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         if (snapshot.error) throw new Error(snapshot.error);
         discovery = await api(`/api/discover/${job.id}/result`);
         discoveryKey = key;
-        discoverySelection = discovery.pages.map((p2) => !p2.error);
+        discoverySelection = discovery.pages.map((p2) => selected.has(p2.id) ? selected.get(p2.id) : !p2.error);
         renderDiscovery();
         status(discovery.report.mode === "interactions" ? `${discovery.report.cancelled ? "\u63A2\u7D22\u5DF2\u505C\u6B62" : "\u672C\u8F6E\u63A2\u7D22\u7ED3\u675F"}\uFF1A\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u72B6\u6001${discovery.report.limited ? "\uFF0C\u4ECD\u6709\u672A\u63A2\u7D22\u52A8\u4F5C" : ""}\u3002\u8BF7\u67E5\u770B\u62A5\u544A\u5E76\u52FE\u9009\u6355\u83B7\u3002` : `${discovery.report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62" : "\u53D1\u73B0\u5B8C\u6210"}\uFF1A${discovery.pages.length} \u4E2A\u5019\u9009\u9875\u9762\uFF0C\u8BF7\u52FE\u9009\u540E\u5F00\u59CB\u6355\u83B7\u3002`, !discoverySelection.some(Boolean));
         break;
@@ -9289,6 +9382,21 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
+  $("continue-exploration").addEventListener("click", async () => {
+    if (busy || !discovery?.session?.canResume) return;
+    captureStopped = false;
+    invalidate();
+    setBusy(true);
+    try {
+      await discoverAutomaticPages(normalizeCaptureAddress(input("page-url").value.trim()), true);
+    } catch (error) {
+      status(errorText(error), true);
+    } finally {
+      activeStateJob = null;
+      setBusy(false);
+      renderDiscovery();
+    }
+  });
   function downloadDiscoveryFile(data2, filename) {
     const url = URL.createObjectURL(new Blob([JSON.stringify(data2, null, 2)], { type: "application/json" }));
     const link = document.createElement("a");

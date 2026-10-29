@@ -33,7 +33,8 @@ test('normalizes macOS copied paths without losing percent encoding, query or ha
  for(const value of ['Users/me/private.json','/Users/me/%2fetc/index.html','javascript:alert(1)','https://user:secret@site.com',''])assert.throws(()=>normalizeCaptureAddress(value));
  assert.equal(normalizeCaptureAddress('https://example.com/path?q=1#/a'),'https://example.com/path?q=1#/a');
  assert.equal(validateDiscoveryRequest({url}).maxPages,null);assert.equal(validateDiscoveryRequest({url,maxPages:1000}).maxPages,1000);
- for(const maxPages of [0,-1,1.5,Infinity,Number.MAX_SAFE_INTEGER+1,'201'])assert.throws(()=>validateDiscoveryRequest({url,maxPages}),/预算/);
+ assert.equal(validateDiscoveryRequest({url,maxPages:0}).maxPages,null);
+ for(const maxPages of [-1,1.5,Infinity,Number.MAX_SAFE_INTEGER+1,'201'])assert.throws(()=>validateDiscoveryRequest({url,maxPages}),/预算/);
 });
 
 test('discovers local tabs and directory pages, deduplicates links, then captures without a user recipe',async()=>{

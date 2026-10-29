@@ -1,13 +1,27 @@
 import { randomBytes } from 'node:crypto';
 
 // Runs only in the isolated capture page. All mutations are restored after DOM capture/preview.
-export function expandLongPageDOM({ selector = 'body', key }) {
+export function expandLongPageDOM({ selector = 'body', key, resetOnly = false }) {
   const root = document.querySelector(selector); if (!root) throw new Error('没有找到捕获区域：' + selector);
   const visible = el => { const r=el.getBoundingClientRect(),s=getComputedStyle(el);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&!el.closest('[hidden],[inert],[aria-hidden="true"]'); };
   const dialogs=[...root.querySelectorAll('[role="dialog"],dialog[open],[aria-modal="true"]')].filter(visible);
-  const scope=dialogs.at(-1)||root;
   const describe=el=>el.id?'#'+CSS.escape(el.id):el.getAttribute('data-pencil-name')||el.tagName.toLowerCase();
-  const scrolling=[scope,...scope.querySelectorAll('*')].filter(el=>visible(el)&&el.clientHeight>=80&&el.scrollHeight>el.clientHeight+40&&/auto|scroll/.test(getComputedStyle(el).overflowY));
+  const candidates=[root,...root.querySelectorAll('*')].filter(el=>visible(el)&&el.clientHeight>=80&&el.scrollHeight>el.clientHeight+40&&/auto|scroll/.test(getComputedStyle(el).overflowY));
+  // Only the page's primary scroll surface becomes a continuous page. Cards, lists,
+  // carousels and modal bodies keep their own viewport, clipping and scroll position.
+  const primary=candidates.filter(el=>{
+    if(el.closest('[data-h2f-preserve-scroll],[role="dialog"],dialog[open],[aria-modal="true"]'))return false;
+    if(el===root||el.matches('main,[role="main"],[data-h2f-long-page]'))return true;
+    const host=el.closest('main,[role="main"],[data-phone-content],[data-h2f-page]')||root;
+    const reference=host.getBoundingClientRect(),rect=el.getBoundingClientRect();
+    return rect.height>=reference.height*.5&&rect.width>=reference.width*.55;
+  });
+  const scrolling=dialogs.length?[]:primary.filter(el=>!primary.some(parent=>parent!==el&&parent.contains(el)));
+  const preservedScrollContainers=candidates.length-scrolling.length;
+  const cssSelector=el=>{if(el.id)return '#'+CSS.escape(el.id);const parts=[];for(let p=el;p&&p!==document.body;p=p.parentElement){const peers=[...(p.parentElement?.children||[])].filter(n=>n.tagName===p.tagName);parts.unshift(p.tagName.toLowerCase()+':nth-of-type('+(peers.indexOf(p)+1)+')');}return parts.join(' > ');};
+  const preservedScrolls=candidates.filter(el=>!scrolling.includes(el)).map(el=>({container:cssSelector(el),x:el.scrollLeft,y:el.scrollTop}));
+  if(resetOnly){for(const el of scrolling){el.scrollTop=0;el.scrollLeft=0;}if(!dialogs.length)window.scrollTo(0,0);return {preservedScrolls,primaryScrolls:scrolling.map(cssSelector),documentReset:!dialogs.length};}
+  if(dialogs.length)return {containers:[],height:root.getBoundingClientRect().height,scrollContainers:0,preservedScrollContainers,documentHeight:document.documentElement.scrollHeight};
   if(scrolling.length>32)throw new Error('可滚动区域超过 32 个，请缩小捕获区域或关闭单张长页');
   const saved=new Map(),boxes=new Map(),scrolls=new Map(),windowScroll={x:scrollX,y:scrollY};
   const remember=el=>{if(!saved.has(el)){saved.set(el,el.getAttribute('style'));scrolls.set(el,{x:el.scrollLeft,y:el.scrollTop});const r=el.getBoundingClientRect(),cs=getComputedStyle(el);boxes.set(el,{height:el.offsetHeight||r.height,width:el.offsetWidth||r.width,screen:r.toJSON(),position:cs.position,display:cs.display,direction:cs.flexDirection,bottom:String(el.computedStyleMap?.().get('bottom')||cs.bottom),top:String(el.computedStyleMap?.().get('top')||cs.top)});}};
@@ -48,7 +62,9 @@ export function expandLongPageDOM({ selector = 'body', key }) {
     }
     const height=Math.max(root.getBoundingClientRect().height,root.scrollHeight);
     if(height>100000)throw new Error('长页超过 100000 px，请分段捕获');
-    return {containers,height,scrollContainers:scrolling.length,documentHeight};
+    return {containers,height,scrollContainers:scrolling.length,preservedScrollContainers,documentHeight};
   }catch(error){restore();throw error;}
 }
 export async function expandLongPage(page, selector){const key='__h2f_long_'+randomBytes(12).toString('hex');const result=await page.evaluate(expandLongPageDOM,{selector,key});await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));return{...result,restore:async()=>{await page.evaluate(key=>{if(typeof window[key]==='function')window[key]();},key).catch(()=>{});}};}
+
+export async function normalizeLongPageScroll(page,selector){return page.evaluate(expandLongPageDOM,{selector,resetOnly:true});}

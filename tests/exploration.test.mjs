@@ -18,7 +18,7 @@ test('reports unvisited controls when bounded, supports cancellation and rejects
  const bounded=await discoverPages(browser,{...request(),maxPages:2});assert.equal(bounded.pages.length,2);assert.equal(bounded.report.limited,true);assert.ok(bounded.report.remaining>0);assert.ok(bounded.report.pending.length);
  const controller=new AbortController();const cancelled=await discoverPages(browser,request(),{signal:controller.signal,onProgress:p=>{if(p.found>=1)controller.abort();}});assert.equal(cancelled.report.cancelled,true);assert.equal(browser.contexts().length,0);
  await writeFile(url,html.replace('工作台','新版工作台'));const replay=await captureStates(browser,{...bounded.plan,states:[bounded.plan.states[0]]});assert.equal(replay.report.failed,1);assert.ok(replay.report.states[0].error.includes('状态不同'));await writeFile(url,html);
- assert.throws(()=>validateDiscoveryRequest({...request(),maxDepth:100}),/探索/);
+ assert.throws(()=>validateDiscoveryRequest({...request(),maxDepth:-1}),/探索/);
 });
 
 test('all primary navigation tabs survive representative sampling',async()=>{

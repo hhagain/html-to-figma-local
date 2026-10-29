@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 
 // This function runs inside the isolated page. Source text never becomes executable recipes.
-export function inspectInteractiveDOM({ local = false } = {}) {
+export function inspectInteractiveDOM({ local = false, sampling = 'representative' } = {}) {
+  const all = sampling === 'all';
   const visible = el => {
     const rect = el.getBoundingClientRect();
     if (!rect.width || !rect.height || getComputedStyle(el).visibility === 'hidden' || getComputedStyle(el).display === 'none' || el.closest('[hidden],[inert],[aria-hidden="true"]')) return false;
@@ -29,7 +30,7 @@ export function inspectInteractiveDOM({ local = false } = {}) {
   const candidates = [], skipped = [], families = new Map();
   const add = candidate => {
     const count = families.get(candidate.family) || 0;
-    if (count >= (candidate.sampleLimit || 2)) { skipped.push({ name: candidate.name, reason: '同类控件仅取代表样本' }); return; }
+    if (!all && count >= (candidate.sampleLimit || 2)) { skipped.push({ name: candidate.name, reason: '同类控件仅取代表样本', category: 'sampling' }); return; }
     families.set(candidate.family, count + 1); candidates.push(candidate);
   };
   const unsafe = /删除|清空|注销|重置|退出登录|支付|确认购买|确认提交|确认保存|转账成功|恢复备份|启用授权|允许.*麦克风|授权|\b(?:delete|remove|destroy|clear|reset|logout|signout|checkout|purchase|confirm|commit|consent|grant)\b/i;
@@ -45,7 +46,9 @@ export function inspectInteractiveDOM({ local = false } = {}) {
     if (unsafe.test(description)) { skipped.push({ name, reason: '可能产生提交、删除或授权效果' }); continue; }
     if (close.test(name)) continue;
     if (el.tagName === 'SELECT') {
-      const options = [...el.options].filter(o => !o.disabled && o.value !== el.value).slice(0, 2);
+      const choices = [...el.options].filter(o => !o.disabled && o.value !== el.value);
+      const options = all ? choices : choices.slice(0, 2);
+      if (options.length < choices.length) skipped.push({ name, reason: '选择项取代表样本', category: 'sampling', count: choices.length - options.length });
       for (const option of options) add({ name: name + '：' + option.text.slice(0, 30), kind: '选择', family: 'select:' + css, key: 'select:' + css + ':' + option.value, steps: [{ type: 'select', selector: css, value: option.value }] });
       continue;
     }
@@ -83,7 +86,7 @@ export function inspectInteractiveDOM({ local = false } = {}) {
     const fields = [...form.querySelectorAll('input,textarea')].filter(el => visible(el) && !el.disabled && !el.readOnly && !['hidden','file','password','checkbox','radio','submit','button'].includes(el.type));
     if (!fields.length || fields.some(el => /账号|密码|登录|login|password/i.test((el.name || '') + (el.getAttribute('placeholder') || '')))) continue;
     const steps = [];
-    for (const field of fields.slice(0, 6)) {
+    for (const field of (all ? fields : fields.slice(0, 6))) {
       if (field.value) continue;
       const hint = (field.name || '') + (field.getAttribute('inputmode') || '');
       const value = field.type === 'email' ? 'preview@example.test' : field.type === 'date' ? field.min || '2026-01-01' : field.type === 'number' || /amount|price|money|decimal|number/i.test(hint) ? field.min || '12.50' : '示例内容';
@@ -103,18 +106,20 @@ export function inspectInteractiveDOM({ local = false } = {}) {
   }
   const viewSignature = signatureParts.join('\n');
   // Top/bottom samples expose clipped scroll content without enumerating every pixel.
-  const scrollables = [...scope.querySelectorAll('*')].filter(el => visible(el) && el.clientHeight > 100 && el.scrollHeight > el.clientHeight + 100 && /auto|scroll/.test(getComputedStyle(el).overflowY)).slice(0, 2);
-  for (const el of scrollables) {
+  const scrollCandidates = [...scope.querySelectorAll('*')].filter(el => visible(el) && el.clientHeight > 100 && el.scrollHeight > el.clientHeight + 100 && /auto|scroll/.test(getComputedStyle(el).overflowY));
+  const scrollables = all ? scrollCandidates : scrollCandidates.slice(0, 2);
+  if (scrollables.length < scrollCandidates.length) skipped.push({ name: '滚动区域', reason: '滚动区域取代表样本', category: 'sampling', count: scrollCandidates.length - scrollables.length });
+  for (const el of scrollCandidates) {
     const css = selector(el);
-    if (el.scrollTop < el.scrollHeight - el.clientHeight - 40 && css.length < 650) add({ name: '下半部分', kind: '滚动', family: 'scroll:' + css, key: 'scroll:' + css, steps: [{ type: 'scroll', selector: css, y: el.scrollHeight - el.clientHeight }], priority: 5 });
+    if (scrollables.includes(el) && el.scrollTop < el.scrollHeight - el.clientHeight - 40 && css.length < 650) add({ name: '下半部分', kind: '滚动', family: 'scroll:' + css, key: 'scroll:' + css, steps: [{ type: 'scroll', selector: css, y: el.scrollHeight - el.clientHeight }], priority: 5 });
     signatureParts.push('scroll:' + css + ':' + Math.round(el.scrollTop / 20));
   }
-  const scrolls = scrollables.map(el => ({container: selector(el),x: el.scrollLeft,y: el.scrollTop}));
+  const scrolls = scrollCandidates.map(el => ({container: selector(el),x: el.scrollLeft,y: el.scrollTop}));
   if (!scrolls.length) scrolls.push({container:'document',x:window.scrollX,y:window.scrollY});
   candidates.sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
-  return { title: document.title.slice(0, 100), heading, dialog: dialogs.length > 0, structure, scrolls, viewSignature, signature: signatureParts.join('\n'), candidates: candidates.slice(0, 45), skipped: [...skipped, ...(candidates.length > 45 ? [{ name: '控件数量', reason: '每个状态最多探索 45 个候选动作' }] : [])] };
+  return { title: document.title.slice(0, 100), heading, dialog: dialogs.length > 0, structure, scrolls, viewSignature, signature: signatureParts.join('\n'), candidates: all ? candidates : candidates.slice(0, 45), skipped: [...skipped, ...(!all && candidates.length > 45 ? [{ name: '控件数量', reason: '每个状态取前 45 个候选动作', category: 'sampling', count: candidates.length - 45 }] : [])] };
 }
-export async function inspectState(page, local) {
-  const state = await page.evaluate(inspectInteractiveDOM, { local });
+export async function inspectState(page, local, { sampling = 'representative' } = {}) {
+  const state = await page.evaluate(inspectInteractiveDOM, { local, sampling });
   return { ...state, viewFingerprint: createHash('sha256').update(state.viewSignature).digest('hex'), fingerprint: createHash('sha256').update(state.signature).digest('hex') };
 }

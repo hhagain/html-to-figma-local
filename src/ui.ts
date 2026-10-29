@@ -39,7 +39,7 @@ let service = !plugin && /^https?:$/.test(location.protocol) && ['127.0.0.1','lo
 let activeStateJob: string | null = null, activeJobKind: 'states' | 'discover' = 'states', stateReport: any = null;
 let discovery: any = null, discoveryKey = '', discoverySelection: boolean[] = [];
 const autoStates = () => tab === 'url' && $<HTMLSelectElement>('url-mode').value === 'states' && $<HTMLSelectElement>('state-input-mode').value !== 'recipe';
-function requestKey() { return JSON.stringify([input('page-url').value.trim(), viewportWidth(), input('selector').value.trim(), $<HTMLSelectElement>('state-input-mode').value, $<HTMLSelectElement>('exploration-depth').value]); }
+function requestKey() { return JSON.stringify([input('page-url').value.trim(), viewportWidth(), input('selector').value.trim(), $<HTMLSelectElement>('state-input-mode').value]); }
 function refreshPrepareAction() {
   const label = busy ? '处理中…' : autoStates() ? discovery ? `开始捕获（${discoverySelection.filter(Boolean).length} 页）` : $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '探索交互状态' : '自动发现页面' : '解析并预览';
   $('prepare-label').textContent = label;
@@ -537,7 +537,26 @@ window.onmessage = event => {
 
 $('url-mode').addEventListener('change', () => { $('state-plan-panel').hidden = $<HTMLSelectElement>('url-mode').value !== 'states'; invalidate(); syncStateInput(); });
 $('state-input-mode').addEventListener('change', () => { invalidate(); clearDiscovery(); syncStateInput(); });
-$('exploration-depth').addEventListener('change', () => { invalidate(); clearDiscovery(); });
+const explorationFields = ['exploration-depth', 'exploration-actions', 'exploration-minutes', 'exploration-states', 'exploration-sampling', 'exploration-retry'];
+function explorationSettings() {
+  const integer = (id: string, label: string) => { const value = input(id).valueAsNumber; if (!Number.isSafeInteger(value) || value < 0) throw new Error(label + '请填写 0 或正整数'); return value === 0 ? null : value; };
+  const minutes = integer('exploration-minutes', '探索时长');
+  return { maxDepth: integer('exploration-depth', '探索深度'), maxActions: integer('exploration-actions', '尝试次数'), maxPages: integer('exploration-states', '状态数'), timeoutMs: minutes === null ? null : minutes * 60000, sampling: $<HTMLSelectElement>('exploration-sampling').value, retryFailures: input('exploration-retry').checked };
+}
+function updateExplorationSettings(save = true) {
+  const describe = (id: string, unit: string) => Number(input(id).value) ? `${input(id).value} ${unit}` : `${unit}不限`;
+  $('exploration-budget-label').textContent = `${describe('exploration-minutes', '分钟')} · ${describe('exploration-actions', '次')} · ${describe('exploration-depth', '层')}`;
+  if (save) try { localStorage.setItem('h2f-exploration-options', JSON.stringify(Object.fromEntries(explorationFields.map(id => [id, id === 'exploration-retry' ? input(id).checked : input(id).value])))); } catch {}
+}
+for (const id of explorationFields) $(id).addEventListener('change', () => { $<HTMLSelectElement>('exploration-preset').value = 'custom'; updateExplorationSettings(); });
+$('exploration-preset').addEventListener('change', () => {
+  const presets: Record<string, [number, number, number, string]> = { recommended: [4, 300, 3, 'representative'], deep: [10, 3000, 30, 'all'], unlimited: [0, 0, 0, 'all'] };
+  const preset = presets[$<HTMLSelectElement>('exploration-preset').value]; if (!preset) return;
+  ['exploration-depth', 'exploration-actions', 'exploration-minutes'].forEach((id, i) => { input(id).value = String(preset[i]); });
+  input('exploration-states').value = '0'; $<HTMLSelectElement>('exploration-sampling').value = preset[3]; updateExplorationSettings();
+});
+try { const saved = JSON.parse(localStorage.getItem('h2f-exploration-options') || 'null'); if (saved) { for (const id of explorationFields) { if (id === 'exploration-retry' && typeof saved[id] === 'boolean') input(id).checked = saved[id]; else if (typeof saved[id] === 'string') input(id).value = saved[id]; } $<HTMLSelectElement>('exploration-preset').value = 'custom'; } } catch {}
+updateExplorationSettings(false);
 for (const id of ['page-url', 'viewport-width', 'selector']) $(id).addEventListener('input', clearDiscovery);
 $('rediscover-pages').addEventListener('click', () => { clearDiscovery(); invalidate(); $('prepare').click(); });
 function renderDiscovery() {
@@ -562,15 +581,28 @@ function renderDiscovery() {
   $('discovery-list').replaceChildren(rows);
   const report = discovery.report;
   $('discovery-summary').textContent = `${report.cancelled ? '发现已停止。' : ''}已验证 ${discovery.pages.filter((p: any) => p.checked).length} 页${report.errors.length ? `，${report.errors.length} 页无法打开` : ''}。${report.limited ? '达到扫描范围或时间上限，剩余候选页会在捕获时验证。' : '勾选页面后点击“开始捕获”。'}`;
-  if (report.mode === 'interactions') $('discovery-summary').textContent = `已记录 ${discovery.pages.length} 个不同状态，尝试 ${report.attempted} 次，合并 ${report.duplicates} 次重复，失败 ${report.errors.length} 次。${report.limited ? `仍有 ${report.remaining} 个候选动作未探索；已达到本次范围或时间上限。` : '本次队列已处理。'} 跳过 ${report.skippedControls} 个受限或重复控件；不代表全部交互已覆盖。`;
+  if (report.mode === 'interactions') {
+    const reasons: Record<string, string> = { time: '本轮时长已用完', actions: '本轮尝试次数已用完', states: '本轮新增状态数已达到上限', depth: '部分动作超过探索深度', cancelled: '已手动停止', queue: '可探索队列已处理' };
+    const stopped = (report.stopReasons || []).map((reason: string) => reasons[reason] || reason).join('；');
+    const skipped = report.skippedByReason;
+    $('discovery-summary').textContent = `已记录 ${discovery.pages.length} 个不同状态，累计尝试 ${report.attempted} 次，合并 ${report.duplicates} 次重复，失败 ${report.failed ?? report.errors.length} 次。${stopped ? stopped + '。' : ''}${report.remaining ? `仍有 ${report.remaining} 个候选动作待探索（其中 ${report.depthDeferred || 0} 个受深度限制）；候选动作数不等于新增页面数。` : ''}${skipped ? `累计跳过：受限控件 ${skipped.restricted || 0} 个、采样省略 ${skipped.sampling || 0} 个、重复路径 ${skipped.duplicate || 0} 个。` : `跳过 ${report.skippedControls} 个控件。`}不代表全部交互已覆盖。`;
+  }
+  const canResume = report.mode === 'interactions' && !!discovery.session?.canResume;
+  $('continue-exploration').hidden = !canResume; $<HTMLButtonElement>('continue-exploration').disabled = busy;
+  $('exploration-resume-help').hidden = !canResume;
+  $('exploration-resume-help').textContent = `已保留探索进度。可提高深度、延长时长或切换为遍历控件后继续；已勾选状态会保留。${report.depthDeferred ? '当前深度不变时，这部分动作仍会保留待探索。' : ''}`;
   count();
 }
 $('discovery-select-all').addEventListener('click', () => { if (discovery) { discoverySelection = discovery.pages.map((p: any) => !p.error); invalidate(); renderDiscovery(); } });
 $('discovery-clear').addEventListener('click', () => { discoverySelection.fill(false); invalidate(); renderDiscovery(); });
-async function discoverAutomaticPages(url: string) {
-  clearDiscovery(); status('正在打开入口并发现页面…');
+async function discoverAutomaticPages(url: string, resume = false) {
+  const selected = new Map<string, boolean>(resume && discovery ? discovery.pages.map((page: any, i: number) => [page.id, discoverySelection[i]]) : []);
+  const resumeId = resume ? discovery?.session?.id : undefined;
+  const settings = explorationSettings();
+  if (!resume) clearDiscovery();
+  status(resume ? '正在恢复探索进度…' : '正在打开入口并发现页面…');
   const key = requestKey();
-  const job = await api('/api/discover', { url, width: viewportWidth(), height: 900, selector: input('selector').value.trim() || 'body', exploreInteractions: $<HTMLSelectElement>('state-input-mode').value === 'explore', maxDepth: Number($<HTMLSelectElement>('exploration-depth').value) });
+  const job = await api('/api/discover', { url, width: viewportWidth(), height: 900, selector: input('selector').value.trim() || 'body', exploreInteractions: $<HTMLSelectElement>('state-input-mode').value === 'explore', ...settings, ...(resumeId ? { resumeId } : {}) });
   activeStateJob = job.id; activeJobKind = 'discover';
   while (true) {
     const snapshot = await api(`/api/discover/${job.id}`), p = snapshot.progress;
@@ -578,13 +610,21 @@ async function discoverAutomaticPages(url: string) {
     if (snapshot.status !== 'running') {
       if (snapshot.error) throw new Error(snapshot.error);
       discovery = await api(`/api/discover/${job.id}/result`); discoveryKey = key;
-      discoverySelection = discovery.pages.map((p: any) => !p.error); renderDiscovery();
+      discoverySelection = discovery.pages.map((p: any) => selected.has(p.id) ? selected.get(p.id)! : !p.error); renderDiscovery();
       status(discovery.report.mode === 'interactions' ? `${discovery.report.cancelled ? '探索已停止' : '本轮探索结束'}：记录 ${discovery.pages.length} 个状态${discovery.report.limited ? '，仍有未探索动作' : ''}。请查看报告并勾选捕获。` : `${discovery.report.cancelled ? '发现已停止' : '发现完成'}：${discovery.pages.length} 个候选页面，请勾选后开始捕获。`, !discoverySelection.some(Boolean));
       break;
     }
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 }
+
+$('continue-exploration').addEventListener('click', async () => {
+  if (busy || !discovery?.session?.canResume) return;
+  captureStopped = false; invalidate(); setBusy(true);
+  try { await discoverAutomaticPages(normalizeCaptureAddress(input('page-url').value.trim()), true); }
+  catch (error) { status(errorText(error), true); }
+  finally { activeStateJob = null; setBusy(false); renderDiscovery(); }
+});
 
 function downloadDiscoveryFile(data: unknown, filename: string) { const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 2000); }
 $('download-discovery-report').addEventListener('click', () => { if (discovery) downloadDiscoveryFile({ ...discovery.report, states: discovery.pages.map(({ name, path, via, depth }: any) => ({ name, path, via, depth })) }, 'interaction-exploration-report.json'); });
