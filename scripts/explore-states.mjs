@@ -2,12 +2,14 @@ import { inferOrganization } from '../dist/lib/design-organization.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openCaptureSource } from './capture-source.mjs';
 import { runSteps } from './state-capture.mjs';
+import { inspectDesign } from './design-snapshot.mjs';
+import { designOutput } from './design-output.mjs';
 import { inspectState } from './interaction-inspector.mjs';
 
-const binding = o => JSON.stringify([o.url, o.width, o.height, o.selector]);
+const binding = o => JSON.stringify([o.url, o.width, o.height, o.selector, o.outputMode, o.dataSamples]);
 const initialWork = url => ({ name: '当前页面', url, steps: [], keys: [], depth: 0, kind: '入口', path: [] });
 export async function exploreStates(browser, options, { signal, onProgress, checkpoint } = {}) {
-  if (checkpoint && checkpoint.binding !== binding(options)) throw new Error('入口、视口或捕获区域已改变，请重新探索');
+  if (checkpoint && checkpoint.binding !== binding(options)) throw new Error('入口、视口、捕获区域或输出方式已改变，请重新探索');
   const source = await openCaptureSource(options.url);
   const state = checkpoint || {
     binding: binding(options), pages: [], queue: [initialWork(options.url)], deferred: [], works: [], failedWork: [],
@@ -15,6 +17,7 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
     metrics: { scanned: 0, attempted: 0, duplicates: 0, rescanned: 0, failed: 0, skippedControls: 0, blockedRequests: 0, skippedByReason: { restricted: 0, sampling: 0, duplicate: 0 }, errors: [], skipped: [] }
   };
   const { pages, queue, metrics } = state;
+  const designMode = options.outputMode === 'design';
   const fingerprints = new Set(state.fingerprints), actionKeys = new Set(state.actionKeys), globalActions = new Set(state.globalActions);
   const baseline = { attempted: metrics.attempted, found: pages.length, failed: metrics.failed }, started = Date.now();
   // Depth-limited actions remain replayable. A later round can increase or remove the depth.
@@ -78,6 +81,8 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
           if (next.fingerprint === current.fingerprint) break; current = next;
         }
         if (signal?.aborted || timedOut) break;
+        const designSnapshot = designMode ? await inspectDesign(page, options.selector) : null;
+        if (signal?.aborted || timedOut) break;
         finished = true; metrics.attempted++; metrics.scanned++;
         const known = fingerprints.has(current.fingerprint);
         if (known && !work.revisit) { metrics.duplicates++; continue; }
@@ -91,11 +96,17 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
           const name = work.depth === 0 ? current.structure.primary?.name || current.heading || current.title || '初始页面' : current.dialog && current.heading ? current.heading + (['表单', '校验', '选择', '滚动'].includes(work.kind) ? ' · ' + work.name : '') : work.name;
           entry = { id: `state-${pages.length + 1}`, name: name.slice(0, 120), url: work.url, destination: source.toSourceURL(page.url()), steps: [...work.steps, { type: 'wait', ms: 180 }], checked: true, via: current.dialog ? '弹窗 / 表单' : work.kind, depth: work.depth, path: path.join(' → ').slice(0, 500), fingerprint: current.fingerprint };
           entry.design = inferOrganization({ url: entry.destination, entryURL: options.url, heading: current.heading, title: current.title, dialog: current.dialog, viewFingerprint: current.viewFingerprint, ...current.structure, scrolls: current.scrolls, name: entry.name, actionKind: work.kind, triggerFamily: work.family, featureName: work.featureName, parent: work.parentDesign, parentURL: work.parentURL });
+          if (designSnapshot) {
+            if (entry.design.level === 'secondary') designSnapshot.identity = entry.design.projectId + ':' + entry.design.moduleId + ':' + entry.design.pageId;
+            entry.designSnapshot = designSnapshot;
+          }
           pages.push(entry); state.works.push({ ...work, revisit: undefined, fingerprint: current.fingerprint, sampling: options.sampling });
         }
+        if (designSnapshot && entry.designSnapshot) designSnapshot.identity = entry.designSnapshot.identity;
         for (const item of current.skipped) skip(entry, item);
         for (const candidate of current.candidates) {
-          const key = current.fingerprint + ':' + candidate.key;
+          const actionIdentity = designSnapshot ? designSnapshot.identity + ':' + designSnapshot.layout + ':' + designSnapshot.regions.map(r => r.state).join(':') : current.fingerprint;
+          const key = actionIdentity + ':' + candidate.key;
           if (actionKeys.has(key) || (options.sampling !== 'all' && (work.keys.includes(candidate.key) || candidate.global && globalActions.has(candidate.key)))) {
             // Re-inspection of a state does not count previously enqueued controls again.
             if (!work.revisit) skip(entry, { name: candidate.name, reason: '重复动作或已访问路径', category: 'duplicate' });
@@ -144,7 +155,10 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
     pending: [...queue.slice(0, 100), ...state.deferred.slice(0, Math.max(0, 100 - queue.length))].map(({ name, depth, path }) => ({ name, depth, path: path.join(' → ').slice(0, 500) })),
     limitations: ['队列处理完成只表示本次可识别动作已遍历，不代表穷举所有输入、权限、网络和时间条件。', '不提交已填表单，不自动处理设备权限、文件选择或远程登录。', options.sampling === 'all' ? '遍历已识别的控件和选项；表单仍使用示例输入，滚动使用顶部/底部状态。' : '同类控件取代表样本；切换为遍历控件后可继续补充探索。', '继续探索需要助手保持运行；入口、视口和捕获区域必须一致。']
   };
-  const snapshotPages = structuredClone(pages);
-  const states = snapshotPages.map(({ id, name, url, steps, fingerprint, design }) => ({ id, name, url, steps, design, expectedFingerprint: fingerprint, group: '交互探索', selector: options.selector }));
+  const projection = designMode ? designOutput(pages,{dataSamples:options.dataSamples}) : null;
+  if (projection) { report.outputMode = 'design'; report.designSummary = projection.summary; report.found = projection.pages.length; }
+  else report.outputMode = 'states';
+  const snapshotPages = structuredClone(projection?.pages || pages);
+  const states = snapshotPages.map(({ id, name, url, steps, fingerprint, design, artifact, selector }) => ({ id, name, url, steps, design, ...(artifact ? {artifact} : {}), expectedFingerprint: fingerprint, group: artifact?.kind === 'component' ? '组件状态' : '交互探索', selector: selector || options.selector }));
   return { plan: { schemaVersion: 1, name: state.title, url: options.url, viewport: { width: options.width, height: options.height }, selector: options.selector, captureMode: 'viewport', states }, pages: snapshotPages, report, checkpoint: state };
 }

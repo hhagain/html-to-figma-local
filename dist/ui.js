@@ -58,7 +58,7 @@
           }
           const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
           for (const [i2, p] of local) positions.set(i2, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
-          groups.push({ id, name: `${PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+          groups.push({ id, name: `${pages[s.indices[0]].artifact?.kind === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
           sectionY += sectionHeight + 160;
           columnWidth = Math.max(columnWidth, sectionWidth);
         }
@@ -202,6 +202,12 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}" viewBox="0 0 ${size.layoutWidth} ${size.layoutHeight}"><path d="${match[3]}" fill="${fill}" fill-opacity="${color.a}" fill-rule="${(match[1] || "nonzero").toLowerCase()}"/></svg>`;
   }
 
+  // src/design-artifact.ts
+  function validArtifact(value) {
+    const v = value;
+    return !!v && typeof v === "object" && !Array.isArray(v) && ["page", "component"].includes(v.kind) && typeof v.familyId === "string" && /^[\w-]{1,200}$/.test(v.familyId) && ["familyName", "stateName", "reason"].every((k) => typeof v[k] === "string" && v[k].length > 0 && v[k].length <= 500) && Number.isSafeInteger(v.sampleCount) && v.sampleCount >= 1;
+  }
+
   // src/schema.ts
   var SCHEMA_VERSION = 1;
   var LIMITS = { nodes: 6e3, depth: 64, text: 25e4, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 1e5 };
@@ -243,6 +249,7 @@
     if (doc.importOptions !== void 0 && !validImportSettings(doc.importOptions)) fail("\u5BFC\u5165\u8BBE\u7F6E\u65E0\u6548");
     if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
     if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
+    if (doc.source.artifact !== void 0 && !validArtifact(doc.source.artifact)) fail("\u8BBE\u8BA1\u7A3F\u9879\u4FE1\u606F\u65E0\u6548");
     if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
     if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
     if (doc.source.longPage !== void 0) {
@@ -8156,6 +8163,7 @@
       message("OPEN_DESKTOP_ASSISTANT_DOWNLOAD");
     }
   });
+  var outputUnit = () => preparedBundle?.pages.some((p) => p.source.artifact?.kind === "component") ? "\u9879" : "\u9875";
   var tab = "file";
   var source = "";
   var sourceName = "";
@@ -8206,10 +8214,10 @@
   var discoverySelection = [];
   var autoStates = () => tab === "url" && $("url-mode").value === "states" && $("state-input-mode").value !== "recipe";
   function requestKey() {
-    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value]);
+    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value, $("exploration-output").value, $("exploration-data-samples").value]);
   }
   function refreshPrepareAction() {
-    const label = busy ? "\u5904\u7406\u4E2D\u2026" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} \u9875\uFF09` : $("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
+    const label = busy ? "\u5904\u7406\u4E2D\u2026" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary ? "\u9879" : "\u9875"}\uFF09` : $("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
     $("prepare-label").textContent = label;
     $("prepare").disabled = busy || autoStates() && !!discovery && !discoverySelection.some(Boolean);
   }
@@ -8226,6 +8234,7 @@
     $("state-auto-panel").hidden = !automatic;
     $("state-recipe-panel").hidden = automatic;
     $("exploration-options").hidden = $("state-input-mode").value !== "explore";
+    $("design-output-options").hidden = $("state-input-mode").value !== "explore";
     $("discovery-intro").textContent = $("state-input-mode").value === "explore" ? "\u81EA\u52A8\u6253\u5F00\u8BE6\u60C5\u3001\u5F39\u7A97\u548C\u8868\u5355\uFF0C\u8BB0\u5F55\u53EF\u91CD\u653E\u7684\u4EA4\u4E92\u72B6\u6001\uFF0C\u518D\u52FE\u9009\u6355\u83B7\u3002\u65E0\u9700\u51C6\u5907 JSON\u3002" : "\u8BC6\u522B\u5BFC\u822A\u6807\u7B7E\u3001\u9875\u9762\u94FE\u63A5\u548C\u672C\u5730 HTML\u3002\u6B64\u6A21\u5F0F\u4E0D\u63A2\u7D22\u8BE6\u60C5\u548C\u5F39\u7A97\u3002";
     refreshPrepareAction();
   }
@@ -8325,18 +8334,18 @@
     $("report").hidden = false;
     $("ready-actions").hidden = false;
     $("prepare").hidden = true;
-    $("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} \u9875` : "\u5DF2\u51C6\u5907\u597D";
+    $("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} ${outputUnit()}` : "\u5DF2\u51C6\u5907\u597D";
     $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : bundle.pages.some((p) => p.source.design) ? smartLayout() ? "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4 \xB7 " : "\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
     $("stat-nodes").textContent = String(stats.nodes);
     $("stat-text").textContent = String(stats.texts);
     $("stat-image").textContent = String(stats.images);
     $("stat-svg").textContent = String(stats.vectors);
-    $("preview-size").textContent = bundle.pages.length > 1 ? `${bundle.pages.length} \u9875` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)}`;
+    $("preview-size").textContent = bundle.pages.length > 1 ? `${bundle.pages.length} ${outputUnit()}` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)}`;
     const diagnostics = bundle.pages.flatMap((page) => page.diagnostics).slice(0, 100);
     diagnostics.push(...bundle.errors.map((error) => ({ code: "PAGE_CAPTURE_FAILED", message: `${error.name}\uFF1A${error.message}` })));
     updateWarnings(diagnostics);
     renderPageList();
-    $("import").textContent = plugin ? `\u5BFC\u5165\u5230 Figma${bundle.pages.length > 1 ? `\uFF08${bundle.pages.length} \u9875\uFF09` : ""}` : "\u4E0B\u8F7D Figma \u6570\u636E";
+    $("import").textContent = plugin ? `\u5BFC\u5165\u5230 Figma${bundle.pages.length > 1 ? `\uFF08${bundle.pages.length} ${outputUnit()}\uFF09` : ""}` : "\u4E0B\u8F7D Figma \u6570\u636E";
     $("download").hidden = !plugin;
     $("send-handoff").hidden = plugin;
     refreshHandoffControls();
@@ -8351,9 +8360,9 @@
   function renderPageList() {
     if (!preparedBundle) return;
     $("page-list-section").hidden = preparedBundle.pages.length < 2 && !(smartLayout() && preparedBundle.pages[0]?.source.design);
-    $("page-list-title").textContent = `\u9875\u9762\u5217\u8868 \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
+    $("page-list-title").textContent = `${preparedBundle.pages.some((p) => p.source.artifact?.kind === "component") ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
     const rows = document.createDocumentFragment();
-    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas || !smartLayout() ? void 0 : p.source.design })));
+    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas || !smartLayout() && p.source.artifact?.kind !== "component" ? void 0 : p.source.design, artifact: p.source.artifact })));
     const grouped = new Set(organization.groups.flatMap((g) => g.indices)), ordered = [...organization.groups.flatMap((g) => g.indices), ...preparedBundle.pages.map((_, i2) => i2).filter((i2) => !grouped.has(i2))];
     const heads = new Map(organization.groups.map((g) => [g.indices[0], g]));
     ordered.forEach((i2) => {
@@ -8386,7 +8395,8 @@
           }
           renderPageList();
         });
-        heading.append(name, level);
+        heading.append(name);
+        if (page.source.artifact?.kind !== "component") heading.append(level);
         rows.append(heading);
       }
       const row = document.createElement("div");
@@ -8402,7 +8412,7 @@
       box.addEventListener("change", () => {
         pageStates[i2].selected = box.checked;
         refreshImportAction();
-        $("page-list-title").textContent = `\u9875\u9762\u5217\u8868 \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
+        $("page-list-title").textContent = `${preparedBundle.pages.some((p) => p.source.artifact?.kind === "component") ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
       });
       const title = document.createElement("span");
       title.textContent = `${String(i2 + 1).padStart(3, "0")}  ${page.name}`;
@@ -8509,14 +8519,14 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     previewPageIndex = index;
     const page = preparedBundle.pages[index];
     $("preview-page").value = String(index);
-    $("preview-size").textContent = `${index + 1} / ${preparedBundle.pages.length} \u9875`;
+    $("preview-size").textContent = `${index + 1} / ${preparedBundle.pages.length} ${outputUnit()}`;
     $("preview-caption").textContent = `${page.name} \xB7 ${Math.round(page.root.width)} \xD7 ${Math.round(page.root.height)} px`;
     $("preview-caption").hidden = false;
     $("preview-empty").hidden = true;
     $("frame-container").hidden = true;
     $("remote-preview").hidden = true;
     $("preview-message").hidden = false;
-    $("preview-message-text").textContent = `\u6B63\u5728\u52A0\u8F7D\u7B2C ${index + 1} \u9875\u9884\u89C8\u2026`;
+    $("preview-message-text").textContent = `\u6B63\u5728\u52A0\u8F7D\u7B2C ${index + 1} ${outputUnit()}\u9884\u89C8\u2026`;
     $("preview-retry").hidden = true;
     $("preview-stage").setAttribute("aria-busy", "true");
     refreshPreviewControls();
@@ -8552,7 +8562,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       objectURL = null;
       const target = $("remote-preview");
       target.src = url;
-      target.alt = `\u7B2C ${index + 1} \u9875\uFF1A${page.name}`;
+      target.alt = `\u7B2C ${index + 1} ${outputUnit()}\uFF1A${page.name}`;
       target.dataset.pageIndex = String(index);
       target.hidden = false;
       applyPreviewZoom(true);
@@ -8587,7 +8597,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!preparedBundle || preparedBundle.pages.length < 2) return;
     const selected = pageStates.filter((p) => p.selected).length, remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
     $("import").disabled = busy || !selected || plugin && !remaining;
-    $("import").textContent = !plugin ? "\u4E0B\u8F7D Figma \u6570\u636E" : !remaining && selected ? "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165" : `\u5BFC\u5165\u5230 Figma\uFF08${remaining} \u9875\uFF09`;
+    $("import").textContent = !plugin ? "\u4E0B\u8F7D Figma \u6570\u636E" : !remaining && selected ? "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165" : `\u5BFC\u5165\u5230 Figma\uFF08${remaining} ${outputUnit()}\uFF09`;
   }
   function setPageState(index, state, detail) {
     if (!pageStates[index]) return;
@@ -8602,7 +8612,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!preparedBundle || queuePosition >= queue.length || captureStopped) return;
     const index = queue[queuePosition];
     setPageState(index, "working", "\u5BFC\u5165\u4E2D\u2026");
-    status(`\u6B63\u5728\u5BFC\u5165\u7B2C ${queuePosition + 1} / ${queue.length} \u9875\uFF1A${preparedBundle.pages[index].name}`);
+    status(`\u6B63\u5728\u5BFC\u5165\u7B2C ${queuePosition + 1} / ${queue.length} ${outputUnit()}\uFF1A${preparedBundle.pages[index].name}`);
     message("IMPORT_PAGE", { id: batchId, index: queuePosition, document: hydratePage(preparedBundle, index) });
   }
   function switchTab(next) {
@@ -9078,8 +9088,8 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     } else {
       batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       queuePosition = 0;
-      message("BATCH_START", { id: batchId, mode: mode(), smartLayout: smartLayout(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, design: preparedBundle.pages[i2].source.design, canvas: preparedBundle.pages[i2].source.canvas })) });
-      status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} \u9875\u2026`);
+      message("BATCH_START", { id: batchId, mode: mode(), smartLayout: smartLayout(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, design: preparedBundle.pages[i2].source.design, artifact: preparedBundle.pages[i2].source.artifact, canvas: preparedBundle.pages[i2].source.canvas })) });
+      status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} ${outputUnit()}\u2026`);
     }
   }
   $("import").addEventListener("click", importPrepared);
@@ -9152,9 +9162,9 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       setBusy(false);
       renderPageList();
       $("report-title").textContent = msg.result.cancelled ? "\u6279\u6B21\u5DF2\u505C\u6B62" : msg.result.total > 1 ? "\u591A\u9875\u5BFC\u5165\u5B8C\u6210" : "\u5DF2\u5BFC\u5165 Figma";
-      status(`\u672C\u6B21\u5B8C\u6210 ${msg.result.completed} / ${msg.result.total} \u9875\uFF0C\u5931\u8D25 ${msg.result.failed} \u9875\u3002${msg.result.cancelled ? "\u5DF2\u5B8C\u6210\u9875\u9762\u4FDD\u7559\uFF0C\u53EF\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59\u9875\u9762\u3002" : "\u6BCF\u9875\u5DF2\u521B\u5EFA\u72EC\u7ACB Frame\u3002"}`);
+      status(`\u672C\u6B21\u5B8C\u6210 ${msg.result.completed} / ${msg.result.total} ${outputUnit()}\uFF0C\u5931\u8D25 ${msg.result.failed} ${outputUnit()}\u3002${msg.result.cancelled ? "\u5DF2\u5B8C\u6210\u9875\u9762\u4FDD\u7559\uFF0C\u53EF\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59\u9875\u9762\u3002" : outputUnit() === "\u9879" ? "\u9875\u9762\u6A21\u677F\u4E0E\u7EC4\u4EF6\u5DF2\u5206\u522B\u521B\u5EFA\u3002" : "\u6BCF\u9875\u5DF2\u521B\u5EFA\u72EC\u7ACB Frame\u3002"}`);
       const remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
-      $("import").textContent = remaining ? `\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59 ${remaining} \u9875` : "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165";
+      $("import").textContent = remaining ? `\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59 ${remaining} ${outputUnit()}` : "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165";
       $("import").disabled = remaining === 0;
       void reportHandoffProgress(msg.result.cancelled ? "cancelled" : msg.result.failed ? "partial" : "complete", pageStates.filter((p) => p.state === "complete").length, pageStates.filter((p) => p.state === "failed").length);
       updateWarnings(msg.result.results.flatMap((r) => r.error ? [{ code: "PAGE_FAILED", message: `${r.name}\uFF1A${r.error}` }] : r.result?.diagnostics || []).slice(0, 100));
@@ -9186,6 +9196,15 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     clearDiscovery();
     syncStateInput();
   });
+  $("exploration-output").addEventListener("change", () => {
+    invalidate();
+    clearDiscovery();
+    $("design-data-options").hidden = $("exploration-output").value !== "design";
+  });
+  $("exploration-data-samples").addEventListener("change", () => {
+    invalidate();
+    clearDiscovery();
+  });
   var explorationFields = ["exploration-depth", "exploration-actions", "exploration-minutes", "exploration-states", "exploration-sampling", "exploration-retry"];
   function explorationSettings() {
     const integer = (id, label) => {
@@ -9194,7 +9213,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       return value === 0 ? null : value;
     };
     const minutes = integer("exploration-minutes", "\u63A2\u7D22\u65F6\u957F");
-    return { maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
+    return { outputMode: $("exploration-output").value, dataSamples: Number($("exploration-data-samples").value), maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
   }
   function updateExplorationSettings(save = true) {
     const describe = (id, unit, unlimited) => Number(input(id).value) ? `${input(id).value} ${unit}` : unlimited;
@@ -9241,7 +9260,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!discovery) return;
     $("discovery-intro").hidden = true;
     $("discovery-results").hidden = false;
-    $("discovery-title").textContent = `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
+    $("discovery-title").textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F \xB7 ${discovery.report.designSummary.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001` : `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
     const count = () => {
       $("discovery-count").textContent = `\u5DF2\u9009\u62E9 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`;
       refreshPrepareAction();
@@ -9251,6 +9270,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const row = document.createElement("label");
       row.className = "discovery-row";
       row.dataset.failed = String(!!page.error);
+      row.dataset.artifact = page.artifact?.kind || "";
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.checked = discoverySelection[i2];
@@ -9278,6 +9298,10 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         detail.textContent = `${PAGE_LEVELS[page.design.level]} \xB7 ${page.design.moduleName} / ${page.design.pageName}${page.design.kind === "scroll" ? " \xB7 \u957F\u9875\u5206\u6BB5" : ""}${page.design.confidence === "low" ? " \xB7 \u5F85\u786E\u8BA4" : ""}`;
         detail.title = page.design.reason;
       }
+      if (page.artifact) {
+        detail.textContent = `${page.artifact.kind === "component" ? "\u7EC4\u4EF6\u53D8\u4F53" : "\u9875\u9762\u6A21\u677F"} \xB7 ${page.artifact.familyName} \xB7 ${page.artifact.stateName}${page.artifact.sampleCount > 1 ? ` \xB7 \u5408\u5E76 ${page.artifact.sampleCount} \u4E2A\u6570\u636E\u72B6\u6001` : ""}`;
+        detail.title = page.artifact.reason;
+      }
       copy.append(name, detail);
       row.append(checkbox, copy);
       rows.append(row);
@@ -9289,7 +9313,8 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const reasons = { time: "\u672C\u8F6E\u65F6\u957F\u5DF2\u7528\u5B8C", actions: "\u672C\u8F6E\u5C1D\u8BD5\u6B21\u6570\u5DF2\u7528\u5B8C", states: "\u672C\u8F6E\u65B0\u589E\u72B6\u6001\u6570\u5DF2\u8FBE\u5230\u4E0A\u9650", depth: "\u90E8\u5206\u52A8\u4F5C\u8D85\u8FC7\u63A2\u7D22\u6DF1\u5EA6", cancelled: "\u5DF2\u624B\u52A8\u505C\u6B62", queue: "\u53EF\u63A2\u7D22\u961F\u5217\u5DF2\u5904\u7406" };
       const stopped = (report.stopReasons || []).map((reason) => reasons[reason] || reason).join("\uFF1B");
       const skipped = report.skippedByReason;
-      $("discovery-summary").textContent = `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+      const design = report.designSummary;
+      $("discovery-summary").textContent = `${design ? `\u8BBE\u8BA1\u7A3F\u8F93\u51FA\uFF1A${design.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F\u3001${design.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001\uFF0C\u5F52\u5E76 ${design.wholePagesAvoided} \u6B21\u6574\u9875\u91CD\u590D\u3002\u5DF2\u89C2\u5BDF ${design.observedStates} \u4E2A\u4E0D\u540C\u6570\u636E/\u4EA4\u4E92\u72B6\u6001` : `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001`}\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
     }
     const canResume = report.mode === "interactions" && !!discovery.session?.canResume;
     $("continue-exploration").hidden = !canResume;
@@ -9425,7 +9450,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
           showRemotePreviews(result.preview, job.id, result.previews || []);
         }
         $("download-state-report").hidden = false;
-        status(`\u72B6\u6001\u6355\u83B7${result.report.cancelled ? "\u5DF2\u505C\u6B62" : "\u5B8C\u6210"}\uFF1A\u6210\u529F ${result.report.completed} / ${result.report.total}\uFF0C\u5931\u8D25 ${result.report.failed}\u3002${result.report.merged ? `\u5408\u5E76 ${result.report.merged} \u4E2A\u6EDA\u52A8\u5206\u6BB5\u3002` : ""}${result.report.completed ? "\u53EF\u9009\u62E9\u9875\u9762\u540E\u5BFC\u5165 Figma\u3002" : "\u8BF7\u4E0B\u8F7D\u62A5\u544A\u68C0\u67E5\u5931\u8D25\u539F\u56E0\u3002"}`, !result.report.completed);
+        status(`\u72B6\u6001\u6355\u83B7${result.report.cancelled ? "\u5DF2\u505C\u6B62" : "\u5B8C\u6210"}\uFF1A\u6210\u529F ${result.report.completed} / ${result.report.total}\uFF0C\u5931\u8D25 ${result.report.failed}\u3002${result.report.merged ? `\u5408\u5E76 ${result.report.merged} \u4E2A\u6EDA\u52A8\u5206\u6BB5\u3002` : ""}${result.report.completed ? "\u53EF\u52FE\u9009\u9875\u9762\u6216\u7EC4\u4EF6\u540E\u5BFC\u5165 Figma\u3002" : "\u8BF7\u4E0B\u8F7D\u62A5\u544A\u68C0\u67E5\u5931\u8D25\u539F\u56E0\u3002"}`, !result.report.completed);
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 700));
@@ -9453,13 +9478,13 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     const count = pageStates.filter((p) => p.selected).length;
     $("send-handoff").hidden = plugin || !preparedBundle;
     $("send-handoff").disabled = busy || !count;
-    $("send-handoff").textContent = `\u53D1\u9001\u5230 Figma \u63D2\u4EF6${count ? `\uFF08${count} \u9875\uFF09` : ""}`;
+    $("send-handoff").textContent = `\u53D1\u9001\u5230 Figma \u63D2\u4EF6${count ? `\uFF08${count} ${outputUnit()}\uFF09` : ""}`;
     $("receive-handoff").disabled = busy || handoffReceiving;
     $("direct-target").hidden = plugin || !preparedBundle;
     $("direct-import").hidden = plugin || !preparedBundle;
     const target = figmaTargets.find((t) => t.id === $("figma-target").value);
     $("direct-import").disabled = busy || !count || !target || target.busy;
-    $("direct-import").textContent = `${outgoingPhase === "complete" ? "\u518D\u6B21\u5BFC\u5165" : "\u76F4\u63A5\u5BFC\u5165"} Figma${count ? `\uFF08${count} \u9875\uFF09` : ""}`;
+    $("direct-import").textContent = `${outgoingPhase === "complete" ? "\u518D\u6B21\u5BFC\u5165" : "\u76F4\u63A5\u5BFC\u5165"} Figma${count ? `\uFF08${count} ${outputUnit()}\uFF09` : ""}`;
     $("figma-target-help").textContent = target ? `${target.documentName} / ${target.pageName}${target.busy ? " \xB7 \u63D2\u4EF6\u6B63\u5728\u5904\u7406\u4EFB\u52A1" : ""}` : "\u8BF7\u5728\u76EE\u6807 Figma \u6587\u4EF6\u4E2D\u6253\u5F00\u63D2\u4EF6\u5E76\u4FDD\u6301\u8FDE\u63A5\u3002";
   }
   function selectedBundle() {
@@ -9473,7 +9498,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
   }
   function outgoingStatus(item) {
     outgoingPhase = item.status;
-    const labels = { pending: "\u5DF2\u53D1\u9001\u3002\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u70B9\u51FB\u201C\u63A5\u6536\u5E76\u5BFC\u5165\u5F53\u524D\u9875\u9762\u201D\u3002", received: "Figma \u63D2\u4EF6\u5DF2\u63A5\u6536\uFF0C\u6B63\u5728\u51C6\u5907\u5BFC\u5165\u3002", importing: `\u6B63\u5728\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} \u9875`, complete: `\u5DF2\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} \u9875`, partial: `\u5BFC\u5165\u7ED3\u675F\uFF1A\u5B8C\u6210 ${item.completed} \u9875\uFF0C\u5931\u8D25 ${item.failed} \u9875\u3002\u8BF7\u5728 Figma \u4E2D\u68C0\u67E5\u3002`, cancelled: `\u5BFC\u5165\u5DF2\u53D6\u6D88\uFF0C\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684 ${item.completed} \u9875\u3002`, failed: "\u5BFC\u5165\u5931\u8D25\uFF0C\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u67E5\u770B\u539F\u56E0\u6216\u91CD\u8BD5\u3002", replaced: "\u8FD9\u6279\u7ED3\u679C\u5DF2\u88AB\u65B0\u53D1\u9001\u7684\u7ED3\u679C\u66FF\u4EE3\u3002" };
+    const labels = { pending: "\u5DF2\u53D1\u9001\u3002\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u70B9\u51FB\u201C\u63A5\u6536\u5E76\u5BFC\u5165\u5F53\u524D\u9875\u9762\u201D\u3002", received: "Figma \u63D2\u4EF6\u5DF2\u63A5\u6536\uFF0C\u6B63\u5728\u51C6\u5907\u5BFC\u5165\u3002", importing: `\u6B63\u5728\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} ${outputUnit()}`, complete: `\u5DF2\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} ${outputUnit()}`, partial: `\u5BFC\u5165\u7ED3\u675F\uFF1A\u5B8C\u6210 ${item.completed} ${outputUnit()}\uFF0C\u5931\u8D25 ${item.failed} ${outputUnit()}\u3002\u8BF7\u5728 Figma \u4E2D\u68C0\u67E5\u3002`, cancelled: `\u5BFC\u5165\u5DF2\u53D6\u6D88\uFF0C\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684 ${item.completed} ${outputUnit()}\u3002`, failed: "\u5BFC\u5165\u5931\u8D25\uFF0C\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u67E5\u770B\u539F\u56E0\u6216\u91CD\u8BD5\u3002", replaced: "\u8FD9\u6279\u7ED3\u679C\u5DF2\u88AB\u65B0\u53D1\u9001\u7684\u7ED3\u679C\u66FF\u4EE3\u3002" };
     $("handoff-send-status").hidden = false;
     $("handoff-send-status").classList.toggle("error", ["failed", "partial"].includes(item.status));
     $("handoff-send-status").textContent = item.error || (item.autoImport && item.status === "pending" ? `\u5DF2\u8BF7\u6C42\u5BFC\u5165\uFF1A${item.target.documentName} / ${item.target.pageName}\uFF0C\u7B49\u5F85\u63D2\u4EF6\u6267\u884C\u2026` : labels[item.status] || item.status);
@@ -9531,7 +9556,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         $("handoff-inbox").hidden = !handoffCandidate;
         if (handoffCandidate) {
           $("handoff-title").textContent = "\u684C\u9762\u52A9\u624B\u6709\u65B0\u7684\u6355\u83B7\u7ED3\u679C";
-          $("handoff-description").textContent = `${handoffCandidate.name} \xB7 ${handoffCandidate.pages} \u9875`;
+          $("handoff-description").textContent = `${handoffCandidate.name} \xB7 ${handoffCandidate.pages} ${outputUnit()}`;
           refreshHandoffControls();
         }
       } else if (!plugin) {

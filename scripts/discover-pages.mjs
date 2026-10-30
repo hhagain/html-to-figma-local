@@ -14,11 +14,14 @@ export function validateDiscoveryRequest(input) {
     if (!Number.isSafeInteger(value) || value < minimum) throw new Error('探索范围无效：' + key);
     return value;
   };
+  if (input.outputMode !== undefined && !['design', 'states'].includes(input.outputMode)) throw new Error('输出方式无效');
+  const dataSamples = input.dataSamples ?? 2;
+  if (!Number.isSafeInteger(dataSamples) || dataSamples < 0 || dataSamples > 10) throw new Error('数据样本数需要为 0–10');
   const maxDepth = budget('maxDepth', 4), maxActions = budget('maxActions', 300), timeoutMs = budget('timeoutMs', 180000, 1000);
   if (input.sampling !== undefined && !['representative', 'all'].includes(input.sampling)) throw new Error('探索取样方式无效');
   if (input.resumeId !== undefined && !/^[a-f0-9]{24}$/.test(input.resumeId)) throw new Error('探索会话标识无效');
   if (input.retryFailures !== undefined && typeof input.retryFailures !== 'boolean') throw new Error('重试设置无效');
-  return { ...options, maxPages, maxDepth, maxActions, timeoutMs, sampling: input.sampling || 'representative', retryFailures: input.retryFailures === true, resumeId: input.resumeId, exploreInteractions: input.exploreInteractions === true };
+  return { ...options, maxPages, maxDepth, maxActions, timeoutMs, outputMode: input.outputMode || 'design', dataSamples, sampling: input.sampling || 'representative', retryFailures: input.retryFailures === true, resumeId: input.resumeId, exploreInteractions: input.exploreInteractions === true };
 }
 
 // Only enumerate navigation controls. Never execute page-provided scripts as recipes.

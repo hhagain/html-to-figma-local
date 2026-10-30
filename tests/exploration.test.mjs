@@ -6,7 +6,7 @@ document.querySelector('#detail').onclick=()=>{show('<h2>详情面板</h2><butto
 function openForm(){show('<h2>记录表单</h2><form novalidate><label>名称<input required id="name" name="name"></label><details><summary>备注与说明</summary><textarea id="note" name="note"></textarea></details><button id="save" type="submit">保存</button><p id="error"></p></form>');dialog.querySelector('form').onsubmit=e=>{e.preventDefault();document.querySelector('#error').textContent=document.querySelector('#name').value?'已保存':'名称不能为空';};}
 document.querySelector('#form').onclick=openForm;document.querySelector('#more').onclick=()=>document.querySelector('#expanded').hidden=false;document.querySelector('#remove').onclick=()=>{document.body.innerHTML='DELETED';};</script></body></html>`;
 before(async()=>{root=await mkdtemp(path.join(os.tmpdir(),'h2f-explore-'));url=path.join(root,'index.html');await writeFile(url,html);browser=await launchBrowser();});after(async()=>{await browser?.close();await rm(root,{recursive:true,force:true});});
-const request=()=>({url,exploreInteractions:true,maxPages:40,maxActions:40,maxDepth:3,timeoutMs:30000,width:800,height:700});
+const request=()=>({url,exploreInteractions:true,outputMode:'states',maxPages:40,maxActions:40,maxDepth:3,timeoutMs:30000,width:800,height:700});
 test('explores nested detail, forms, validation and representative fill without supplied JSON',async()=>{
  const result=await discoverPages(browser,request());
  assert.ok(result.pages.length>=6,JSON.stringify(result.pages.map(p=>p.name)));assert.ok(result.pages.some(p=>p.name.includes('详情面板')));assert.ok(result.pages.some(p=>p.name.includes('记录表单')));assert.ok(result.pages.some(p=>p.name.includes('校验')));assert.ok(result.pages.some(p=>p.name.includes('填写示例')));

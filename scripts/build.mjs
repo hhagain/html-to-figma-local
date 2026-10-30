@@ -9,7 +9,7 @@ const result = await Promise.allSettled([
   build({ absWorkingDir: root, entryPoints: ['src/plugin.ts'], outfile: 'dist/code.js', bundle: true, format: 'iife', target: 'es2017', minify: false }),
   build({ absWorkingDir: root, entryPoints: ['src/ui.ts'], define: { __TAILWIND_RUNTIME__: JSON.stringify(tailwindRuntime) }, loader: { '.html': 'text' }, outfile: 'dist/ui.js', bundle: true, format: 'iife', target: 'es2020' }),
   build({ absWorkingDir: root, entryPoints: ['src/capture.ts'], outfile: 'dist/capture.js', bundle: true, format: 'iife', target: 'es2020' }),
-  build({ absWorkingDir: root, entryPoints: ['src/schema.ts', 'src/importer.ts', 'src/bundle.ts', 'src/batch.ts', 'src/capture-address.ts', 'src/gradient.ts', 'src/design-organization.ts'], outdir: 'dist/lib', bundle: true, format: 'esm', target: 'es2020' })
+  build({ absWorkingDir: root, entryPoints: ['src/schema.ts', 'src/importer.ts', 'src/bundle.ts', 'src/batch.ts', 'src/capture-address.ts', 'src/gradient.ts', 'src/design-organization.ts', 'src/design-artifact.ts'], outdir: 'dist/lib', bundle: true, format: 'esm', target: 'es2020' })
 ]);
 for (const r of result) if (r.status === 'rejected') throw r.reason;
 const [template, script, style] = await Promise.all(['src/ui.html', 'dist/ui.js', 'src/ui.css'].map(p => readFile(path.join(root, p), 'utf8')));

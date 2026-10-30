@@ -111,11 +111,16 @@ export async function importDocument(api: PluginAPI, document: CaptureDocument, 
       done++; if (done % 30 === 0) { options.progress?.(done, total); await new Promise(resolve => setTimeout(resolve, 0)); }
       return node;
     };
-    const built = await build(document.root, staging); check();
+    let built = await build(document.root, staging); check();
+    if (document.source.artifact?.kind === 'component') {
+      if (typeof api.createComponentFromNode === 'function') { built = api.createComponentFromNode(built); check(); }
+      else warn('COMPONENT_FALLBACK', '当前环境不支持原生组件，保留可编辑组件 Frame');
+    }
     targetPage.appendChild(built); transferred = built;
     const center = api.viewport.center;
     built.x = options.position?.x ?? Math.round(center.x - built.width / 2); built.y = options.position?.y ?? Math.round(center.y - built.height / 2);
-    built.name = document.name; built.setPluginData('h2fSource', JSON.stringify(document.source)); built.setPluginData('h2fVersion', '1');
+    built.name = document.source.artifact?.kind === 'component' ? `状态=${document.source.artifact.stateName.replace(/[,=]/g,' ')}` : document.name; built.setPluginData('h2fSource', JSON.stringify(document.source)); built.setPluginData('h2fVersion', '1');
+    if (document.source.artifact) built.setPluginData('h2fArtifact',JSON.stringify(document.source.artifact));
     staging.remove(); options.onStaging?.(null);
     if (options.focus !== false) { targetPage.selection = [built]; api.viewport.scrollAndZoomIntoView([built]); }
     options.progress?.(total, total);

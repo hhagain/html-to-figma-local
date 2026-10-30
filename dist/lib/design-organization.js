@@ -137,7 +137,7 @@ function designLayout(pages) {
         }
         const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
         for (const [i, p] of local) positions.set(i, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
-        groups.push({ id, name: `${PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+        groups.push({ id, name: `${pages[s.indices[0]].artifact?.kind === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
         sectionY += sectionHeight + 160;
         columnWidth = Math.max(columnWidth, sectionWidth);
       }

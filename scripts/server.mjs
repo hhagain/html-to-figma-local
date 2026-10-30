@@ -48,16 +48,16 @@ export async function createAppServer({ port = 3847, root = path.join(project, '
           else if(req.method==='POST'&&handoffRoute[2]){const body=await readJSON(req);const receiver=receiverIdentity(req,body);json(res,200,handoffRoute[2]==='claim'?handoffs.claim(handoffRoute[1],receiver,body.contextVersion):handoffs.progress(handoffRoute[1],receiver,body));}
           else json(res,405,{error:'不支持的传输操作'});
         }catch(error){json(res,409,{error:error.message});}return;}
-        if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: '0.12.0', capturing, desktop: !!desktop }); return; }
+        if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: '0.13.0', capturing, desktop: !!desktop }); return; }
         if (url.pathname === '/api/discover' && req.method === 'POST') {
           if (capturing) { json(res,409,{error:'已有发现或捕获任务正在运行，请稍后重试'});return; }
           let request;try{request=validateDiscoveryRequest(await readJSON(req));}catch(error){json(res,400,{error:error.message});return;}
           if(capturing){json(res,409,{error:'已有发现或捕获任务正在运行，请稍后重试'});return;}
-          const owner=identity(req),binding=JSON.stringify([request.url,request.width,request.height,request.selector]);
+          const owner=identity(req),binding=JSON.stringify([request.url,request.width,request.height,request.selector,request.outputMode,request.dataSamples]);
           let exploration=request.resumeId?explorations.get(request.resumeId):null;
           if(request.resumeId&&(!exploration||exploration.owner!==owner||Date.now()-exploration.updatedAt>24*60*60*1000)){json(res,410,{error:'探索进度已过期或不属于此连接，请重新探索'});return;}
           if(exploration){explorations.delete(exploration.id);explorations.set(exploration.id,exploration);}
-          if(exploration&&(!request.exploreInteractions||exploration.binding!==binding)){json(res,400,{error:'入口、视口或捕获区域已改变，请重新探索'});return;}
+          if(exploration&&(!request.exploreInteractions||exploration.binding!==binding)){json(res,400,{error:'入口、视口、捕获区域或输出方式已改变，请重新探索'});return;}
           if(request.exploreInteractions&&!exploration){
             for(const [key,value] of explorations)if(Date.now()-value.updatedAt>24*60*60*1000)explorations.delete(key);
             while(explorations.size>=4)explorations.delete(explorations.keys().next().value);

@@ -1,3 +1,9 @@
+// src/design-artifact.ts
+function validArtifact(value) {
+  const v = value;
+  return !!v && typeof v === "object" && !Array.isArray(v) && ["page", "component"].includes(v.kind) && typeof v.familyId === "string" && /^[\w-]{1,200}$/.test(v.familyId) && ["familyName", "stateName", "reason"].every((k) => typeof v[k] === "string" && v[k].length > 0 && v[k].length <= 500) && Number.isSafeInteger(v.sampleCount) && v.sampleCount >= 1;
+}
+
 // src/design-organization.ts
 var PAGE_LEVELS = { primary: "\u4E00\u7EA7\u9875\u9762", secondary: "\u4E8C\u7EA7\u9875\u9762", feature: "\u529F\u80FD\u9875\u9762", unclassified: "\u5F85\u786E\u8BA4\u9875\u9762" };
 function validOrganization(v) {
@@ -56,7 +62,7 @@ function designLayout(pages) {
         }
         const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
         for (const [i, p] of local) positions.set(i, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
-        groups.push({ id, name: `${PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+        groups.push({ id, name: `${pages[s.indices[0]].artifact?.kind === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
         sectionY += sectionHeight + 160;
         columnWidth = Math.max(columnWidth, sectionWidth);
       }
@@ -112,6 +118,7 @@ function validateDocument(input) {
   if (doc.importOptions !== void 0 && !validImportSettings(doc.importOptions)) fail("\u5BFC\u5165\u8BBE\u7F6E\u65E0\u6548");
   if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
+  if (doc.source.artifact !== void 0 && !validArtifact(doc.source.artifact)) fail("\u8BBE\u8BA1\u7A3F\u9879\u4FE1\u606F\u65E0\u6548");
   if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
   if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
   if (doc.source.longPage !== void 0) {
@@ -417,16 +424,23 @@ async function importDocument(api, document, options) {
       }
       return node;
     };
-    const built = await build(document.root, staging);
+    let built = await build(document.root, staging);
     check();
+    if (document.source.artifact?.kind === "component") {
+      if (typeof api.createComponentFromNode === "function") {
+        built = api.createComponentFromNode(built);
+        check();
+      } else warn("COMPONENT_FALLBACK", "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u539F\u751F\u7EC4\u4EF6\uFF0C\u4FDD\u7559\u53EF\u7F16\u8F91\u7EC4\u4EF6 Frame");
+    }
     targetPage.appendChild(built);
     transferred = built;
     const center = api.viewport.center;
     built.x = options.position?.x ?? Math.round(center.x - built.width / 2);
     built.y = options.position?.y ?? Math.round(center.y - built.height / 2);
-    built.name = document.name;
+    built.name = document.source.artifact?.kind === "component" ? `\u72B6\u6001=${document.source.artifact.stateName.replace(/[,=]/g, " ")}` : document.name;
     built.setPluginData("h2fSource", JSON.stringify(document.source));
     built.setPluginData("h2fVersion", "1");
+    if (document.source.artifact) built.setPluginData("h2fArtifact", JSON.stringify(document.source.artifact));
     staging.remove();
     options.onStaging?.(null);
     if (options.focus !== false) {
@@ -466,17 +480,17 @@ var ImportBatch = class {
     this.groups = /* @__PURE__ */ new Map();
     this.groupForIndex = /* @__PURE__ */ new Map();
     this.staging = null;
-    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some((p) => !p || typeof p.name !== "string" || !Number.isFinite(p.width) || p.width <= 0 || p.width > 1e5 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 1e5 || p.canvas !== void 0 && !isCanvasPlacement(p.canvas) || p.design !== void 0 && !validOrganization(p.design))) throw new Error("\u6279\u6B21\u8BA1\u5212\u65E0\u6548");
+    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some((p) => !p || typeof p.name !== "string" || !Number.isFinite(p.width) || p.width <= 0 || p.width > 1e5 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 1e5 || p.canvas !== void 0 && !isCanvasPlacement(p.canvas) || p.design !== void 0 && !validOrganization(p.design) || p.artifact !== void 0 && !validArtifact(p.artifact))) throw new Error("\u6279\u6B21\u8BA1\u5212\u65E0\u6548");
     this.context = createImportContext(api);
     this.page = api.currentPage;
     const existing = this.page.children.filter((n) => n.visible);
     const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
     const units = [], canvases = /* @__PURE__ */ new Map();
-    const organized = designLayout(plan.map((p) => p.canvas || !this.smartLayout ? { ...p, design: void 0 } : p));
+    const organized = designLayout(plan.map((p) => p.canvas || !this.smartLayout && p.artifact?.kind !== "component" ? { ...p, design: void 0 } : p));
     let designUnit;
     plan.forEach((p, index) => {
       const c = p.canvas;
-      if (!c && p.design && this.smartLayout) {
+      if (!c && p.design && (this.smartLayout || p.artifact?.kind === "component")) {
         if (!designUnit) {
           designUnit = { width: organized.width, height: organized.height, minX: 0, minY: 0, entries: [], groups: organized.groups };
           units.push(designUnit);
@@ -589,6 +603,48 @@ var ImportBatch = class {
   }
   async finish() {
     if (this.processing) throw new Error("\u5F53\u524D\u9875\u9762\u5C1A\u672A\u5B8C\u6210");
+    const componentFamilies = /* @__PURE__ */ new Map();
+    for (const entry of this.results) {
+      const artifact = this.plan[entry.index].artifact;
+      if (!entry.nodeId || artifact?.kind !== "component") continue;
+      const group = componentFamilies.get(artifact.familyId) || { artifact, entries: [] };
+      group.entries.push(entry);
+      componentFamilies.set(artifact.familyId, group);
+    }
+    if (typeof this.api.combineAsVariants === "function") for (const { artifact, entries } of componentFamilies.values()) {
+      const variants = [];
+      for (const entry of entries) {
+        const node = await this.api.getNodeByIdAsync(entry.nodeId);
+        if (node?.type === "COMPONENT") variants.push(node);
+      }
+      if (variants.length < 2 || variants.some((n) => n.parent !== variants[0].parent)) continue;
+      const parent = variants[0].parent;
+      const saved = variants.map((node) => ({ node, x: node.x, y: node.y }));
+      const x = Math.min(...saved.map((v) => v.x)) - 24, y = Math.min(...saved.map((v) => v.y)) - 24;
+      const width = Math.max(...saved.map((v) => v.x + v.node.width)) - x + 24, height = Math.max(...saved.map((v) => v.y + v.node.height)) - y + 24;
+      let set = null;
+      try {
+        set = this.api.combineAsVariants(variants, parent);
+        set.name = artifact.familyName;
+        set.layoutMode = "NONE";
+        set.resizeWithoutConstraints(width, height);
+        set.x = x;
+        set.y = y;
+        for (const v of saved) {
+          v.node.x = v.x - x;
+          v.node.y = v.y - y;
+        }
+        set.setPluginData("h2fComponentFamily", artifact.familyId);
+      } catch {
+        for (const v of saved) if (!v.node.removed) {
+          parent.appendChild(v.node);
+          v.node.x = v.x;
+          v.node.y = v.y;
+        }
+        if (set && !set.removed && !set.children.length) set.remove();
+        entries[0].result?.diagnostics.push({ code: "VARIANTS_FALLBACK", message: "\u5F53\u524D\u73AF\u5883\u672A\u80FD\u7EC4\u5408\u53D8\u4F53\uFF0C\u4FDD\u7559\u72EC\u7ACB\u53EF\u7F16\u8F91\u7EC4\u4EF6", count: 1 });
+      }
+    }
     const nodes = [];
     for (const entry of this.results) if (entry.nodeId) {
       const n = await this.api.getNodeByIdAsync(entry.nodeId);

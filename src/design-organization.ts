@@ -1,3 +1,4 @@
+import type { DesignArtifact } from './design-artifact';
 export const PAGE_LEVELS = { primary: '一级页面', secondary: '二级页面', feature: '功能页面', unclassified: '待确认页面' } as const;
 export interface DesignOrganization {
   projectId: string; moduleId: string; moduleName: string; pageId: string; pageName: string;
@@ -66,7 +67,7 @@ export function inferOrganization(o: OrganizationObservation): DesignOrganizatio
   const pageName = short(o.heading || o.name || o.title || '当前页面');
   return { ...common, level: 'unclassified', pageId: organizationKey(moduleId, route, pageName), pageName, kind: 'page', confidence: 'low', reason: '未发现可靠主导航或进入关系，页面层级待确认' };
 }
-export interface OrganizedPage { name: string; width: number; height: number; design?: DesignOrganization }
+export interface OrganizedPage { name: string; width: number; height: number; design?: DesignOrganization; artifact?: DesignArtifact }
 export interface DesignGroup { id: string; name: string; x: number; y: number; width: number; height: number; indices: number[] }
 export function designLayout(pages: OrganizedPage[]) {
   const sections = new Map<string, { design: DesignOrganization; indices: number[] }>();
@@ -95,7 +96,7 @@ export function designLayout(pages: OrganizedPage[]) {
         }
         const sectionWidth=maxRight+80,sectionHeight=y+rowHeight+80;
         for(const [i,p] of local)positions.set(i,{x:columnX+p.x,y:sectionY+p.y,groupId:id});
-        groups.push({id,name:`${PAGE_LEVELS[s.design.level]} · ${s.design.moduleName}${s.design.pageName===s.design.moduleName?'':' / '+s.design.pageName}`,x:columnX,y:sectionY,width:sectionWidth,height:sectionHeight,indices:[...views.values()].flat()});
+        groups.push({id,name:`${pages[s.indices[0]].artifact?.kind==='component'?'组件状态':PAGE_LEVELS[s.design.level]} · ${s.design.moduleName}${s.design.pageName===s.design.moduleName?'':' / '+s.design.pageName}`,x:columnX,y:sectionY,width:sectionWidth,height:sectionHeight,indices:[...views.values()].flat()});
         sectionY+=sectionHeight+160;columnWidth=Math.max(columnWidth,sectionWidth);
       }
       if(columnWidth){columnX+=columnWidth+200;moduleHeight=Math.max(moduleHeight,sectionY-moduleY);}

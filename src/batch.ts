@@ -1,8 +1,9 @@
+import { validArtifact, type DesignArtifact } from './design-artifact';
 import { designLayout, validOrganization, type DesignOrganization, type DesignGroup } from './design-organization';
 import { importDocument, createImportContext, type ImportResult } from './importer';
 import { BATCH_LIMITS } from './bundle';
 import { validateDocument, countScene, isCanvasPlacement, type CanvasPlacement, type CaptureDocument, type ImportMode } from './schema';
-export interface ImportPlanPage { name: string; width: number; height: number; canvas?: CanvasPlacement; design?: DesignOrganization }
+export interface ImportPlanPage { name: string; width: number; height: number; canvas?: CanvasPlacement; design?: DesignOrganization; artifact?: DesignArtifact }
 export class ImportBatch {
   readonly results: { index: number; name: string; nodeId?: string; error?: string; result?: ImportResult }[] = [];
   cancelled = false; processing = false; next = 0;
@@ -10,15 +11,15 @@ export class ImportBatch {
   private groupPlans = new Map<string, DesignGroup>(); private groups = new Map<string, SectionNode>(); private groupForIndex = new Map<number,string>();
   private context; private page: PageNode; private positions: { x: number; y: number }[]; private staging: FrameNode | null = null;
   constructor(private api: PluginAPI, readonly id: string, private plan: ImportPlanPage[], private mode: ImportMode, private smartLayout = true) {
-    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some(p => !p || typeof p.name !== 'string' || !Number.isFinite(p.width) || p.width <= 0 || p.width > 100000 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 100000 || (p.canvas !== undefined && !isCanvasPlacement(p.canvas)) || (p.design !== undefined && !validOrganization(p.design)))) throw new Error('批次计划无效');
+    if (!id || id.length > 100 || !Array.isArray(plan) || !plan.length || plan.some(p => !p || typeof p.name !== 'string' || !Number.isFinite(p.width) || p.width <= 0 || p.width > 100000 || !Number.isFinite(p.height) || p.height <= 0 || p.height > 100000 || (p.canvas !== undefined && !isCanvasPlacement(p.canvas)) || (p.design !== undefined && !validOrganization(p.design)) || (p.artifact !== undefined && !validArtifact(p.artifact)))) throw new Error('批次计划无效');
     this.context = createImportContext(api); this.page = api.currentPage;
     const existing = this.page.children.filter(n => n.visible); const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
     type Unit = { width: number; height: number; minX: number; minY: number; entries: { index: number; x: number; y: number }[]; groups?: DesignGroup[] };
     const units: Unit[] = [], canvases = new Map<string, Unit>();
-    const organized=designLayout(plan.map(p=>p.canvas||!this.smartLayout?{...p,design:undefined}:p)); let designUnit:Unit|undefined;
+    const organized=designLayout(plan.map(p=>p.canvas||!this.smartLayout&&p.artifact?.kind!=='component'?{...p,design:undefined}:p)); let designUnit:Unit|undefined;
     plan.forEach((p, index) => {
       const c = p.canvas;
-      if (!c && p.design && this.smartLayout) {
+      if (!c && p.design && (this.smartLayout || p.artifact?.kind === 'component')) {
         if(!designUnit){designUnit={width:organized.width,height:organized.height,minX:0,minY:0,entries:[],groups:organized.groups};units.push(designUnit);}
         const pos=organized.positions.get(index)!;designUnit.entries.push({index,x:pos.x,y:pos.y});this.groupForIndex.set(index,pos.groupId);return;
       }
@@ -77,6 +78,32 @@ export class ImportBatch {
   }
   async finish() {
     if (this.processing) throw new Error('当前页面尚未完成');
+    const componentFamilies = new Map<string, { artifact: DesignArtifact; entries: ImportBatch['results'] }>();
+    for (const entry of this.results) {
+      const artifact = this.plan[entry.index].artifact;
+      if (!entry.nodeId || artifact?.kind !== 'component') continue;
+      const group = componentFamilies.get(artifact.familyId) || { artifact, entries: [] };
+      group.entries.push(entry); componentFamilies.set(artifact.familyId,group);
+    }
+    if (typeof this.api.combineAsVariants === 'function') for (const {artifact,entries} of componentFamilies.values()) {
+      const variants: ComponentNode[] = [];
+      for (const entry of entries) { const node = await this.api.getNodeByIdAsync(entry.nodeId!); if (node?.type === 'COMPONENT') variants.push(node); }
+      if (variants.length < 2 || variants.some(n => n.parent !== variants[0].parent)) continue;
+      const parent = variants[0].parent as PageNode | SectionNode;
+      const saved = variants.map(node => ({node,x:node.x,y:node.y}));
+      const x = Math.min(...saved.map(v=>v.x))-24,y = Math.min(...saved.map(v=>v.y))-24;
+      const width = Math.max(...saved.map(v=>v.x+v.node.width))-x+24,height = Math.max(...saved.map(v=>v.y+v.node.height))-y+24;
+      let set: ComponentSetNode | null = null;
+      try {
+        set = this.api.combineAsVariants(variants,parent); set.name = artifact.familyName; set.layoutMode = 'NONE'; set.resizeWithoutConstraints(width,height); set.x=x;set.y=y;
+        for (const v of saved) { v.node.x=v.x-x;v.node.y=v.y-y; }
+        set.setPluginData('h2fComponentFamily',artifact.familyId);
+      } catch {
+        for (const v of saved) if (!v.node.removed) { parent.appendChild(v.node);v.node.x=v.x;v.node.y=v.y; }
+        if (set&&!set.removed&&!set.children.length) set.remove();
+        entries[0].result?.diagnostics.push({code:'VARIANTS_FALLBACK',message:'当前环境未能组合变体，保留独立可编辑组件',count:1});
+      }
+    }
     const nodes: SceneNode[] = [];
     for (const entry of this.results) if (entry.nodeId) { const n = await this.api.getNodeByIdAsync(entry.nodeId); if (n && 'visible' in n) nodes.push(n as SceneNode); }
     if (nodes.length && this.api.currentPage.id === this.page.id) { const sections=[...this.groups.values()].filter(n=>!n.removed&&n.children.length);const focus=sections.length?sections.slice(0,12):nodes.length>12?[nodes[0]]:nodes;this.page.selection=focus;this.api.viewport.scrollAndZoomIntoView(focus); }

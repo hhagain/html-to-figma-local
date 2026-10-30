@@ -1,3 +1,9 @@
+// src/design-artifact.ts
+function validArtifact(value) {
+  const v = value;
+  return !!v && typeof v === "object" && !Array.isArray(v) && ["page", "component"].includes(v.kind) && typeof v.familyId === "string" && /^[\w-]{1,200}$/.test(v.familyId) && ["familyName", "stateName", "reason"].every((k) => typeof v[k] === "string" && v[k].length > 0 && v[k].length <= 500) && Number.isSafeInteger(v.sampleCount) && v.sampleCount >= 1;
+}
+
 // src/design-organization.ts
 var PAGE_LEVELS = { primary: "\u4E00\u7EA7\u9875\u9762", secondary: "\u4E8C\u7EA7\u9875\u9762", feature: "\u529F\u80FD\u9875\u9762", unclassified: "\u5F85\u786E\u8BA4\u9875\u9762" };
 function validOrganization(v) {
@@ -46,6 +52,7 @@ function validateDocument(input) {
   if (doc.importOptions !== void 0 && !validImportSettings(doc.importOptions)) fail("\u5BFC\u5165\u8BBE\u7F6E\u65E0\u6548");
   if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
   if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
+  if (doc.source.artifact !== void 0 && !validArtifact(doc.source.artifact)) fail("\u8BBE\u8BA1\u7A3F\u9879\u4FE1\u606F\u65E0\u6548");
   if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
   if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
   if (doc.source.longPage !== void 0) {
@@ -351,16 +358,23 @@ async function importDocument(api, document, options) {
       }
       return node;
     };
-    const built = await build(document.root, staging);
+    let built = await build(document.root, staging);
     check();
+    if (document.source.artifact?.kind === "component") {
+      if (typeof api.createComponentFromNode === "function") {
+        built = api.createComponentFromNode(built);
+        check();
+      } else warn("COMPONENT_FALLBACK", "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u539F\u751F\u7EC4\u4EF6\uFF0C\u4FDD\u7559\u53EF\u7F16\u8F91\u7EC4\u4EF6 Frame");
+    }
     targetPage.appendChild(built);
     transferred = built;
     const center = api.viewport.center;
     built.x = options.position?.x ?? Math.round(center.x - built.width / 2);
     built.y = options.position?.y ?? Math.round(center.y - built.height / 2);
-    built.name = document.name;
+    built.name = document.source.artifact?.kind === "component" ? `\u72B6\u6001=${document.source.artifact.stateName.replace(/[,=]/g, " ")}` : document.name;
     built.setPluginData("h2fSource", JSON.stringify(document.source));
     built.setPluginData("h2fVersion", "1");
+    if (document.source.artifact) built.setPluginData("h2fArtifact", JSON.stringify(document.source.artifact));
     staging.remove();
     options.onStaging?.(null);
     if (options.focus !== false) {

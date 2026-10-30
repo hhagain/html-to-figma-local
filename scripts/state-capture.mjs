@@ -1,3 +1,4 @@
+import { validArtifact } from '../dist/lib/design-artifact.js';
 import { normalizeLongPageScroll } from './long-page.mjs';
 import { inferOrganization, validOrganization } from '../dist/lib/design-organization.js';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -35,9 +36,10 @@ export function validateStatePlan(input) {
   const states = input.states.map((s,i) => {
     if (!s || typeof s.id !== 'string' || !/^[\w-]{1,80}$/.test(s.id) || ids.has(s.id) || typeof s.name !== 'string' || !s.name || s.name.length > 150) throw new Error(`第 ${i+1} 个状态的 id 或名称无效`);
     if(s.expectedFingerprint!==undefined&&!/^[a-f0-9]{64}$/.test(s.expectedFingerprint))throw new Error('状态校验摘要无效');
+    if(s.artifact!==undefined&&!validArtifact(s.artifact))throw new Error('设计稿项信息无效');
     if(s.design!==undefined&&!validOrganization(s.design))throw new Error('页面分类信息无效');
     ids.add(s.id); const selector = s.selector || base.selector; if (typeof selector !== 'string' || selector.length > 700) throw new Error('捕获选择器无效');
-    return { id:s.id, name:s.name, ...(s.design?{design:structuredClone(s.design)}:{}), ...(s.expectedFingerprint?{expectedFingerprint:s.expectedFingerprint}:{}), group:typeof s.group==='string'?s.group.slice(0,80):'页面状态', url:safeURL(s.url), setup:s.setup!==false, selector, steps:steps(s.steps), captureMode:s.captureMode==='full'?'full':input.captureMode==='full'?'full':'viewport' };
+    return { id:s.id, name:s.name, ...(s.design?{design:structuredClone(s.design)}:{}), ...(s.artifact?{artifact:structuredClone(s.artifact)}:{}), ...(s.expectedFingerprint?{expectedFingerprint:s.expectedFingerprint}:{}), group:typeof s.group==='string'?s.group.slice(0,80):'页面状态', url:safeURL(s.url), setup:s.setup!==false, selector, steps:steps(s.steps), captureMode:s.captureMode==='full'?'full':input.captureMode==='full'?'full':'viewport' };
   });
   if (input.notes !== undefined && (typeof input.notes !== 'string' || input.notes.length > 10000)) throw new Error('说明过长');
   return { schemaVersion:1, name:input.name, url:base.url, viewport:{width:base.width,height:base.height}, selector:base.selector, setup, states, captureMode:input.captureMode||'viewport', notes:input.notes||'', snapshotDocument:input.snapshotDocument===true, longPage:input.longPage===true };
@@ -125,7 +127,8 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         const actual=await inspectState(page,source.local);
         if(state.expectedFingerprint){if(actual.fingerprint!==state.expectedFingerprint)throw new Error('页面与探索时的状态不同，请重新探索；可能有异步数据或随机内容');}
         let viewFingerprint=actual.viewFingerprint,scrollNormalization=null;
-        if(plan.longPage){
+        const longPage = plan.longPage && state.artifact?.kind !== 'component';
+        if(longPage){
           // Compare content at a common scroll origin, excluding sticky copies and viewport effects.
           // State replay is already verified above; input/filter values and newly loaded rows remain.
           scrollNormalization=await normalizeLongPageScroll(page,state.selector);
@@ -133,22 +136,23 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         }
         const isScroll=state.design?.kind==='scroll'||state.steps.some(s=>s.type==='scroll');
         const longKey=JSON.stringify([source.toSourceURL(page.url()),state.selector,state.design?.pageId||'',state.design?.viewId||viewFingerprint,scrollNormalization?.preservedScrolls||[]]);
-        const previous=plan.longPage?longViews.get(longKey):null;
+        const previous=longPage?longViews.get(longKey):null;
         if(previous&&(isScroll||previous.isScroll)&&previous.viewFingerprint===viewFingerprint){
           previous.document.source.longPage.mergedStateIds.push(state.id);record.status='merged';record.mergedInto=previous.id;record.pageIndex=previous.pageIndex;record.url=source.toSourceURL(page.url());report.merged++;report.total=plan.states.length-report.merged;continue;
         }
         const options={url:page.url(),width:plan.viewport.width,height:plan.viewport.height,selector:state.selector};
-        const result=await captureLoadedPage(page,context,options,{viewportOnly:state.captureMode==='viewport',longPage:plan.longPage,name:`${String(i+1).padStart(3,'0')} · ${state.group} · ${state.name}`,source});
+        const result=await captureLoadedPage(page,context,options,{viewportOnly:state.captureMode==='viewport'&&state.artifact?.kind!=='component',longPage,name:`${String(i+1).padStart(3,'0')} · ${state.group} · ${state.name}`,source});
         if(previous&&previous.viewFingerprint!==viewFingerprint)result.document.diagnostics.push({code:'LONG_PAGE_CONTENT_CHANGED',message:'滚动后内容发生变化，保留独立长页以避免丢失新内容',count:1});
         const sourceURL=source.toSourceURL(page.url());
         const design=inferOrganization({url:sourceURL,entryURL:plan.url,heading:actual.heading,title:actual.title,dialog:actual.dialog,viewFingerprint:actual.viewFingerprint,...actual.structure,scrolls:actual.scrolls,name:state.name,actionKind:state.steps.some(s=>s.type==='scroll')?'滚动':'',parent:state.design,explicitGroup:!['交互探索','自动发现','页面状态'].includes(state.group)?state.group:undefined});
         result.document.source.design=state.design?{...state.design,scroll:design.scroll}:design;
-        if(plan.longPage){const scroll=result.document.source.design.scroll;if(scrollNormalization?.primaryScrolls.includes(scroll.container)||scroll.container==='document'&&scrollNormalization?.documentReset){result.document.source.design.scroll={...scroll,x:0,y:0};if(result.document.source.design.kind==='scroll')result.document.source.design.kind='state';}result.document.name=`${String(i+1).padStart(3,'0')} · ${result.document.source.design.pageName} · ${result.document.source.design.stateName} · 长页`;}
+        if(longPage){const scroll=result.document.source.design.scroll;if(scrollNormalization?.primaryScrolls.includes(scroll.container)||scroll.container==='document'&&scrollNormalization?.documentReset){result.document.source.design.scroll={...scroll,x:0,y:0};if(result.document.source.design.kind==='scroll')result.document.source.design.kind='state';}result.document.name=`${String(i+1).padStart(3,'0')} · ${result.document.source.design.pageName} · ${result.document.source.design.stateName} · 长页`;}
+        if(state.artifact){result.document.source.artifact=state.artifact;if(state.artifact.kind==='component')result.document.name=`组件 · ${state.artifact.familyName} · ${state.artifact.stateName}`;}
         result.document.source.state={id:state.id,name:state.name,group:state.group,stepCount:(state.setup?plan.setup.length:0)+state.steps.length};
         if(blocked) result.document.diagnostics.push({code:'NETWORK_BLOCKED',message:`隔离捕获阻止了 ${blocked} 个写请求或跨站跳转；请核对该状态是否完整`,count:1});
         builder.add(result.document);
         record.pageIndex=builder.bundle.pages.length-1;
-        if(plan.longPage)longViews.set(longKey,{id:state.id,pageIndex:record.pageIndex,document:result.document,isScroll,viewFingerprint});
+        if(longPage)longViews.set(longKey,{id:state.id,pageIndex:record.pageIndex,document:result.document,isScroll,viewFingerprint});
         const sha=createHash('sha256').update(JSON.stringify(result.document.root)).digest('hex');
         if(fingerprints.has(sha))record.duplicateOf=fingerprints.get(sha);else fingerprints.set(sha,state.id);
         record.status='complete';record.nodes=result.document.stats.nodes;record.diagnostics=result.document.diagnostics;record.url=source.toSourceURL(page.url());record.sha256=sha;

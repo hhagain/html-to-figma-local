@@ -15,6 +15,7 @@ $('download-assistant').hidden = !plugin;
 $('download-assistant').addEventListener('click', event => {
   if (plugin) { event.preventDefault(); message('OPEN_DESKTOP_ASSISTANT_DOWNLOAD'); }
 });
+const outputUnit = () => preparedBundle?.pages.some(p=>p.source.artifact?.kind==='component') ? '项' : '页';
 let tab = 'file', source = '', sourceName = '', prepared: CaptureDocument | null = null, busy = false;
 let frame: HTMLIFrameElement | null = null, controller: AbortController | null = null;
 let sourceFiles: File[] = [], preparedBundle: CaptureBundle | null = null, captureStopped = false, importing = false;
@@ -39,14 +40,14 @@ let service = !plugin && /^https?:$/.test(location.protocol) && ['127.0.0.1','lo
 let activeStateJob: string | null = null, activeJobKind: 'states' | 'discover' = 'states', stateReport: any = null;
 let discovery: any = null, discoveryKey = '', discoverySelection: boolean[] = [];
 const autoStates = () => tab === 'url' && $<HTMLSelectElement>('url-mode').value === 'states' && $<HTMLSelectElement>('state-input-mode').value !== 'recipe';
-function requestKey() { return JSON.stringify([input('page-url').value.trim(), viewportWidth(), input('selector').value.trim(), $<HTMLSelectElement>('state-input-mode').value]); }
+function requestKey() { return JSON.stringify([input('page-url').value.trim(), viewportWidth(), input('selector').value.trim(), $<HTMLSelectElement>('state-input-mode').value, $<HTMLSelectElement>('exploration-output').value, $<HTMLSelectElement>('exploration-data-samples').value]); }
 function refreshPrepareAction() {
-  const label = busy ? '处理中…' : autoStates() ? discovery ? `开始捕获（${discoverySelection.filter(Boolean).length} 页）` : $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '探索交互状态' : '自动发现页面' : '解析并预览';
+  const label = busy ? '处理中…' : autoStates() ? discovery ? `开始捕获（${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary?'项':'页'}）` : $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '探索交互状态' : '自动发现页面' : '解析并预览';
   $('prepare-label').textContent = label;
   $<HTMLButtonElement>('prepare').disabled = busy || (autoStates() && !!discovery && !discoverySelection.some(Boolean));
 }
 function clearDiscovery() { discovery = null; discoveryKey = ''; discoverySelection = []; $('discovery-results').hidden = true; $('discovery-intro').hidden = false; refreshPrepareAction(); }
-function syncStateInput() { const automatic = $<HTMLSelectElement>('state-input-mode').value !== 'recipe'; $('state-auto-panel').hidden = !automatic; $('state-recipe-panel').hidden = automatic; $('exploration-options').hidden = $<HTMLSelectElement>('state-input-mode').value !== 'explore'; $('discovery-intro').textContent = $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。' : '识别导航标签、页面链接和本地 HTML。此模式不探索详情和弹窗。'; refreshPrepareAction(); }
+function syncStateInput() { const automatic = $<HTMLSelectElement>('state-input-mode').value !== 'recipe'; $('state-auto-panel').hidden = !automatic; $('state-recipe-panel').hidden = automatic; $('exploration-options').hidden = $<HTMLSelectElement>('state-input-mode').value !== 'explore'; $('design-output-options').hidden = $<HTMLSelectElement>('state-input-mode').value !== 'explore'; $('discovery-intro').textContent = $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。' : '识别导航标签、页面链接和本地 HTML。此模式不探索详情和弹窗。'; refreshPrepareAction(); }
 
 let assistantCredentials: AssistantCredentials | null = null, assistantConnecting = false;
 const session = (window as any).__LOCAL_SESSION__ as { token: string } | undefined;
@@ -89,14 +90,14 @@ function showBundle(bundle: CaptureBundle) {
   pageStates = bundle.pages.map(() => ({ selected: true, state: 'pending' }));
   const stats = bundle.pages.reduce((sum, page) => { const s = countScene(page.root); for (const key of ['nodes', 'texts', 'images', 'vectors'] as const) sum[key] += s[key]; return sum; }, { nodes: 0, texts: 0, images: 0, vectors: 0 });
   $('report').hidden = false; $('ready-actions').hidden = false; $('prepare').hidden = true;
-  $('report-title').textContent = bundle.pages.length > 1 ? `已准备好 ${bundle.pages.length} 页` : '已准备好';
+  $('report-title').textContent = bundle.pages.length > 1 ? `已准备好 ${bundle.pages.length} ${outputUnit()}` : '已准备好';
   $('report-summary').textContent = bundle.pages.length > 1 ? `${bundle.name} · ${bundle.pages.some(p => p.source.canvas) ? '保留原画布排布 · ' : bundle.pages.some(p => p.source.design) ? (smartLayout()?'按页面与功能分组 · ':'按捕获顺序排列 · ') : ''}图片资源已跨页去重` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)} px · ${prepared.name}`;
   $('stat-nodes').textContent = String(stats.nodes); $('stat-text').textContent = String(stats.texts); $('stat-image').textContent = String(stats.images); $('stat-svg').textContent = String(stats.vectors);
-  $('preview-size').textContent = bundle.pages.length > 1 ? `${bundle.pages.length} 页` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)}`;
+  $('preview-size').textContent = bundle.pages.length > 1 ? `${bundle.pages.length} ${outputUnit()}` : `${Math.round(prepared.root.width)} × ${Math.round(prepared.root.height)}`;
   const diagnostics = bundle.pages.flatMap(page => page.diagnostics).slice(0, 100);
   diagnostics.push(...bundle.errors.map(error => ({ code: 'PAGE_CAPTURE_FAILED', message: `${error.name}：${error.message}` })));
   updateWarnings(diagnostics); renderPageList();
-  $('import').textContent = plugin ? `导入到 Figma${bundle.pages.length > 1 ? `（${bundle.pages.length} 页）` : ''}` : '下载 Figma 数据';
+  $('import').textContent = plugin ? `导入到 Figma${bundle.pages.length > 1 ? `（${bundle.pages.length} ${outputUnit()}）` : ''}` : '下载 Figma 数据';
   $('download').hidden = !plugin; $('send-handoff').hidden = plugin; refreshHandoffControls();
   const missing = bundle.assets.filter(a => !a.base64).length;
   status(missing ? `${missing} 个共享图片资源未能读取，导入时将保留占位。` : plugin ? '内容已就绪，多页会逐页导入；取消时保留已完成的页面。' : '选择页面后点击“发送到 Figma 插件”，在插件内接收并导入。也可以下载数据。');
@@ -110,9 +111,9 @@ function showBundle(bundle: CaptureBundle) {
 function renderPageList() {
   if (!preparedBundle) return;
   $('page-list-section').hidden = preparedBundle.pages.length < 2 && !(smartLayout()&&preparedBundle.pages[0]?.source.design);
-  $('page-list-title').textContent = `页面列表 · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`;
+  $('page-list-title').textContent = `${preparedBundle.pages.some(p=>p.source.artifact?.kind==='component')?'设计稿清单':'页面列表'} · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`;
   const rows = document.createDocumentFragment();
-  const organization=designLayout(preparedBundle.pages.map(p=>({name:p.name,width:p.root.width,height:p.root.height,design:p.source.canvas||!smartLayout()?undefined:p.source.design})));
+  const organization=designLayout(preparedBundle.pages.map(p=>({name:p.name,width:p.root.width,height:p.root.height,design:p.source.canvas||!smartLayout()&&p.source.artifact?.kind!=='component'?undefined:p.source.design,artifact:p.source.artifact})));
   const grouped=new Set(organization.groups.flatMap(g=>g.indices)),ordered=[...organization.groups.flatMap(g=>g.indices),...preparedBundle.pages.map((_,i)=>i).filter(i=>!grouped.has(i))];
   const heads=new Map(organization.groups.map(g=>[g.indices[0],g]));
   ordered.forEach(i => {
@@ -123,12 +124,12 @@ function renderPageList() {
       const level=document.createElement('select');level.className='group-level';level.disabled=busy;level.setAttribute('aria-label',`调整 ${group.name} 的页面层级`);
       for(const [value,label] of Object.entries(PAGE_LEVELS)){const option=document.createElement('option');option.value=value;option.textContent=label;level.append(option);}level.value=page.source.design!.level;
       level.addEventListener('change',()=>{for(const index of group.indices){const d=preparedBundle!.pages[index].source.design!;d.level=level.value as keyof typeof PAGE_LEVELS;d.confidence='high';d.reason='用户调整页面类型';}renderPageList();});
-      heading.append(name,level);rows.append(heading);
+      heading.append(name);if(page.source.artifact?.kind!=='component')heading.append(level);rows.append(heading);
     }
     const row = document.createElement('div'); row.className = 'page-row'; row.dataset.previewActive = String(hasRemotePreview && previewPageIndex === i);
     const label = document.createElement('label'); label.className = 'page-select';
     const box = document.createElement('input'); box.type = 'checkbox'; box.checked = pageStates[i].selected; box.disabled = busy; box.setAttribute('aria-label', `选择 ${page.name}`);
-    box.addEventListener('change', () => { pageStates[i].selected = box.checked; refreshImportAction(); $('page-list-title').textContent = `页面列表 · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`; });
+    box.addEventListener('change', () => { pageStates[i].selected = box.checked; refreshImportAction(); $('page-list-title').textContent = `${preparedBundle!.pages.some(p=>p.source.artifact?.kind==='component')?'设计稿清单':'页面列表'} · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`; });
     const title = document.createElement('span'); title.textContent = `${String(i + 1).padStart(3, '0')}  ${page.name}`; title.title = page.name;
     if(page.source.design){const d=page.source.design;title.title+=`\n${PAGE_LEVELS[d.level]} · ${d.moduleName} / ${d.pageName}\n推断依据：${d.reason}`;title.dataset.pageLevel=d.level;}
     const state = document.createElement('small'); state.id = `page-state-${i}`; state.textContent = pageStates[i].detail || `${Math.round(page.root.width)} × ${Math.round(page.root.height)}`; state.dataset.state = pageStates[i].state;
@@ -181,10 +182,10 @@ async function selectPreviewPage(index: number) {
   if (!preparedBundle || !hasRemotePreview || !preparedBundle.pages[index]) return;
   previewController?.abort(); const revision = ++previewRevision; const localController = new AbortController(); previewController = localController;
   previewPageIndex = index; const page = preparedBundle.pages[index];
-  $<HTMLSelectElement>('preview-page').value = String(index); $('preview-size').textContent = `${index + 1} / ${preparedBundle.pages.length} 页`;
+  $<HTMLSelectElement>('preview-page').value = String(index); $('preview-size').textContent = `${index + 1} / ${preparedBundle.pages.length} ${outputUnit()}`;
   $('preview-caption').textContent = `${page.name} · ${Math.round(page.root.width)} × ${Math.round(page.root.height)} px`; $('preview-caption').hidden = false;
   $('preview-empty').hidden = true; $('frame-container').hidden = true; $('remote-preview').hidden = true;
-  $('preview-message').hidden = false; $('preview-message-text').textContent = `正在加载第 ${index + 1} 页预览…`; $('preview-retry').hidden = true;
+  $('preview-message').hidden = false; $('preview-message-text').textContent = `正在加载第 ${index + 1} ${outputUnit()}预览…`; $('preview-retry').hidden = true;
   $('preview-stage').setAttribute('aria-busy', 'true'); refreshPreviewControls();
   document.querySelectorAll<HTMLElement>('.page-row').forEach((row, i) => { row.dataset.previewActive = String(i === index); const button = row.querySelector<HTMLButtonElement>('.page-preview'); if (button) { button.textContent = i === index ? '当前预览' : '预览'; button.setAttribute('aria-pressed', String(i === index)); } });
   let objectURL: string | null = null;
@@ -204,7 +205,7 @@ async function selectPreviewPage(index: number) {
     if (revision !== previewRevision) return;
     if (localController.signal.aborted) throw new Error('预览加载超时');
     cachePreview(index, url); objectURL = null;
-    const target = $<HTMLImageElement>('remote-preview'); target.src = url; target.alt = `第 ${index + 1} 页：${page.name}`; target.dataset.pageIndex = String(index); target.hidden = false; applyPreviewZoom(true);
+    const target = $<HTMLImageElement>('remote-preview'); target.src = url; target.alt = `第 ${index + 1} ${outputUnit()}：${page.name}`; target.dataset.pageIndex = String(index); target.hidden = false; applyPreviewZoom(true);
     $('preview-message').hidden = true;
   } catch (error) {
     if (revision !== previewRevision) return;
@@ -224,7 +225,7 @@ function refreshImportAction() {
   if (!preparedBundle || preparedBundle.pages.length < 2) return;
   const selected = pageStates.filter(p => p.selected).length, remaining = pageStates.filter(p => p.selected && p.state !== 'complete').length;
   $<HTMLButtonElement>('import').disabled = busy || !selected || (plugin && !remaining);
-  $('import').textContent = !plugin ? '下载 Figma 数据' : !remaining && selected ? '所选页面已全部导入' : `导入到 Figma（${remaining} 页）`;
+  $('import').textContent = !plugin ? '下载 Figma 数据' : !remaining && selected ? '所选页面已全部导入' : `导入到 Figma（${remaining} ${outputUnit()}）`;
 }
 function setPageState(index: number, state: typeof pageStates[number]['state'], detail: string) {
   if (!pageStates[index]) return; Object.assign(pageStates[index], { state, detail });
@@ -233,7 +234,7 @@ function setPageState(index: number, state: typeof pageStates[number]['state'], 
 function sendNextPage() {
   if (!preparedBundle || queuePosition >= queue.length || captureStopped) return;
   const index = queue[queuePosition]; setPageState(index, 'working', '导入中…');
-  status(`正在导入第 ${queuePosition + 1} / ${queue.length} 页：${preparedBundle.pages[index].name}`);
+  status(`正在导入第 ${queuePosition + 1} / ${queue.length} ${outputUnit()}：${preparedBundle.pages[index].name}`);
   message('IMPORT_PAGE', { id: batchId, index: queuePosition, document: hydratePage(preparedBundle, index) });
 }
 function switchTab(next: string) {
@@ -488,8 +489,8 @@ function importPrepared() {
   if (preparedBundle.pages.length === 1 && !prepared.source.design) { status('正在加载字体并创建图层…'); message('IMPORT', { document: prepared, mode: mode(), expectedPageId: incomingHandoff?.expectedPageId }); }
   else {
     batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`; queuePosition = 0;
-    message('BATCH_START', { id: batchId, mode: mode(),smartLayout:smartLayout(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map(i => ({ name: preparedBundle!.pages[i].name, width: preparedBundle!.pages[i].root.width, height: preparedBundle!.pages[i].root.height, design: preparedBundle!.pages[i].source.design, canvas: preparedBundle!.pages[i].source.canvas })) });
-    status(`开始导入 ${queue.length} 页…`);
+    message('BATCH_START', { id: batchId, mode: mode(),smartLayout:smartLayout(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map(i => ({ name: preparedBundle!.pages[i].name, width: preparedBundle!.pages[i].root.width, height: preparedBundle!.pages[i].root.height, design: preparedBundle!.pages[i].source.design, artifact: preparedBundle!.pages[i].source.artifact, canvas: preparedBundle!.pages[i].source.canvas })) });
+    status(`开始导入 ${queue.length} ${outputUnit()}…`);
   }
 }
 $('import').addEventListener('click', importPrepared);
@@ -522,8 +523,8 @@ window.onmessage = event => {
   } else if (msg.type === 'BATCH_COMPLETE' && msg.id === batchId) {
     importing = false; setBusy(false); renderPageList();
     $('report-title').textContent = msg.result.cancelled ? '批次已停止' : msg.result.total > 1 ? '多页导入完成' : '已导入 Figma';
-    status(`本次完成 ${msg.result.completed} / ${msg.result.total} 页，失败 ${msg.result.failed} 页。${msg.result.cancelled ? '已完成页面保留，可继续导入剩余页面。' : '每页已创建独立 Frame。'}`);
-    const remaining = pageStates.filter(p => p.selected && p.state !== 'complete').length; $('import').textContent = remaining ? `继续导入剩余 ${remaining} 页` : '所选页面已全部导入'; $<HTMLButtonElement>('import').disabled = remaining === 0;
+    status(`本次完成 ${msg.result.completed} / ${msg.result.total} ${outputUnit()}，失败 ${msg.result.failed} ${outputUnit()}。${msg.result.cancelled ? '已完成页面保留，可继续导入剩余页面。' : (outputUnit()==='项'?'页面模板与组件已分别创建。':'每页已创建独立 Frame。')}`);
+    const remaining = pageStates.filter(p => p.selected && p.state !== 'complete').length; $('import').textContent = remaining ? `继续导入剩余 ${remaining} ${outputUnit()}` : '所选页面已全部导入'; $<HTMLButtonElement>('import').disabled = remaining === 0;
     void reportHandoffProgress(msg.result.cancelled?'cancelled':msg.result.failed?'partial':'complete',pageStates.filter(p=>p.state==='complete').length,pageStates.filter(p=>p.state==='failed').length);
     updateWarnings(msg.result.results.flatMap((r: any) => r.error ? [{ code: 'PAGE_FAILED', message: `${r.name}：${r.error}` }] : r.result?.diagnostics || []).slice(0, 100));
   } else if (msg.type === 'PROGRESS') { $<HTMLProgressElement>('progress').value = Math.round(msg.done / msg.total * 100); status(`正在创建图层 ${msg.done} / ${msg.total}…`); }
@@ -537,11 +538,13 @@ window.onmessage = event => {
 
 $('url-mode').addEventListener('change', () => { $('state-plan-panel').hidden = $<HTMLSelectElement>('url-mode').value !== 'states'; invalidate(); syncStateInput(); });
 $('state-input-mode').addEventListener('change', () => { invalidate(); clearDiscovery(); syncStateInput(); });
+$('exploration-output').addEventListener('change', () => { invalidate(); clearDiscovery(); $('design-data-options').hidden = $<HTMLSelectElement>('exploration-output').value !== 'design'; });
+$('exploration-data-samples').addEventListener('change', () => { invalidate(); clearDiscovery(); });
 const explorationFields = ['exploration-depth', 'exploration-actions', 'exploration-minutes', 'exploration-states', 'exploration-sampling', 'exploration-retry'];
 function explorationSettings() {
   const integer = (id: string, label: string) => { const value = input(id).valueAsNumber; if (!Number.isSafeInteger(value) || value < 0) throw new Error(label + '请填写 0 或正整数'); return value === 0 ? null : value; };
   const minutes = integer('exploration-minutes', '探索时长');
-  return { maxDepth: integer('exploration-depth', '探索深度'), maxActions: integer('exploration-actions', '尝试次数'), maxPages: integer('exploration-states', '状态数'), timeoutMs: minutes === null ? null : minutes * 60000, sampling: $<HTMLSelectElement>('exploration-sampling').value, retryFailures: input('exploration-retry').checked };
+  return { outputMode: $<HTMLSelectElement>('exploration-output').value, dataSamples: Number($<HTMLSelectElement>('exploration-data-samples').value), maxDepth: integer('exploration-depth', '探索深度'), maxActions: integer('exploration-actions', '尝试次数'), maxPages: integer('exploration-states', '状态数'), timeoutMs: minutes === null ? null : minutes * 60000, sampling: $<HTMLSelectElement>('exploration-sampling').value, retryFailures: input('exploration-retry').checked };
 }
 function updateExplorationSettings(save = true) {
   const describe = (id: string, unit: string, unlimited: string) => Number(input(id).value) ? `${input(id).value} ${unit}` : unlimited;
@@ -562,11 +565,11 @@ $('rediscover-pages').addEventListener('click', () => { clearDiscovery(); invali
 function renderDiscovery() {
   if (!discovery) return;
   $('discovery-intro').hidden = true; $('discovery-results').hidden = false;
-  $('discovery-title').textContent = `${discovery.report.mode === 'interactions' ? '已探索' : '发现'} ${discovery.pages.length} 个${discovery.report.mode === 'interactions' ? '状态' : '页面'}`;
+  $('discovery-title').textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} 个页面模板 · ${discovery.report.designSummary.componentStates} 个组件状态` : `${discovery.report.mode === 'interactions' ? '已探索' : '发现'} ${discovery.pages.length} 个${discovery.report.mode === 'interactions' ? '状态' : '页面'}`;
   const count = () => { $('discovery-count').textContent = `已选择 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`; refreshPrepareAction(); };
   const rows = document.createDocumentFragment();
   discovery.pages.forEach((page: any, i: number) => {
-    const row = document.createElement('label'); row.className = 'discovery-row'; row.dataset.failed = String(!!page.error);
+    const row = document.createElement('label'); row.className = 'discovery-row'; row.dataset.failed = String(!!page.error); row.dataset.artifact = page.artifact?.kind || '';
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = discoverySelection[i]; checkbox.disabled = busy || !!page.error; checkbox.setAttribute('aria-label', `捕获 ${page.name}`);
     checkbox.addEventListener('change', () => { discoverySelection[i] = checkbox.checked; invalidate(); count(); });
     const copy = document.createElement('span'); copy.className = 'discovery-copy';
@@ -576,6 +579,7 @@ function renderDiscovery() {
     detail.textContent = page.error ? `无法打开 · ${page.error}` : `${page.via} · ${page.via === '导航标签' && !page.destination ? '点击后捕获' : route}${page.checked ? '' : ' · 捕获时验证'}`;
     if (page.path) detail.textContent = `${page.via} · ${page.path}`;
     if(page.design){detail.textContent=`${PAGE_LEVELS[page.design.level as keyof typeof PAGE_LEVELS]} · ${page.design.moduleName} / ${page.design.pageName}${page.design.kind==='scroll'?' · 长页分段':''}${page.design.confidence==='low'?' · 待确认':''}`;detail.title=page.design.reason;}
+    if(page.artifact){ detail.textContent = `${page.artifact.kind==='component'?'组件变体':'页面模板'} · ${page.artifact.familyName} · ${page.artifact.stateName}${page.artifact.sampleCount>1?` · 合并 ${page.artifact.sampleCount} 个数据状态`:''}`; detail.title = page.artifact.reason; }
     copy.append(name, detail); row.append(checkbox, copy); rows.append(row);
   });
   $('discovery-list').replaceChildren(rows);
@@ -585,7 +589,8 @@ function renderDiscovery() {
     const reasons: Record<string, string> = { time: '本轮时长已用完', actions: '本轮尝试次数已用完', states: '本轮新增状态数已达到上限', depth: '部分动作超过探索深度', cancelled: '已手动停止', queue: '可探索队列已处理' };
     const stopped = (report.stopReasons || []).map((reason: string) => reasons[reason] || reason).join('；');
     const skipped = report.skippedByReason;
-    $('discovery-summary').textContent = `已记录 ${discovery.pages.length} 个不同状态，累计尝试 ${report.attempted} 次，合并 ${report.duplicates} 次重复，失败 ${report.failed ?? report.errors.length} 次。${stopped ? stopped + '。' : ''}${report.remaining ? `仍有 ${report.remaining} 个候选动作待探索（其中 ${report.depthDeferred || 0} 个受深度限制）；候选动作数不等于新增页面数。` : ''}${skipped ? `累计跳过：受限控件 ${skipped.restricted || 0} 个、采样省略 ${skipped.sampling || 0} 个、重复路径 ${skipped.duplicate || 0} 个。` : `跳过 ${report.skippedControls} 个控件。`}不代表全部交互已覆盖。`;
+    const design = report.designSummary;
+    $('discovery-summary').textContent = `${design?`设计稿输出：${design.pageTemplates} 个页面模板、${design.componentStates} 个组件状态，归并 ${design.wholePagesAvoided} 次整页重复。已观察 ${design.observedStates} 个不同数据/交互状态`:`已记录 ${discovery.pages.length} 个不同状态`}，累计尝试 ${report.attempted} 次，合并 ${report.duplicates} 次重复，失败 ${report.failed ?? report.errors.length} 次。${stopped ? stopped + '。' : ''}${report.remaining ? `仍有 ${report.remaining} 个候选动作待探索（其中 ${report.depthDeferred || 0} 个受深度限制）；候选动作数不等于新增页面数。` : ''}${skipped ? `累计跳过：受限控件 ${skipped.restricted || 0} 个、采样省略 ${skipped.sampling || 0} 个、重复路径 ${skipped.duplicate || 0} 个。` : `跳过 ${report.skippedControls} 个控件。`}不代表全部交互已覆盖。`;
   }
   const canResume = report.mode === 'interactions' && !!discovery.session?.canResume;
   $('continue-exploration').hidden = !canResume; $<HTMLButtonElement>('continue-exploration').disabled = busy;
@@ -651,7 +656,7 @@ async function prepareStates(url: string, suppliedPlan?: any) {
       const result=await api(`/api/states/${job.id}/result`);stateReport=result.report;
       if(result.bundle.pages.length){showBundle(result.bundle);showRemotePreviews(result.preview,job.id,result.previews||[]);}
       $('download-state-report').hidden=false;
-      status(`状态捕获${result.report.cancelled?'已停止':'完成'}：成功 ${result.report.completed} / ${result.report.total}，失败 ${result.report.failed}。${result.report.merged?`合并 ${result.report.merged} 个滚动分段。`:''}${result.report.completed?'可选择页面后导入 Figma。':'请下载报告检查失败原因。'}`,!result.report.completed);
+      status(`状态捕获${result.report.cancelled?'已停止':'完成'}：成功 ${result.report.completed} / ${result.report.total}，失败 ${result.report.failed}。${result.report.merged?`合并 ${result.report.merged} 个滚动分段。`:''}${result.report.completed?'可勾选页面或组件后导入 Figma。':'请下载报告检查失败原因。'}`,!result.report.completed);
       break;
     }
     await new Promise(resolve=>setTimeout(resolve,700));
@@ -671,12 +676,12 @@ function refreshHandoffControls() {
   const count = pageStates.filter(p => p.selected).length;
   $('send-handoff').hidden = plugin || !preparedBundle;
   $<HTMLButtonElement>('send-handoff').disabled = busy || !count;
-  $('send-handoff').textContent = `发送到 Figma 插件${count ? `（${count} 页）` : ''}`;
+  $('send-handoff').textContent = `发送到 Figma 插件${count ? `（${count} ${outputUnit()}）` : ''}`;
   $<HTMLButtonElement>('receive-handoff').disabled = busy || handoffReceiving;
   $('direct-target').hidden = plugin || !preparedBundle; $('direct-import').hidden = plugin || !preparedBundle;
   const target = figmaTargets.find(t => t.id === $<HTMLSelectElement>('figma-target').value);
   $<HTMLButtonElement>('direct-import').disabled = busy || !count || !target || target.busy;
-  $('direct-import').textContent = `${outgoingPhase === 'complete' ? '再次导入' : '直接导入'} Figma${count ? `（${count} 页）` : ''}`;
+  $('direct-import').textContent = `${outgoingPhase === 'complete' ? '再次导入' : '直接导入'} Figma${count ? `（${count} ${outputUnit()}）` : ''}`;
   $('figma-target-help').textContent = target ? `${target.documentName} / ${target.pageName}${target.busy ? ' · 插件正在处理任务' : ''}` : '请在目标 Figma 文件中打开插件并保持连接。';
 }
 function selectedBundle() {
@@ -687,7 +692,7 @@ function selectedBundle() {
 }
 function outgoingStatus(item: any) {
   outgoingPhase = item.status;
-  const labels: Record<string, string> = { pending: '已发送。请在 Figma 插件中点击“接收并导入当前页面”。', received: 'Figma 插件已接收，正在准备导入。', importing: `正在导入 Figma：${item.completed} / ${item.pages} 页`, complete: `已导入 Figma：${item.completed} / ${item.pages} 页`, partial: `导入结束：完成 ${item.completed} 页，失败 ${item.failed} 页。请在 Figma 中检查。`, cancelled: `导入已取消，保留已完成的 ${item.completed} 页。`, failed: '导入失败，请在 Figma 插件中查看原因或重试。', replaced: '这批结果已被新发送的结果替代。' };
+  const labels: Record<string, string> = { pending: '已发送。请在 Figma 插件中点击“接收并导入当前页面”。', received: 'Figma 插件已接收，正在准备导入。', importing: `正在导入 Figma：${item.completed} / ${item.pages} ${outputUnit()}`, complete: `已导入 Figma：${item.completed} / ${item.pages} ${outputUnit()}`, partial: `导入结束：完成 ${item.completed} ${outputUnit()}，失败 ${item.failed} ${outputUnit()}。请在 Figma 中检查。`, cancelled: `导入已取消，保留已完成的 ${item.completed} ${outputUnit()}。`, failed: '导入失败，请在 Figma 插件中查看原因或重试。', replaced: '这批结果已被新发送的结果替代。' };
   $('handoff-send-status').hidden = false; $('handoff-send-status').classList.toggle('error', ['failed','partial'].includes(item.status)); $('handoff-send-status').textContent = item.error || (item.autoImport && item.status === 'pending' ? `已请求导入：${item.target.documentName} / ${item.target.pageName}，等待插件执行…` : labels[item.status] || item.status); refreshHandoffControls();
 }
 async function sendHandoff(direct = false) {
@@ -715,7 +720,7 @@ async function pollHandoffs() {
       const result = await handoffAPI(`/api/handoffs/latest?receiverId=${receiverId}`); handoffCandidate = result.handoff;
       if (handoffCandidate?.autoImport && !busy && !handoffReceiving) { await receiveHandoff(); return; }
       $('handoff-inbox').hidden = !handoffCandidate;
-      if (handoffCandidate) { $('handoff-title').textContent = '桌面助手有新的捕获结果'; $('handoff-description').textContent = `${handoffCandidate.name} · ${handoffCandidate.pages} 页`; refreshHandoffControls(); }
+      if (handoffCandidate) { $('handoff-title').textContent = '桌面助手有新的捕获结果'; $('handoff-description').textContent = `${handoffCandidate.name} · ${handoffCandidate.pages} ${outputUnit()}`; refreshHandoffControls(); }
     } else if (!plugin) {
       const receivers = await handoffAPI('/api/figma/receivers'); figmaTargets = receivers.targets;
       const key = JSON.stringify(figmaTargets);

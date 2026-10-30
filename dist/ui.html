@@ -25,15 +25,17 @@
 .capture-preferences{display:grid;gap:12px;padding:14px 0}.preference-row{display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0}.preference-row input[type=checkbox]{width:16px;height:16px;flex:none;margin:3px 0 0;accent-color:#4460ed}.preference-row span{display:grid;gap:2px}.preference-row strong{font-size:13px;font-weight:600}.preference-row small{font-size:11px;line-height:1.5;color:#64748b}.preference-row:has(input:focus-visible){outline:2px solid #4460ed;outline-offset:5px;border-radius:4px}
 
 #exploration-options{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:4px 12px 12px}#exploration-options>summary{font-size:12px;min-height:36px;color:var(--ink);padding-top:8px}#exploration-budget-label{font-size:11px;color:#586979;margin-left:5px}#exploration-options:not([open]){padding-bottom:4px}.exploration-grid{margin:12px 0}.exploration-retry{margin:12px 0 0;font-size:12px;gap:8px;align-items:center}#continue-exploration{width:100%;margin-top:12px;min-height:40px;font-size:12px}#exploration-resume-help{margin-bottom:10px}#exploration-options select{display:block;width:100%;max-width:100%;min-height:38px;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font:inherit;background:var(--bg);color:var(--ink)}
+
+#design-output-options{margin-top:12px}#design-output-options select,#design-data-options select{display:block;width:100%;min-height:38px;padding:8px 10px;font:inherit;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}#design-data-options{margin-top:12px}.discovery-row[data-artifact=component]{border-left:3px solid #9074b2}.discovery-row[data-artifact=page]{border-left:3px solid #5c8870}
 </style></head><body><div class="app-shell"><main class="panel"><header class="app-header"><div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="brand-copy"><h1>HTML to Figma</h1><p>从页面，到可编辑的设计。</p></div><span class="local-badge"><i></i>LOCAL</span></header><section class="source-section"><div class="section-heading"><h2>导入内容</h2><button type="button" class="text-button" id="demo">试用示例 <span aria-hidden="true">↗</span></button></div><div class="tabs" role="tablist" aria-label="内容来源"><button class="tab active" role="tab" aria-selected="true" aria-controls="file-panel" id="file-tab" data-tab="file">文件</button><button class="tab" role="tab" aria-selected="false" aria-controls="code-panel" id="code-tab" data-tab="code" tabindex="-1">HTML 代码</button><button class="tab" role="tab" aria-selected="false" aria-controls="url-panel" id="url-tab" data-tab="url" tabindex="-1">网页链接</button></div><div id="file-panel" role="tabpanel" aria-labelledby="file-tab"><button type="button" id="drop-zone" class="drop-zone"><span class="upload-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><strong id="file-label">拖入文件，或批量选择</strong><span>支持 HTML / JSON，多页逐页导入</span></button><input id="file-input" type="file" accept=".html,.htm,.json" multiple hidden><p class="helper">支持静态 HTML 与 Tailwind；动态页面请用网页链接。</p></div><div id="code-panel" role="tabpanel" aria-labelledby="code-tab" hidden><label class="sr-only" for="html-code">HTML 代码</label><textarea id="html-code" spellcheck="false" placeholder="<!doctype html>&#10;<html>&#10;  把完整 HTML 粘贴到这里…&#10;</html>"></textarea></div><div id="url-panel" role="tabpanel" aria-labelledby="url-tab" hidden><label for="url-mode">捕获方式</label><select id="url-mode"><option value="single">当前页面</option><option value="states">多状态捕获</option></select><label for="page-url" class="url-label">页面地址</label><input id="page-url" type="text" autocomplete="off" spellcheck="false" placeholder="https://… 或 C:\项目\index.html / Users/…/index.html"><p class="helper">支持 C:\…、/Users/…、Users/… 和 file:/// 路径，可保留 %20 与 #/ 路由。</p>
 <div id="state-plan-panel" class="state-plan-panel" hidden>
 <label for="state-input-mode">页面来源</label><select id="state-input-mode"><option value="explore">自动探索交互（推荐）</option><option value="auto">仅发现导航页面</option><option value="recipe">状态清单（高级）</option></select>
 <div id="state-auto-panel">
-<p id="discovery-intro" class="helper">自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。</p><details id="exploration-options"><summary>探索设置 <span id="exploration-budget-label">3 分钟 · 300 次 · 4 层</span></summary>
+<p id="discovery-intro" class="helper">自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。</p><div id="design-output-options"><label for="exploration-output">输出内容</label><select id="exploration-output"><option value="design" selected>设计稿 · 页面模板＋组件状态（推荐）</option><option value="states">全部交互状态 · 调试用</option></select><p class="helper">相同布局的金额、日期和记录文案合并；页面保留默认与展开等布局，局部变化整理为组件变体。</p></div><details id="exploration-options"><summary>探索设置 <span id="exploration-budget-label">3 分钟 · 300 次 · 4 层</span></summary>
 <label for="exploration-preset">探索范围</label><select id="exploration-preset"><option value="recommended">推荐 · 代表样本</option><option value="deep">深入 · 30 分钟 / 3000 次</option><option value="unlimited">尽量遍历 · 无总上限</option><option value="custom">自定义</option></select>
 <div class="form-grid exploration-grid"><div><label for="exploration-depth">交互深度</label><input id="exploration-depth" type="number" min="0" step="1" value="4"></div><div><label for="exploration-actions">每轮尝试次数</label><input id="exploration-actions" type="number" min="0" step="1" value="300"></div><div><label for="exploration-minutes">每轮时长（分钟）</label><input id="exploration-minutes" type="number" min="0" step="1" value="3"></div><div><label for="exploration-states">每轮新增状态数</label><input id="exploration-states" type="number" min="0" step="1" value="0"></div></div>
 <label for="exploration-sampling">控件范围</label><select id="exploration-sampling"><option value="representative">同类控件取代表样本（较快）</option><option value="all">遍历已识别的控件与选项</option></select>
-<label class="check-label exploration-retry"><input id="exploration-retry" type="checkbox" checked>继续时重试失败动作</label>
+<div id="design-data-options"><label for="exploration-data-samples">同样式的数据样本</label><select id="exploration-data-samples"><option value="0">合并，不额外输出数据组件</option><option value="2" selected>每种组件状态最多 2 个样本</option><option value="3">每种组件状态最多 3 个样本</option></select></div><label class="check-label exploration-retry"><input id="exploration-retry" type="checkbox" checked>继续时重试失败动作</label>
 <p class="helper">填 0 表示该项不限。次数、时长和新增状态数按每轮计算，深度按完整操作路径计算。无总上限仍可手动停止；单个操作保留超时保护。队列保留至助手退出或会话过期。</p></details>
 <div id="discovery-results" hidden>
 <div class="section-heading"><strong id="discovery-title" aria-live="polite">发现的页面</strong><button id="rediscover-pages" type="button" class="text-button">重新发现</button></div>
@@ -45,7 +47,7 @@
 </div>
 <div id="state-recipe-panel" hidden>
 <div class="section-heading"><strong id="state-plan-label">交互状态清单</strong><button id="choose-state-plan" type="button" class="text-button">选择清单</button></div><input id="state-plan-file" type="file" accept=".json" hidden><button id="load-demo-states" type="button" class="secondary-button">载入 multi-app-admin 示例</button><details><summary>编辑状态清单 JSON</summary><label for="state-plan" class="sr-only">状态清单 JSON</label><textarea id="state-plan" spellcheck="false" placeholder="载入清单后可调整每个状态的操作步骤"></textarea></details><p class="helper">每个状态独立运行，捕获可见页面后转为静态图层。</p>
-</div></div><div class="connection-box"><div class="connection-title"><span class="status-dot" id="connection-dot"></span><strong id="connection-label">连接本地捕获助手</strong><a id="download-assistant" class="assistant-download" href="https://github.com/hhagain/html-to-figma-local/releases" target="_blank" rel="noopener noreferrer" title="在浏览器中打开 Windows / macOS 桌面助手下载页" hidden>下载桌面助手<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 4h6v6M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div><button id="connect-assistant" class="secondary-button assistant-connect" type="button">连接桌面助手</button><p id="assistant-help">双击打开捕获助手。首次配对确认一次，之后自动重连。</p><div id="assistant-pair-code" class="pair-code" role="status" hidden></div><details class="manual-connection"><summary>手动连接（开发模式）</summary><label class="sr-only" for="service-token">本地服务连接码</label><input id="service-token" type="password" autocomplete="off" placeholder="粘贴本地服务连接码"><button id="connect" class="text-button" type="button">检测连接</button><p class="helper">兼容命令行服务。助手用户无需使用此项。</p></details></div></div></section><section id="handoff-inbox" class="handoff-inbox" hidden aria-label="桌面助手捕获结果"><strong id="handoff-title">桌面助手有新的捕获结果</strong><p id="handoff-description"></p><button id="receive-handoff" class="primary-button" type="button">接收并导入当前页面</button><p class="helper">接收后按桌面助手中的勾选与布局设置导入。</p></section><section class="options-section"><div class="section-heading"><h2>画布与布局</h2><span class="muted small">保留真实尺寸</span></div><div class="form-grid"><div><label for="viewport-width">浏览器宽度 <span class="muted">px</span></label><input id="viewport-width" type="number" value="1440" min="320" max="3840" step="1"></div><div><label for="selector">捕获区域 <span class="muted">CSS</span></label><input id="selector" value="body" placeholder="body 或 .container" spellcheck="false"></div></div><div id="split-options" class="split-options"><label class="check-label"><input id="split-pages" type="checkbox" checked>自动拆分多页面 <span class="muted">逐页处理</span></label><label for="page-selector">页面选择器 <span class="muted">可选</span></label><input id="page-selector" placeholder="自动识别 Pencil / .page / .slide" spellcheck="false"></div><details id="advanced"><summary>资源基础地址</summary><label class="sr-only" for="base-url">资源基础地址</label><input id="base-url" type="url" placeholder="https://example.com/path/"><p class="helper">用于相对路径的图片和样式。本地资源建议通过本地服务捕获。</p></details><div class="capture-preferences"><label class="preference-row"><input id="smart-layout" type="checkbox" checked><span><strong>智能排版</strong><small>按模块、页面层级和功能状态分组</small></span></label><label class="preference-row" id="long-page-option" hidden><input id="long-page" type="checkbox" checked><span><strong>单张长页</strong><small>展开页面主滚动区，保留卡片与弹窗的内部滚动</small></span></label></div><fieldset class="mode-group"><legend class="sr-only">布局模式</legend><label class="mode-card selected"><input type="radio" name="mode" value="visual" checked><span class="radio-mark"></span><span><strong>视觉还原</strong><small>保留页面中的实际位置与尺寸</small></span><span class="recommended">推荐</span></label><label class="mode-card"><input type="radio" name="mode" value="auto"><span class="radio-mark"></span><span><strong>智能 Auto Layout</strong><small>保持原始尺寸，仅转换布局一致的容器</small></span></label></fieldset></section><section id="report" class="report" hidden aria-label="转换结果"><div class="report-top"><span class="report-icon" aria-hidden="true">✓</span><div><strong id="report-title">已准备好</strong><p id="report-summary"></p></div></div><div class="stat-row"><span><b id="stat-nodes">0</b> 图层</span><span><b id="stat-text">0</b> 文字</span><span><b id="stat-image">0</b> 图片</span><span><b id="stat-svg">0</b> SVG</span></div><details id="warnings" hidden><summary id="warning-title">转换说明</summary><ul id="warning-list"></ul></details></section><section id="page-list-section" class="page-list-section" hidden><div class="section-heading"><h2 id="page-list-title">页面列表</h2><div><button id="select-all-pages" class="text-button" type="button">全选</button><button id="select-no-pages" class="text-button" type="button">清空</button></div></div><div id="page-list" class="page-list"></div></section><div id="status" class="status" role="status" aria-live="polite"></div><button id="download-state-report" class="text-button" type="button" hidden>下载状态覆盖报告</button><div id="progress-wrap" class="progress-wrap" hidden><progress id="progress" max="100" value="0"></progress><button id="cancel" class="text-button" type="button">取消</button></div><footer class="action-footer"><button type="button" id="prepare" class="primary-button"><span id="prepare-label">解析并预览</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div id="direct-target" class="direct-target" hidden><label for="figma-target">导入目标</label><select id="figma-target"></select><p id="figma-target-help" class="helper">在 Figma 中打开插件后，目标文件与页面会显示在这里。</p></div><div class="ready-actions" id="ready-actions" hidden><button id="direct-import" class="primary-button" type="button" hidden>直接导入 Figma</button><button id="send-handoff" class="primary-button" type="button" hidden>发送到 Figma 插件</button><button type="button" id="import" class="primary-button">导入到 Figma</button><button type="button" id="download" class="secondary-button">导出数据</button></div><p id="handoff-send-status" class="handoff-send-status" role="status" hidden></p><p class="footer-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 2.5 4v4c0 3.2 5.5 6.5 5.5 6.5S13.5 11.2 13.5 8V4L8 1.5Z" stroke="currentColor" stroke-width="1.2"/><path d="m5.5 8 1.7 1.7L10.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>本地解析 · 无上传接口 · v0.12.0</p></footer></main><aside class="preview-panel"><header class="preview-header"><div><span class="eyebrow">CAPTURE STUDIO</span><h2>页面预览</h2></div><span class="preview-size" id="preview-size">等待内容</span></header><div id="preview-controls" class="preview-controls" hidden><button id="preview-prev" type="button" class="secondary-button" aria-label="预览上一页">上一页</button><label for="preview-page" class="sr-only">选择预览页面</label><select id="preview-page" aria-label="选择预览页面"></select><button id="preview-next" type="button" class="secondary-button" aria-label="预览下一页">下一页</button></div><div id="preview-zoom-controls" class="preview-zoom-controls" role="group" aria-label="预览缩放" hidden><button id="preview-zoom-out" class="secondary-button" type="button" aria-label="缩小预览">−</button><output id="preview-zoom-value" aria-live="polite">100%</output><button id="preview-zoom-in" class="secondary-button" type="button" aria-label="放大预览">＋</button><button id="preview-zoom-actual" class="text-button" type="button">100%</button><button id="preview-zoom-fit" class="text-button" type="button">适应窗口</button></div><p id="preview-caption" class="preview-caption" aria-live="polite" hidden></p><p id="preview-shortcuts" class="preview-shortcuts" hidden>Ctrl / ⌘ + 滚轮缩放 · 按住空格并用左键拖拽</p><div class="preview-stage" id="preview-stage" tabindex="0" aria-label="页面预览，按住空格可拖拽"><div id="preview-empty" class="preview-empty"><div class="empty-illustration" aria-hidden="true"><span class="mock-window"><i></i><i></i><i></i><b></b><em></em><em></em><em></em></span><span class="mock-cursor"><svg viewBox="0 0 32 32" fill="none"><path d="m5 3 21 15-11 2-5 10L5 3Z" fill="#2c5d48" stroke="white" stroke-width="2"/></svg></span></div><h3>让网页成为设计的起点</h3><p>导入 HTML 或试用示例，查看页面并生成 Figma 数据。</p><div class="feature-tags"><span>可编辑文字</span><span>图片与 SVG</span><span>真实布局</span></div></div><div id="preview-message" class="preview-message" hidden><p id="preview-message-text" role="status"></p><button id="preview-retry" type="button" class="secondary-button" hidden>重新加载预览</button></div><div id="frame-container" hidden></div><img draggable="false" id="remote-preview" alt="网页捕获预览" hidden></div><footer class="preview-footer"><span>01 / 在这里捕获页面</span><span>02 / 在 Figma 插件中导入数据</span></footer><details class="setup-help"><summary>在 Figma 中加载插件</summary><p>桌面端菜单 → Plugins → Development → Import plugin from manifest，选择项目目录中的 <code>manifest.json</code>。随后将导出的 .h2f.json 拖入插件。</p><p id="local-pairing" hidden>本次本地服务连接码：<code id="pairing-code"></code><button id="copy-token" type="button" class="text-button">复制</button></p></details></aside></div><div id="capture-host"></div><script>"use strict";
+</div></div><div class="connection-box"><div class="connection-title"><span class="status-dot" id="connection-dot"></span><strong id="connection-label">连接本地捕获助手</strong><a id="download-assistant" class="assistant-download" href="https://github.com/hhagain/html-to-figma-local/releases" target="_blank" rel="noopener noreferrer" title="在浏览器中打开 Windows / macOS 桌面助手下载页" hidden>下载桌面助手<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 4h6v6M12 4l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div><button id="connect-assistant" class="secondary-button assistant-connect" type="button">连接桌面助手</button><p id="assistant-help">双击打开捕获助手。首次配对确认一次，之后自动重连。</p><div id="assistant-pair-code" class="pair-code" role="status" hidden></div><details class="manual-connection"><summary>手动连接（开发模式）</summary><label class="sr-only" for="service-token">本地服务连接码</label><input id="service-token" type="password" autocomplete="off" placeholder="粘贴本地服务连接码"><button id="connect" class="text-button" type="button">检测连接</button><p class="helper">兼容命令行服务。助手用户无需使用此项。</p></details></div></div></section><section id="handoff-inbox" class="handoff-inbox" hidden aria-label="桌面助手捕获结果"><strong id="handoff-title">桌面助手有新的捕获结果</strong><p id="handoff-description"></p><button id="receive-handoff" class="primary-button" type="button">接收并导入当前页面</button><p class="helper">接收后按桌面助手中的勾选与布局设置导入。</p></section><section class="options-section"><div class="section-heading"><h2>画布与布局</h2><span class="muted small">保留真实尺寸</span></div><div class="form-grid"><div><label for="viewport-width">浏览器宽度 <span class="muted">px</span></label><input id="viewport-width" type="number" value="1440" min="320" max="3840" step="1"></div><div><label for="selector">捕获区域 <span class="muted">CSS</span></label><input id="selector" value="body" placeholder="body 或 .container" spellcheck="false"></div></div><div id="split-options" class="split-options"><label class="check-label"><input id="split-pages" type="checkbox" checked>自动拆分多页面 <span class="muted">逐页处理</span></label><label for="page-selector">页面选择器 <span class="muted">可选</span></label><input id="page-selector" placeholder="自动识别 Pencil / .page / .slide" spellcheck="false"></div><details id="advanced"><summary>资源基础地址</summary><label class="sr-only" for="base-url">资源基础地址</label><input id="base-url" type="url" placeholder="https://example.com/path/"><p class="helper">用于相对路径的图片和样式。本地资源建议通过本地服务捕获。</p></details><div class="capture-preferences"><label class="preference-row"><input id="smart-layout" type="checkbox" checked><span><strong>智能排版</strong><small>按模块、页面层级和功能状态分组</small></span></label><label class="preference-row" id="long-page-option" hidden><input id="long-page" type="checkbox" checked><span><strong>单张长页</strong><small>展开页面主滚动区，保留卡片与弹窗的内部滚动</small></span></label></div><fieldset class="mode-group"><legend class="sr-only">布局模式</legend><label class="mode-card selected"><input type="radio" name="mode" value="visual" checked><span class="radio-mark"></span><span><strong>视觉还原</strong><small>保留页面中的实际位置与尺寸</small></span><span class="recommended">推荐</span></label><label class="mode-card"><input type="radio" name="mode" value="auto"><span class="radio-mark"></span><span><strong>智能 Auto Layout</strong><small>保持原始尺寸，仅转换布局一致的容器</small></span></label></fieldset></section><section id="report" class="report" hidden aria-label="转换结果"><div class="report-top"><span class="report-icon" aria-hidden="true">✓</span><div><strong id="report-title">已准备好</strong><p id="report-summary"></p></div></div><div class="stat-row"><span><b id="stat-nodes">0</b> 图层</span><span><b id="stat-text">0</b> 文字</span><span><b id="stat-image">0</b> 图片</span><span><b id="stat-svg">0</b> SVG</span></div><details id="warnings" hidden><summary id="warning-title">转换说明</summary><ul id="warning-list"></ul></details></section><section id="page-list-section" class="page-list-section" hidden><div class="section-heading"><h2 id="page-list-title">页面列表</h2><div><button id="select-all-pages" class="text-button" type="button">全选</button><button id="select-no-pages" class="text-button" type="button">清空</button></div></div><div id="page-list" class="page-list"></div></section><div id="status" class="status" role="status" aria-live="polite"></div><button id="download-state-report" class="text-button" type="button" hidden>下载状态覆盖报告</button><div id="progress-wrap" class="progress-wrap" hidden><progress id="progress" max="100" value="0"></progress><button id="cancel" class="text-button" type="button">取消</button></div><footer class="action-footer"><button type="button" id="prepare" class="primary-button"><span id="prepare-label">解析并预览</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div id="direct-target" class="direct-target" hidden><label for="figma-target">导入目标</label><select id="figma-target"></select><p id="figma-target-help" class="helper">在 Figma 中打开插件后，目标文件与页面会显示在这里。</p></div><div class="ready-actions" id="ready-actions" hidden><button id="direct-import" class="primary-button" type="button" hidden>直接导入 Figma</button><button id="send-handoff" class="primary-button" type="button" hidden>发送到 Figma 插件</button><button type="button" id="import" class="primary-button">导入到 Figma</button><button type="button" id="download" class="secondary-button">导出数据</button></div><p id="handoff-send-status" class="handoff-send-status" role="status" hidden></p><p class="footer-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 2.5 4v4c0 3.2 5.5 6.5 5.5 6.5S13.5 11.2 13.5 8V4L8 1.5Z" stroke="currentColor" stroke-width="1.2"/><path d="m5.5 8 1.7 1.7L10.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>本地解析 · 无上传接口 · v0.13.0</p></footer></main><aside class="preview-panel"><header class="preview-header"><div><span class="eyebrow">CAPTURE STUDIO</span><h2>页面预览</h2></div><span class="preview-size" id="preview-size">等待内容</span></header><div id="preview-controls" class="preview-controls" hidden><button id="preview-prev" type="button" class="secondary-button" aria-label="预览上一页">上一页</button><label for="preview-page" class="sr-only">选择预览页面</label><select id="preview-page" aria-label="选择预览页面"></select><button id="preview-next" type="button" class="secondary-button" aria-label="预览下一页">下一页</button></div><div id="preview-zoom-controls" class="preview-zoom-controls" role="group" aria-label="预览缩放" hidden><button id="preview-zoom-out" class="secondary-button" type="button" aria-label="缩小预览">−</button><output id="preview-zoom-value" aria-live="polite">100%</output><button id="preview-zoom-in" class="secondary-button" type="button" aria-label="放大预览">＋</button><button id="preview-zoom-actual" class="text-button" type="button">100%</button><button id="preview-zoom-fit" class="text-button" type="button">适应窗口</button></div><p id="preview-caption" class="preview-caption" aria-live="polite" hidden></p><p id="preview-shortcuts" class="preview-shortcuts" hidden>Ctrl / ⌘ + 滚轮缩放 · 按住空格并用左键拖拽</p><div class="preview-stage" id="preview-stage" tabindex="0" aria-label="页面预览，按住空格可拖拽"><div id="preview-empty" class="preview-empty"><div class="empty-illustration" aria-hidden="true"><span class="mock-window"><i></i><i></i><i></i><b></b><em></em><em></em><em></em></span><span class="mock-cursor"><svg viewBox="0 0 32 32" fill="none"><path d="m5 3 21 15-11 2-5 10L5 3Z" fill="#2c5d48" stroke="white" stroke-width="2"/></svg></span></div><h3>让网页成为设计的起点</h3><p>导入 HTML 或试用示例，查看页面并生成 Figma 数据。</p><div class="feature-tags"><span>可编辑文字</span><span>图片与 SVG</span><span>真实布局</span></div></div><div id="preview-message" class="preview-message" hidden><p id="preview-message-text" role="status"></p><button id="preview-retry" type="button" class="secondary-button" hidden>重新加载预览</button></div><div id="frame-container" hidden></div><img draggable="false" id="remote-preview" alt="网页捕获预览" hidden></div><footer class="preview-footer"><span>01 / 在这里捕获页面</span><span>02 / 在 Figma 插件中导入数据</span></footer><details class="setup-help"><summary>在 Figma 中加载插件</summary><p>桌面端菜单 → Plugins → Development → Import plugin from manifest，选择项目目录中的 <code>manifest.json</code>。随后将导出的 .h2f.json 拖入插件。</p><p id="local-pairing" hidden>本次本地服务连接码：<code id="pairing-code"></code><button id="copy-token" type="button" class="text-button">复制</button></p></details></aside></div><div id="capture-host"></div><script>"use strict";
 (() => {
   // src/design-organization.ts
   var PAGE_LEVELS = { primary: "\u4E00\u7EA7\u9875\u9762", secondary: "\u4E8C\u7EA7\u9875\u9762", feature: "\u529F\u80FD\u9875\u9762", unclassified: "\u5F85\u786E\u8BA4\u9875\u9762" };
@@ -105,7 +107,7 @@
           }
           const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
           for (const [i2, p] of local) positions.set(i2, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
-          groups.push({ id, name: `${PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+          groups.push({ id, name: `${pages[s.indices[0]].artifact?.kind === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
           sectionY += sectionHeight + 160;
           columnWidth = Math.max(columnWidth, sectionWidth);
         }
@@ -249,6 +251,12 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}" viewBox="0 0 ${size.layoutWidth} ${size.layoutHeight}"><path d="${match[3]}" fill="${fill}" fill-opacity="${color.a}" fill-rule="${(match[1] || "nonzero").toLowerCase()}"/></svg>`;
   }
 
+  // src/design-artifact.ts
+  function validArtifact(value) {
+    const v = value;
+    return !!v && typeof v === "object" && !Array.isArray(v) && ["page", "component"].includes(v.kind) && typeof v.familyId === "string" && /^[\w-]{1,200}$/.test(v.familyId) && ["familyName", "stateName", "reason"].every((k) => typeof v[k] === "string" && v[k].length > 0 && v[k].length <= 500) && Number.isSafeInteger(v.sampleCount) && v.sampleCount >= 1;
+  }
+
   // src/schema.ts
   var SCHEMA_VERSION = 1;
   var LIMITS = { nodes: 6e3, depth: 64, text: 25e4, assets: 300, assetBytes: 24 * 1024 * 1024, dimension: 1e5 };
@@ -290,6 +298,7 @@
     if (doc.importOptions !== void 0 && !validImportSettings(doc.importOptions)) fail("\u5BFC\u5165\u8BBE\u7F6E\u65E0\u6548");
     if (typeof doc.name !== "string" || doc.name.length > 500) fail("\u540D\u79F0\u8FC7\u957F\u6216\u7F3A\u5931");
     if (!object(doc.source) || !object(doc.source.viewport) || !number(doc.source.viewport.width, LIMITS.dimension, 1) || !number(doc.source.viewport.height, LIMITS.dimension, 1) || typeof doc.source.url !== "string" || typeof doc.source.selector !== "string") fail("\u7F3A\u5C11\u9875\u9762\u4FE1\u606F");
+    if (doc.source.artifact !== void 0 && !validArtifact(doc.source.artifact)) fail("\u8BBE\u8BA1\u7A3F\u9879\u4FE1\u606F\u65E0\u6548");
     if (doc.source.canvas !== void 0 && !isCanvasPlacement(doc.source.canvas)) fail("\u539F\u753B\u5E03\u4F4D\u7F6E\u4FE1\u606F\u65E0\u6548");
     if (doc.source.design !== void 0 && !validOrganization(doc.source.design)) fail("\u9875\u9762\u5206\u7C7B\u4FE1\u606F\u65E0\u6548");
     if (doc.source.longPage !== void 0) {
@@ -8203,6 +8212,7 @@
       message("OPEN_DESKTOP_ASSISTANT_DOWNLOAD");
     }
   });
+  var outputUnit = () => preparedBundle?.pages.some((p) => p.source.artifact?.kind === "component") ? "\u9879" : "\u9875";
   var tab = "file";
   var source = "";
   var sourceName = "";
@@ -8253,10 +8263,10 @@
   var discoverySelection = [];
   var autoStates = () => tab === "url" && $("url-mode").value === "states" && $("state-input-mode").value !== "recipe";
   function requestKey() {
-    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value]);
+    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value, $("exploration-output").value, $("exploration-data-samples").value]);
   }
   function refreshPrepareAction() {
-    const label = busy ? "\u5904\u7406\u4E2D\u2026" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} \u9875\uFF09` : $("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
+    const label = busy ? "\u5904\u7406\u4E2D\u2026" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary ? "\u9879" : "\u9875"}\uFF09` : $("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
     $("prepare-label").textContent = label;
     $("prepare").disabled = busy || autoStates() && !!discovery && !discoverySelection.some(Boolean);
   }
@@ -8273,6 +8283,7 @@
     $("state-auto-panel").hidden = !automatic;
     $("state-recipe-panel").hidden = automatic;
     $("exploration-options").hidden = $("state-input-mode").value !== "explore";
+    $("design-output-options").hidden = $("state-input-mode").value !== "explore";
     $("discovery-intro").textContent = $("state-input-mode").value === "explore" ? "\u81EA\u52A8\u6253\u5F00\u8BE6\u60C5\u3001\u5F39\u7A97\u548C\u8868\u5355\uFF0C\u8BB0\u5F55\u53EF\u91CD\u653E\u7684\u4EA4\u4E92\u72B6\u6001\uFF0C\u518D\u52FE\u9009\u6355\u83B7\u3002\u65E0\u9700\u51C6\u5907 JSON\u3002" : "\u8BC6\u522B\u5BFC\u822A\u6807\u7B7E\u3001\u9875\u9762\u94FE\u63A5\u548C\u672C\u5730 HTML\u3002\u6B64\u6A21\u5F0F\u4E0D\u63A2\u7D22\u8BE6\u60C5\u548C\u5F39\u7A97\u3002";
     refreshPrepareAction();
   }
@@ -8372,18 +8383,18 @@
     $("report").hidden = false;
     $("ready-actions").hidden = false;
     $("prepare").hidden = true;
-    $("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} \u9875` : "\u5DF2\u51C6\u5907\u597D";
+    $("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} ${outputUnit()}` : "\u5DF2\u51C6\u5907\u597D";
     $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : bundle.pages.some((p) => p.source.design) ? smartLayout() ? "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4 \xB7 " : "\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
     $("stat-nodes").textContent = String(stats.nodes);
     $("stat-text").textContent = String(stats.texts);
     $("stat-image").textContent = String(stats.images);
     $("stat-svg").textContent = String(stats.vectors);
-    $("preview-size").textContent = bundle.pages.length > 1 ? `${bundle.pages.length} \u9875` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)}`;
+    $("preview-size").textContent = bundle.pages.length > 1 ? `${bundle.pages.length} ${outputUnit()}` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)}`;
     const diagnostics = bundle.pages.flatMap((page) => page.diagnostics).slice(0, 100);
     diagnostics.push(...bundle.errors.map((error) => ({ code: "PAGE_CAPTURE_FAILED", message: `${error.name}\uFF1A${error.message}` })));
     updateWarnings(diagnostics);
     renderPageList();
-    $("import").textContent = plugin ? `\u5BFC\u5165\u5230 Figma${bundle.pages.length > 1 ? `\uFF08${bundle.pages.length} \u9875\uFF09` : ""}` : "\u4E0B\u8F7D Figma \u6570\u636E";
+    $("import").textContent = plugin ? `\u5BFC\u5165\u5230 Figma${bundle.pages.length > 1 ? `\uFF08${bundle.pages.length} ${outputUnit()}\uFF09` : ""}` : "\u4E0B\u8F7D Figma \u6570\u636E";
     $("download").hidden = !plugin;
     $("send-handoff").hidden = plugin;
     refreshHandoffControls();
@@ -8398,9 +8409,9 @@
   function renderPageList() {
     if (!preparedBundle) return;
     $("page-list-section").hidden = preparedBundle.pages.length < 2 && !(smartLayout() && preparedBundle.pages[0]?.source.design);
-    $("page-list-title").textContent = `\u9875\u9762\u5217\u8868 \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
+    $("page-list-title").textContent = `${preparedBundle.pages.some((p) => p.source.artifact?.kind === "component") ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
     const rows = document.createDocumentFragment();
-    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas || !smartLayout() ? void 0 : p.source.design })));
+    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas || !smartLayout() && p.source.artifact?.kind !== "component" ? void 0 : p.source.design, artifact: p.source.artifact })));
     const grouped = new Set(organization.groups.flatMap((g) => g.indices)), ordered = [...organization.groups.flatMap((g) => g.indices), ...preparedBundle.pages.map((_, i2) => i2).filter((i2) => !grouped.has(i2))];
     const heads = new Map(organization.groups.map((g) => [g.indices[0], g]));
     ordered.forEach((i2) => {
@@ -8433,7 +8444,8 @@
           }
           renderPageList();
         });
-        heading.append(name, level);
+        heading.append(name);
+        if (page.source.artifact?.kind !== "component") heading.append(level);
         rows.append(heading);
       }
       const row = document.createElement("div");
@@ -8449,7 +8461,7 @@
       box.addEventListener("change", () => {
         pageStates[i2].selected = box.checked;
         refreshImportAction();
-        $("page-list-title").textContent = `\u9875\u9762\u5217\u8868 \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
+        $("page-list-title").textContent = `${preparedBundle.pages.some((p) => p.source.artifact?.kind === "component") ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
       });
       const title = document.createElement("span");
       title.textContent = `${String(i2 + 1).padStart(3, "0")}  ${page.name}`;
@@ -8556,14 +8568,14 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     previewPageIndex = index;
     const page = preparedBundle.pages[index];
     $("preview-page").value = String(index);
-    $("preview-size").textContent = `${index + 1} / ${preparedBundle.pages.length} \u9875`;
+    $("preview-size").textContent = `${index + 1} / ${preparedBundle.pages.length} ${outputUnit()}`;
     $("preview-caption").textContent = `${page.name} \xB7 ${Math.round(page.root.width)} \xD7 ${Math.round(page.root.height)} px`;
     $("preview-caption").hidden = false;
     $("preview-empty").hidden = true;
     $("frame-container").hidden = true;
     $("remote-preview").hidden = true;
     $("preview-message").hidden = false;
-    $("preview-message-text").textContent = `\u6B63\u5728\u52A0\u8F7D\u7B2C ${index + 1} \u9875\u9884\u89C8\u2026`;
+    $("preview-message-text").textContent = `\u6B63\u5728\u52A0\u8F7D\u7B2C ${index + 1} ${outputUnit()}\u9884\u89C8\u2026`;
     $("preview-retry").hidden = true;
     $("preview-stage").setAttribute("aria-busy", "true");
     refreshPreviewControls();
@@ -8599,7 +8611,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       objectURL = null;
       const target = $("remote-preview");
       target.src = url;
-      target.alt = `\u7B2C ${index + 1} \u9875\uFF1A${page.name}`;
+      target.alt = `\u7B2C ${index + 1} ${outputUnit()}\uFF1A${page.name}`;
       target.dataset.pageIndex = String(index);
       target.hidden = false;
       applyPreviewZoom(true);
@@ -8634,7 +8646,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!preparedBundle || preparedBundle.pages.length < 2) return;
     const selected = pageStates.filter((p) => p.selected).length, remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
     $("import").disabled = busy || !selected || plugin && !remaining;
-    $("import").textContent = !plugin ? "\u4E0B\u8F7D Figma \u6570\u636E" : !remaining && selected ? "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165" : `\u5BFC\u5165\u5230 Figma\uFF08${remaining} \u9875\uFF09`;
+    $("import").textContent = !plugin ? "\u4E0B\u8F7D Figma \u6570\u636E" : !remaining && selected ? "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165" : `\u5BFC\u5165\u5230 Figma\uFF08${remaining} ${outputUnit()}\uFF09`;
   }
   function setPageState(index, state, detail) {
     if (!pageStates[index]) return;
@@ -8649,7 +8661,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!preparedBundle || queuePosition >= queue.length || captureStopped) return;
     const index = queue[queuePosition];
     setPageState(index, "working", "\u5BFC\u5165\u4E2D\u2026");
-    status(`\u6B63\u5728\u5BFC\u5165\u7B2C ${queuePosition + 1} / ${queue.length} \u9875\uFF1A${preparedBundle.pages[index].name}`);
+    status(`\u6B63\u5728\u5BFC\u5165\u7B2C ${queuePosition + 1} / ${queue.length} ${outputUnit()}\uFF1A${preparedBundle.pages[index].name}`);
     message("IMPORT_PAGE", { id: batchId, index: queuePosition, document: hydratePage(preparedBundle, index) });
   }
   function switchTab(next) {
@@ -9125,8 +9137,8 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     } else {
       batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       queuePosition = 0;
-      message("BATCH_START", { id: batchId, mode: mode(), smartLayout: smartLayout(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, design: preparedBundle.pages[i2].source.design, canvas: preparedBundle.pages[i2].source.canvas })) });
-      status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} \u9875\u2026`);
+      message("BATCH_START", { id: batchId, mode: mode(), smartLayout: smartLayout(), expectedPageId: incomingHandoff?.expectedPageId, plan: queue.map((i2) => ({ name: preparedBundle.pages[i2].name, width: preparedBundle.pages[i2].root.width, height: preparedBundle.pages[i2].root.height, design: preparedBundle.pages[i2].source.design, artifact: preparedBundle.pages[i2].source.artifact, canvas: preparedBundle.pages[i2].source.canvas })) });
+      status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} ${outputUnit()}\u2026`);
     }
   }
   $("import").addEventListener("click", importPrepared);
@@ -9199,9 +9211,9 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       setBusy(false);
       renderPageList();
       $("report-title").textContent = msg.result.cancelled ? "\u6279\u6B21\u5DF2\u505C\u6B62" : msg.result.total > 1 ? "\u591A\u9875\u5BFC\u5165\u5B8C\u6210" : "\u5DF2\u5BFC\u5165 Figma";
-      status(`\u672C\u6B21\u5B8C\u6210 ${msg.result.completed} / ${msg.result.total} \u9875\uFF0C\u5931\u8D25 ${msg.result.failed} \u9875\u3002${msg.result.cancelled ? "\u5DF2\u5B8C\u6210\u9875\u9762\u4FDD\u7559\uFF0C\u53EF\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59\u9875\u9762\u3002" : "\u6BCF\u9875\u5DF2\u521B\u5EFA\u72EC\u7ACB Frame\u3002"}`);
+      status(`\u672C\u6B21\u5B8C\u6210 ${msg.result.completed} / ${msg.result.total} ${outputUnit()}\uFF0C\u5931\u8D25 ${msg.result.failed} ${outputUnit()}\u3002${msg.result.cancelled ? "\u5DF2\u5B8C\u6210\u9875\u9762\u4FDD\u7559\uFF0C\u53EF\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59\u9875\u9762\u3002" : outputUnit() === "\u9879" ? "\u9875\u9762\u6A21\u677F\u4E0E\u7EC4\u4EF6\u5DF2\u5206\u522B\u521B\u5EFA\u3002" : "\u6BCF\u9875\u5DF2\u521B\u5EFA\u72EC\u7ACB Frame\u3002"}`);
       const remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
-      $("import").textContent = remaining ? `\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59 ${remaining} \u9875` : "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165";
+      $("import").textContent = remaining ? `\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59 ${remaining} ${outputUnit()}` : "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165";
       $("import").disabled = remaining === 0;
       void reportHandoffProgress(msg.result.cancelled ? "cancelled" : msg.result.failed ? "partial" : "complete", pageStates.filter((p) => p.state === "complete").length, pageStates.filter((p) => p.state === "failed").length);
       updateWarnings(msg.result.results.flatMap((r) => r.error ? [{ code: "PAGE_FAILED", message: `${r.name}\uFF1A${r.error}` }] : r.result?.diagnostics || []).slice(0, 100));
@@ -9233,6 +9245,15 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     clearDiscovery();
     syncStateInput();
   });
+  $("exploration-output").addEventListener("change", () => {
+    invalidate();
+    clearDiscovery();
+    $("design-data-options").hidden = $("exploration-output").value !== "design";
+  });
+  $("exploration-data-samples").addEventListener("change", () => {
+    invalidate();
+    clearDiscovery();
+  });
   var explorationFields = ["exploration-depth", "exploration-actions", "exploration-minutes", "exploration-states", "exploration-sampling", "exploration-retry"];
   function explorationSettings() {
     const integer = (id, label) => {
@@ -9241,7 +9262,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       return value === 0 ? null : value;
     };
     const minutes = integer("exploration-minutes", "\u63A2\u7D22\u65F6\u957F");
-    return { maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
+    return { outputMode: $("exploration-output").value, dataSamples: Number($("exploration-data-samples").value), maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
   }
   function updateExplorationSettings(save = true) {
     const describe = (id, unit, unlimited) => Number(input(id).value) ? `${input(id).value} ${unit}` : unlimited;
@@ -9288,7 +9309,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!discovery) return;
     $("discovery-intro").hidden = true;
     $("discovery-results").hidden = false;
-    $("discovery-title").textContent = `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
+    $("discovery-title").textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F \xB7 ${discovery.report.designSummary.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001` : `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
     const count = () => {
       $("discovery-count").textContent = `\u5DF2\u9009\u62E9 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`;
       refreshPrepareAction();
@@ -9298,6 +9319,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const row = document.createElement("label");
       row.className = "discovery-row";
       row.dataset.failed = String(!!page.error);
+      row.dataset.artifact = page.artifact?.kind || "";
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.checked = discoverySelection[i2];
@@ -9325,6 +9347,10 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         detail.textContent = `${PAGE_LEVELS[page.design.level]} \xB7 ${page.design.moduleName} / ${page.design.pageName}${page.design.kind === "scroll" ? " \xB7 \u957F\u9875\u5206\u6BB5" : ""}${page.design.confidence === "low" ? " \xB7 \u5F85\u786E\u8BA4" : ""}`;
         detail.title = page.design.reason;
       }
+      if (page.artifact) {
+        detail.textContent = `${page.artifact.kind === "component" ? "\u7EC4\u4EF6\u53D8\u4F53" : "\u9875\u9762\u6A21\u677F"} \xB7 ${page.artifact.familyName} \xB7 ${page.artifact.stateName}${page.artifact.sampleCount > 1 ? ` \xB7 \u5408\u5E76 ${page.artifact.sampleCount} \u4E2A\u6570\u636E\u72B6\u6001` : ""}`;
+        detail.title = page.artifact.reason;
+      }
       copy.append(name, detail);
       row.append(checkbox, copy);
       rows.append(row);
@@ -9336,7 +9362,8 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const reasons = { time: "\u672C\u8F6E\u65F6\u957F\u5DF2\u7528\u5B8C", actions: "\u672C\u8F6E\u5C1D\u8BD5\u6B21\u6570\u5DF2\u7528\u5B8C", states: "\u672C\u8F6E\u65B0\u589E\u72B6\u6001\u6570\u5DF2\u8FBE\u5230\u4E0A\u9650", depth: "\u90E8\u5206\u52A8\u4F5C\u8D85\u8FC7\u63A2\u7D22\u6DF1\u5EA6", cancelled: "\u5DF2\u624B\u52A8\u505C\u6B62", queue: "\u53EF\u63A2\u7D22\u961F\u5217\u5DF2\u5904\u7406" };
       const stopped = (report.stopReasons || []).map((reason) => reasons[reason] || reason).join("\uFF1B");
       const skipped = report.skippedByReason;
-      $("discovery-summary").textContent = `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+      const design = report.designSummary;
+      $("discovery-summary").textContent = `${design ? `\u8BBE\u8BA1\u7A3F\u8F93\u51FA\uFF1A${design.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F\u3001${design.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001\uFF0C\u5F52\u5E76 ${design.wholePagesAvoided} \u6B21\u6574\u9875\u91CD\u590D\u3002\u5DF2\u89C2\u5BDF ${design.observedStates} \u4E2A\u4E0D\u540C\u6570\u636E/\u4EA4\u4E92\u72B6\u6001` : `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001`}\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
     }
     const canResume = report.mode === "interactions" && !!discovery.session?.canResume;
     $("continue-exploration").hidden = !canResume;
@@ -9472,7 +9499,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
           showRemotePreviews(result.preview, job.id, result.previews || []);
         }
         $("download-state-report").hidden = false;
-        status(`\u72B6\u6001\u6355\u83B7${result.report.cancelled ? "\u5DF2\u505C\u6B62" : "\u5B8C\u6210"}\uFF1A\u6210\u529F ${result.report.completed} / ${result.report.total}\uFF0C\u5931\u8D25 ${result.report.failed}\u3002${result.report.merged ? `\u5408\u5E76 ${result.report.merged} \u4E2A\u6EDA\u52A8\u5206\u6BB5\u3002` : ""}${result.report.completed ? "\u53EF\u9009\u62E9\u9875\u9762\u540E\u5BFC\u5165 Figma\u3002" : "\u8BF7\u4E0B\u8F7D\u62A5\u544A\u68C0\u67E5\u5931\u8D25\u539F\u56E0\u3002"}`, !result.report.completed);
+        status(`\u72B6\u6001\u6355\u83B7${result.report.cancelled ? "\u5DF2\u505C\u6B62" : "\u5B8C\u6210"}\uFF1A\u6210\u529F ${result.report.completed} / ${result.report.total}\uFF0C\u5931\u8D25 ${result.report.failed}\u3002${result.report.merged ? `\u5408\u5E76 ${result.report.merged} \u4E2A\u6EDA\u52A8\u5206\u6BB5\u3002` : ""}${result.report.completed ? "\u53EF\u52FE\u9009\u9875\u9762\u6216\u7EC4\u4EF6\u540E\u5BFC\u5165 Figma\u3002" : "\u8BF7\u4E0B\u8F7D\u62A5\u544A\u68C0\u67E5\u5931\u8D25\u539F\u56E0\u3002"}`, !result.report.completed);
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 700));
@@ -9500,13 +9527,13 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     const count = pageStates.filter((p) => p.selected).length;
     $("send-handoff").hidden = plugin || !preparedBundle;
     $("send-handoff").disabled = busy || !count;
-    $("send-handoff").textContent = `\u53D1\u9001\u5230 Figma \u63D2\u4EF6${count ? `\uFF08${count} \u9875\uFF09` : ""}`;
+    $("send-handoff").textContent = `\u53D1\u9001\u5230 Figma \u63D2\u4EF6${count ? `\uFF08${count} ${outputUnit()}\uFF09` : ""}`;
     $("receive-handoff").disabled = busy || handoffReceiving;
     $("direct-target").hidden = plugin || !preparedBundle;
     $("direct-import").hidden = plugin || !preparedBundle;
     const target = figmaTargets.find((t) => t.id === $("figma-target").value);
     $("direct-import").disabled = busy || !count || !target || target.busy;
-    $("direct-import").textContent = `${outgoingPhase === "complete" ? "\u518D\u6B21\u5BFC\u5165" : "\u76F4\u63A5\u5BFC\u5165"} Figma${count ? `\uFF08${count} \u9875\uFF09` : ""}`;
+    $("direct-import").textContent = `${outgoingPhase === "complete" ? "\u518D\u6B21\u5BFC\u5165" : "\u76F4\u63A5\u5BFC\u5165"} Figma${count ? `\uFF08${count} ${outputUnit()}\uFF09` : ""}`;
     $("figma-target-help").textContent = target ? `${target.documentName} / ${target.pageName}${target.busy ? " \xB7 \u63D2\u4EF6\u6B63\u5728\u5904\u7406\u4EFB\u52A1" : ""}` : "\u8BF7\u5728\u76EE\u6807 Figma \u6587\u4EF6\u4E2D\u6253\u5F00\u63D2\u4EF6\u5E76\u4FDD\u6301\u8FDE\u63A5\u3002";
   }
   function selectedBundle() {
@@ -9520,7 +9547,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
   }
   function outgoingStatus(item) {
     outgoingPhase = item.status;
-    const labels = { pending: "\u5DF2\u53D1\u9001\u3002\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u70B9\u51FB\u201C\u63A5\u6536\u5E76\u5BFC\u5165\u5F53\u524D\u9875\u9762\u201D\u3002", received: "Figma \u63D2\u4EF6\u5DF2\u63A5\u6536\uFF0C\u6B63\u5728\u51C6\u5907\u5BFC\u5165\u3002", importing: `\u6B63\u5728\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} \u9875`, complete: `\u5DF2\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} \u9875`, partial: `\u5BFC\u5165\u7ED3\u675F\uFF1A\u5B8C\u6210 ${item.completed} \u9875\uFF0C\u5931\u8D25 ${item.failed} \u9875\u3002\u8BF7\u5728 Figma \u4E2D\u68C0\u67E5\u3002`, cancelled: `\u5BFC\u5165\u5DF2\u53D6\u6D88\uFF0C\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684 ${item.completed} \u9875\u3002`, failed: "\u5BFC\u5165\u5931\u8D25\uFF0C\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u67E5\u770B\u539F\u56E0\u6216\u91CD\u8BD5\u3002", replaced: "\u8FD9\u6279\u7ED3\u679C\u5DF2\u88AB\u65B0\u53D1\u9001\u7684\u7ED3\u679C\u66FF\u4EE3\u3002" };
+    const labels = { pending: "\u5DF2\u53D1\u9001\u3002\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u70B9\u51FB\u201C\u63A5\u6536\u5E76\u5BFC\u5165\u5F53\u524D\u9875\u9762\u201D\u3002", received: "Figma \u63D2\u4EF6\u5DF2\u63A5\u6536\uFF0C\u6B63\u5728\u51C6\u5907\u5BFC\u5165\u3002", importing: `\u6B63\u5728\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} ${outputUnit()}`, complete: `\u5DF2\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} ${outputUnit()}`, partial: `\u5BFC\u5165\u7ED3\u675F\uFF1A\u5B8C\u6210 ${item.completed} ${outputUnit()}\uFF0C\u5931\u8D25 ${item.failed} ${outputUnit()}\u3002\u8BF7\u5728 Figma \u4E2D\u68C0\u67E5\u3002`, cancelled: `\u5BFC\u5165\u5DF2\u53D6\u6D88\uFF0C\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684 ${item.completed} ${outputUnit()}\u3002`, failed: "\u5BFC\u5165\u5931\u8D25\uFF0C\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u67E5\u770B\u539F\u56E0\u6216\u91CD\u8BD5\u3002", replaced: "\u8FD9\u6279\u7ED3\u679C\u5DF2\u88AB\u65B0\u53D1\u9001\u7684\u7ED3\u679C\u66FF\u4EE3\u3002" };
     $("handoff-send-status").hidden = false;
     $("handoff-send-status").classList.toggle("error", ["failed", "partial"].includes(item.status));
     $("handoff-send-status").textContent = item.error || (item.autoImport && item.status === "pending" ? `\u5DF2\u8BF7\u6C42\u5BFC\u5165\uFF1A${item.target.documentName} / ${item.target.pageName}\uFF0C\u7B49\u5F85\u63D2\u4EF6\u6267\u884C\u2026` : labels[item.status] || item.status);
@@ -9578,7 +9605,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         $("handoff-inbox").hidden = !handoffCandidate;
         if (handoffCandidate) {
           $("handoff-title").textContent = "\u684C\u9762\u52A9\u624B\u6709\u65B0\u7684\u6355\u83B7\u7ED3\u679C";
-          $("handoff-description").textContent = `${handoffCandidate.name} \xB7 ${handoffCandidate.pages} \u9875`;
+          $("handoff-description").textContent = `${handoffCandidate.name} \xB7 ${handoffCandidate.pages} ${outputUnit()}`;
           refreshHandoffControls();
         }
       } else if (!plugin) {
