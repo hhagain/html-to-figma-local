@@ -92,7 +92,7 @@ export function inspectDesignDOM({ selector = 'body' } = {}) {
   const expansion = regions.filter(el => el.matches('details[open],[aria-expanded="true"]') || [...el.querySelectorAll('[aria-expanded="true"]')].some(visible)).map(el => css(el));
   const overlays = dialogs.map(el => css(el) + ':' + normalize(label(el)));
   const observations = regions.map(observe).filter(r => r.selector.length <= 700);
-  // A source without semantic cards still exposes a compact functional component around the action.
+  // Do not treat an unrecognized whole-app wrapper as a component.
   return { identity: [route,activeNav.join('|'),normalize(heading?.textContent || '')].join('|'), layout: skeleton + expansion.join('|') + overlays.join('|'), expanded: expansion.length > 0 || overlays.length > 0,
     heading: clean(heading?.textContent || document.title), regions: observations };
 }

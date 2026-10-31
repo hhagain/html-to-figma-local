@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { inferOrganization } from '../dist/lib/design-organization.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openCaptureSource } from './capture-source.mjs';
@@ -84,23 +85,24 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
         const designSnapshot = designMode ? await inspectDesign(page, options.selector) : null;
         if (signal?.aborted || timedOut) break;
         finished = true; metrics.attempted++; metrics.scanned++;
-        const known = fingerprints.has(current.fingerprint);
+        const observationKey = designSnapshot ? createHash('sha256').update(JSON.stringify([current.fingerprint,designSnapshot.identity,designSnapshot.layout,designSnapshot.regions.map(r=>r.state)])).digest('hex') : current.fingerprint;
+        const known = fingerprints.has(observationKey);
         if (known && !work.revisit) { metrics.duplicates++; continue; }
         const path = work.path.length ? work.path : [current.heading || current.title || '初始页面'];
         let entry;
         if (known) {
-          metrics.rescanned++; entry = pages.find(p => p.fingerprint === current.fingerprint);
-          const original = state.works.find(w => w.fingerprint === current.fingerprint); if (original) original.sampling = options.sampling;
+          metrics.rescanned++; entry = pages.find(p => (p.observationKey || p.fingerprint) === observationKey);
+          const original = state.works.find(w => w.fingerprint === observationKey); if (original) original.sampling = options.sampling;
         } else {
-          fingerprints.add(current.fingerprint); state.title = current.title || state.title;
+          fingerprints.add(observationKey); state.title = current.title || state.title;
           const name = work.depth === 0 ? current.structure.primary?.name || current.heading || current.title || '初始页面' : current.dialog && current.heading ? current.heading + (['表单', '校验', '选择', '滚动'].includes(work.kind) ? ' · ' + work.name : '') : work.name;
-          entry = { id: `state-${pages.length + 1}`, name: name.slice(0, 120), url: work.url, destination: source.toSourceURL(page.url()), steps: [...work.steps, { type: 'wait', ms: 180 }], checked: true, via: current.dialog ? '弹窗 / 表单' : work.kind, depth: work.depth, path: path.join(' → ').slice(0, 500), fingerprint: current.fingerprint };
+          entry = { id: `state-${pages.length + 1}`, name: name.slice(0, 120), url: work.url, destination: source.toSourceURL(page.url()), steps: [...work.steps, { type: 'wait', ms: 180 }], checked: true, via: current.dialog ? '弹窗 / 表单' : work.kind, depth: work.depth, path: path.join(' → ').slice(0, 500), fingerprint: current.fingerprint, ...(designSnapshot?{observationKey}:{}) };
           entry.design = inferOrganization({ url: entry.destination, entryURL: options.url, heading: current.heading, title: current.title, dialog: current.dialog, viewFingerprint: current.viewFingerprint, ...current.structure, scrolls: current.scrolls, name: entry.name, actionKind: work.kind, triggerFamily: work.family, featureName: work.featureName, parent: work.parentDesign, parentURL: work.parentURL });
           if (designSnapshot) {
             if (entry.design.level === 'secondary') designSnapshot.identity = entry.design.projectId + ':' + entry.design.moduleId + ':' + entry.design.pageId;
             entry.designSnapshot = designSnapshot;
           }
-          pages.push(entry); state.works.push({ ...work, revisit: undefined, fingerprint: current.fingerprint, sampling: options.sampling });
+          pages.push(entry); state.works.push({ ...work, revisit: undefined, fingerprint: observationKey, sampling: options.sampling });
         }
         if (designSnapshot && entry.designSnapshot) designSnapshot.identity = entry.designSnapshot.identity;
         for (const item of current.skipped) skip(entry, item);

@@ -60,6 +60,6 @@ export function designOutput(entries, { dataSamples = 2 } = {}) {
     }
     if (known && !changed) dataMerged++;
   }
-  const clean = entry => { const {designSnapshot,...rest}=entry; return rest; };
+  const clean = entry => { const {designSnapshot,observationKey,...rest}=entry; return rest; };
   return { pages:[...pages,...components].map(clean), summary:{pageTemplates:pages.length,componentStates:components.length,componentFamilies:components.length?new Set(components.map(c=>c.artifact.familyId)).size:0,observedStates:entries.length,wholePagesAvoided:structuralMerged,dataMerged} };
 }
