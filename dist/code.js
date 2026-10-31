@@ -23,7 +23,7 @@
   // src/design-artifact.ts
   function validArtifact(value) {
     const v = value;
-    return !!v && typeof v === "object" && !Array.isArray(v) && ["page", "component"].includes(v.kind) && typeof v.familyId === "string" && /^[\w-]{1,200}$/.test(v.familyId) && ["familyName", "stateName", "reason"].every((k) => typeof v[k] === "string" && v[k].length > 0 && v[k].length <= 500) && Number.isSafeInteger(v.sampleCount) && v.sampleCount >= 1;
+    return !!v && typeof v === "object" && !Array.isArray(v) && ["page", "component", "icon"].includes(v.kind) && typeof v.familyId === "string" && /^[\w-]{1,200}$/.test(v.familyId) && ["familyName", "stateName", "reason"].every((k) => typeof v[k] === "string" && v[k].length > 0 && v[k].length <= 500) && Number.isSafeInteger(v.sampleCount) && v.sampleCount >= 1;
   }
 
   // src/design-organization.ts
@@ -33,7 +33,7 @@
     return !!o && typeof o === "object" && !Array.isArray(o) && ["projectId", "moduleId", "pageId", "viewId"].every((k) => typeof o[k] === "string" && /^[\w-]{1,200}$/.test(o[k])) && (o.parentPageId === void 0 || typeof o.parentPageId === "string" && /^[\w-]{1,200}$/.test(o.parentPageId)) && ["moduleName", "pageName", "stateName", "reason"].every((k) => typeof o[k] === "string" && o[k].length > 0 && o[k].length <= 500) && Object.prototype.hasOwnProperty.call(PAGE_LEVELS, o.level) && ["page", "dialog", "form", "selection", "scroll", "state"].includes(o.kind) && ["high", "medium", "low"].includes(o.confidence) && !!o.scroll && typeof o.scroll.container === "string" && o.scroll.container.length <= 700 && [o.scroll.x, o.scroll.y].every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1e7);
   }
   function designLayout(pages) {
-    var _a;
+    var _a, _b, _c;
     const sections = /* @__PURE__ */ new Map();
     pages.forEach((p, index) => {
       if (!p.design) return;
@@ -65,7 +65,13 @@
           }
           let x = 80, y = 112, rowHeight = 0, maxRight = 80;
           const local = /* @__PURE__ */ new Map();
-          for (const view of views.values()) {
+          if (((_a = pages[s.indices[0]].artifact) == null ? void 0 : _a.kind) === "icon") {
+            const columns = Math.min(12, s.indices.length);
+            s.indices.forEach((i, n) => local.set(i, { x: 80 + n % columns * 96, y: 112 + Math.floor(n / columns) * 96 }));
+            maxRight = 80 + columns * 96 - 24;
+            y = 112 + Math.floor((s.indices.length - 1) / columns) * 96;
+            rowHeight = 64;
+          } else for (const view of views.values()) {
             view.sort((a, b) => pages[a].design.scroll.y - pages[b].design.scroll.y || pages[a].design.scroll.x - pages[b].design.scroll.x || a - b);
             const viewWidth = view.reduce((sum, i) => sum + pages[i].width, 0) + 24 * Math.max(0, view.length - 1);
             const viewHeight = view.reduce((max, i) => Math.max(max, pages[i].height), 0);
@@ -85,7 +91,7 @@
           }
           const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
           for (const [i, p] of local) positions.set(i, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
-          groups.push({ id, name: `${((_a = pages[s.indices[0]].artifact) == null ? void 0 : _a.kind) === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+          groups.push({ id, name: ((_b = pages[s.indices[0]].artifact) == null ? void 0 : _b.kind) === "icon" ? "\u56FE\u6807\u5E93" : `${((_c = pages[s.indices[0]].artifact) == null ? void 0 : _c.kind) === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
           sectionY += sectionHeight + 160;
           columnWidth = Math.max(columnWidth, sectionWidth);
         }
@@ -455,7 +461,7 @@
       };
       let built = await build(document.root, staging2);
       check();
-      if (((_b = document.source.artifact) == null ? void 0 : _b.kind) === "component") {
+      if (["component", "icon"].includes(((_b = document.source.artifact) == null ? void 0 : _b.kind) || "")) {
         if (typeof api.createComponentFromNode === "function") {
           built = api.createComponentFromNode(built);
           check();
@@ -517,13 +523,13 @@
       const units = [], canvases = /* @__PURE__ */ new Map();
       const organized = designLayout(plan.map((p) => {
         var _a;
-        return p.canvas || !this.smartLayout && ((_a = p.artifact) == null ? void 0 : _a.kind) !== "component" ? __spreadProps(__spreadValues({}, p), { design: void 0 }) : p;
+        return p.canvas || !this.smartLayout && !["component", "icon"].includes(((_a = p.artifact) == null ? void 0 : _a.kind) || "") ? __spreadProps(__spreadValues({}, p), { design: void 0 }) : p;
       }));
       let designUnit;
       plan.forEach((p, index) => {
         var _a;
         const c = p.canvas;
-        if (!c && p.design && (this.smartLayout || ((_a = p.artifact) == null ? void 0 : _a.kind) === "component")) {
+        if (!c && p.design && (this.smartLayout || ["component", "icon"].includes(((_a = p.artifact) == null ? void 0 : _a.kind) || ""))) {
           if (!designUnit) {
             designUnit = { width: organized.width, height: organized.height, minX: 0, minY: 0, entries: [], groups: organized.groups };
             units.push(designUnit);

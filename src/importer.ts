@@ -112,7 +112,7 @@ export async function importDocument(api: PluginAPI, document: CaptureDocument, 
       return node;
     };
     let built = await build(document.root, staging); check();
-    if (document.source.artifact?.kind === 'component') {
+    if (['component','icon'].includes(document.source.artifact?.kind || '')) {
       if (typeof api.createComponentFromNode === 'function') { built = api.createComponentFromNode(built); check(); }
       else warn('COMPONENT_FALLBACK', '当前环境不支持原生组件，保留可编辑组件 Frame');
     }

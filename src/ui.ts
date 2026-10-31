@@ -15,7 +15,7 @@ $('download-assistant').hidden = !plugin;
 $('download-assistant').addEventListener('click', event => {
   if (plugin) { event.preventDefault(); message('OPEN_DESKTOP_ASSISTANT_DOWNLOAD'); }
 });
-const outputUnit = () => preparedBundle?.pages.some(p=>p.source.artifact?.kind==='component') ? '项' : '页';
+const outputUnit = () => preparedBundle?.pages.some(p=>['component','icon'].includes(p.source.artifact?.kind||'')) ? '项' : '页';
 let tab = 'file', source = '', sourceName = '', prepared: CaptureDocument | null = null, busy = false;
 let frame: HTMLIFrameElement | null = null, controller: AbortController | null = null;
 let sourceFiles: File[] = [], preparedBundle: CaptureBundle | null = null, captureStopped = false, importing = false;
@@ -111,9 +111,9 @@ function showBundle(bundle: CaptureBundle) {
 function renderPageList() {
   if (!preparedBundle) return;
   $('page-list-section').hidden = preparedBundle.pages.length < 2 && !(smartLayout()&&preparedBundle.pages[0]?.source.design);
-  $('page-list-title').textContent = `${preparedBundle.pages.some(p=>p.source.artifact?.kind==='component')?'设计稿清单':'页面列表'} · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`;
+  $('page-list-title').textContent = `${preparedBundle.pages.some(p=>['component','icon'].includes(p.source.artifact?.kind||''))?'设计稿清单':'页面列表'} · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`;
   const rows = document.createDocumentFragment();
-  const organization=designLayout(preparedBundle.pages.map(p=>({name:p.name,width:p.root.width,height:p.root.height,design:p.source.canvas||!smartLayout()&&p.source.artifact?.kind!=='component'?undefined:p.source.design,artifact:p.source.artifact})));
+  const organization=designLayout(preparedBundle.pages.map(p=>({name:p.name,width:p.root.width,height:p.root.height,design:p.source.canvas||!smartLayout()&&!['component','icon'].includes(p.source.artifact?.kind||'')?undefined:p.source.design,artifact:p.source.artifact})));
   const grouped=new Set(organization.groups.flatMap(g=>g.indices)),ordered=[...organization.groups.flatMap(g=>g.indices),...preparedBundle.pages.map((_,i)=>i).filter(i=>!grouped.has(i))];
   const heads=new Map(organization.groups.map(g=>[g.indices[0],g]));
   ordered.forEach(i => {
@@ -124,12 +124,12 @@ function renderPageList() {
       const level=document.createElement('select');level.className='group-level';level.disabled=busy;level.setAttribute('aria-label',`调整 ${group.name} 的页面层级`);
       for(const [value,label] of Object.entries(PAGE_LEVELS)){const option=document.createElement('option');option.value=value;option.textContent=label;level.append(option);}level.value=page.source.design!.level;
       level.addEventListener('change',()=>{for(const index of group.indices){const d=preparedBundle!.pages[index].source.design!;d.level=level.value as keyof typeof PAGE_LEVELS;d.confidence='high';d.reason='用户调整页面类型';}renderPageList();});
-      heading.append(name);if(page.source.artifact?.kind!=='component')heading.append(level);rows.append(heading);
+      heading.append(name);if(!['component','icon'].includes(page.source.artifact?.kind||''))heading.append(level);rows.append(heading);
     }
     const row = document.createElement('div'); row.className = 'page-row'; row.dataset.previewActive = String(hasRemotePreview && previewPageIndex === i);
     const label = document.createElement('label'); label.className = 'page-select';
     const box = document.createElement('input'); box.type = 'checkbox'; box.checked = pageStates[i].selected; box.disabled = busy; box.setAttribute('aria-label', `选择 ${page.name}`);
-    box.addEventListener('change', () => { pageStates[i].selected = box.checked; refreshImportAction(); $('page-list-title').textContent = `${preparedBundle!.pages.some(p=>p.source.artifact?.kind==='component')?'设计稿清单':'页面列表'} · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`; });
+    box.addEventListener('change', () => { pageStates[i].selected = box.checked; refreshImportAction(); $('page-list-title').textContent = `${preparedBundle!.pages.some(p=>['component','icon'].includes(p.source.artifact?.kind||''))?'设计稿清单':'页面列表'} · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`; });
     const title = document.createElement('span'); title.textContent = `${String(i + 1).padStart(3, '0')}  ${page.name}`; title.title = page.name;
     if(page.source.design){const d=page.source.design;title.title+=`\n${PAGE_LEVELS[d.level]} · ${d.moduleName} / ${d.pageName}\n推断依据：${d.reason}`;title.dataset.pageLevel=d.level;}
     const state = document.createElement('small'); state.id = `page-state-${i}`; state.textContent = pageStates[i].detail || `${Math.round(page.root.width)} × ${Math.round(page.root.height)}`; state.dataset.state = pageStates[i].state;
@@ -565,7 +565,7 @@ $('rediscover-pages').addEventListener('click', () => { clearDiscovery(); invali
 function renderDiscovery() {
   if (!discovery) return;
   $('discovery-intro').hidden = true; $('discovery-results').hidden = false;
-  $('discovery-title').textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} 个页面模板 · ${discovery.report.designSummary.componentStates} 个组件状态` : `${discovery.report.mode === 'interactions' ? '已探索' : '发现'} ${discovery.pages.length} 个${discovery.report.mode === 'interactions' ? '状态' : '页面'}`;
+  $('discovery-title').textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} 个页面模板 · ${discovery.report.designSummary.componentStates} 个组件状态 · ${discovery.report.designSummary.iconAssets||0} 个图标` : `${discovery.report.mode === 'interactions' ? '已探索' : '发现'} ${discovery.pages.length} 个${discovery.report.mode === 'interactions' ? '状态' : '页面'}`;
   const count = () => { $('discovery-count').textContent = `已选择 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`; refreshPrepareAction(); };
   const rows = document.createDocumentFragment();
   discovery.pages.forEach((page: any, i: number) => {
@@ -579,7 +579,7 @@ function renderDiscovery() {
     detail.textContent = page.error ? `无法打开 · ${page.error}` : `${page.via} · ${page.via === '导航标签' && !page.destination ? '点击后捕获' : route}${page.checked ? '' : ' · 捕获时验证'}`;
     if (page.path) detail.textContent = `${page.via} · ${page.path}`;
     if(page.design){detail.textContent=`${PAGE_LEVELS[page.design.level as keyof typeof PAGE_LEVELS]} · ${page.design.moduleName} / ${page.design.pageName}${page.design.kind==='scroll'?' · 长页分段':''}${page.design.confidence==='low'?' · 待确认':''}`;detail.title=page.design.reason;}
-    if(page.artifact){ detail.textContent = `${page.artifact.kind==='component'?'组件变体':'页面模板'} · ${page.artifact.familyName} · ${page.artifact.stateName}${page.artifact.sampleCount>1?` · 合并 ${page.artifact.sampleCount} 个数据状态`:''}`; detail.title = page.artifact.reason; }
+    if(page.artifact){ detail.textContent = `${page.artifact.kind==='icon'?'图标':page.artifact.kind==='component'?'组件变体':'页面模板'} · ${page.artifact.familyName} · ${page.artifact.stateName}${page.artifact.sampleCount>1?` · 合并 ${page.artifact.sampleCount} 个数据状态`:''}`; detail.title = page.artifact.reason; }
     copy.append(name, detail); row.append(checkbox, copy); rows.append(row);
   });
   $('discovery-list').replaceChildren(rows);
@@ -590,7 +590,7 @@ function renderDiscovery() {
     const stopped = (report.stopReasons || []).map((reason: string) => reasons[reason] || reason).join('；');
     const skipped = report.skippedByReason;
     const design = report.designSummary;
-    $('discovery-summary').textContent = `${design?`设计稿输出：${design.pageTemplates} 个页面模板、${design.componentStates} 个组件状态，归并 ${design.wholePagesAvoided} 次整页重复。已观察 ${design.observedStates} 个不同数据/交互状态`:`已记录 ${discovery.pages.length} 个不同状态`}，累计尝试 ${report.attempted} 次，合并 ${report.duplicates} 次重复，失败 ${report.failed ?? report.errors.length} 次。${stopped ? stopped + '。' : ''}${report.remaining ? `仍有 ${report.remaining} 个候选动作待探索（其中 ${report.depthDeferred || 0} 个受深度限制）；候选动作数不等于新增页面数。` : ''}${skipped ? `累计跳过：受限控件 ${skipped.restricted || 0} 个、采样省略 ${skipped.sampling || 0} 个、重复路径 ${skipped.duplicate || 0} 个。` : `跳过 ${report.skippedControls} 个控件。`}不代表全部交互已覆盖。`;
+    $('discovery-summary').textContent = `${design?`设计稿输出：${design.pageTemplates} 个页面模板、${design.componentStates} 个组件状态、${design.iconAssets||0} 个图标，归并 ${design.wholePagesAvoided} 次整页重复。已观察 ${design.observedStates} 个不同数据/交互状态`:`已记录 ${discovery.pages.length} 个不同状态`}，累计尝试 ${report.attempted} 次，合并 ${report.duplicates} 次重复，失败 ${report.failed ?? report.errors.length} 次。${report.navigation?`主导航已验证 ${report.navigation.verified}/${report.navigation.total}。${report.navigation.pending?.length?`待探索：${report.navigation.pending.join('、')}。`:''}`:''}${stopped ? stopped + '。' : ''}${report.remaining ? `仍有 ${report.remaining} 个候选动作待探索（其中 ${report.depthDeferred || 0} 个受深度限制）；候选动作数不等于新增页面数。` : ''}${skipped ? `累计跳过：受限控件 ${skipped.restricted || 0} 个、采样省略 ${skipped.sampling || 0} 个、重复路径 ${skipped.duplicate || 0} 个。` : `跳过 ${report.skippedControls} 个控件。`}不代表全部交互已覆盖。`;
   }
   const canResume = report.mode === 'interactions' && !!discovery.session?.canResume;
   $('continue-exploration').hidden = !canResume; $<HTMLButtonElement>('continue-exploration').disabled = busy;
@@ -607,11 +607,12 @@ async function discoverAutomaticPages(url: string, resume = false) {
   if (!resume) clearDiscovery();
   status(resume ? '正在恢复探索进度…' : '正在打开入口并发现页面…');
   const key = requestKey();
+  if(settings.outputMode==='design'&&$<HTMLSelectElement>('state-input-mode').value==='explore'){const health=await api('/api/health');const version=/^(\d+)\.(\d+)/.exec(health.version||'');if(!version||Number(version[1])===0&&Number(version[2])<14)throw new Error('请将桌面助手更新到 v0.14.0 或以上，并先从菜单栏退出旧助手后重开新版。');}
   const job = await api('/api/discover', { url, width: viewportWidth(), height: 900, selector: input('selector').value.trim() || 'body', exploreInteractions: $<HTMLSelectElement>('state-input-mode').value === 'explore', ...settings, ...(resumeId ? { resumeId } : {}) });
   activeStateJob = job.id; activeJobKind = 'discover';
   while (true) {
     const snapshot = await api(`/api/discover/${job.id}`), p = snapshot.progress;
-    if (p) status(`${captureStopped ? '正在停止探索' : p.status === 'exploring' ? '正在探索交互' : '正在发现页面'}：已找到 ${p.found || 0} 页 · 已检查 ${p.scanned || 0} 页 · ${p.name || ''}${p.attempted !== undefined ? ` · 已尝试 ${p.attempted} 次` : ''}`);
+    if (p) status(`${captureStopped ? '正在停止探索' : p.status === 'exploring' ? p.phase === 'pages'?'正在优先发现页面':'正在探索组件状态' : '正在发现页面'}：已找到 ${p.found || 0} 页 · 已检查 ${p.scanned || 0} 页 · ${p.name || ''}${p.attempted !== undefined ? ` · 已尝试 ${p.attempted} 次` : ''}`);
     if (snapshot.status !== 'running') {
       if (snapshot.error) throw new Error(snapshot.error);
       discovery = await api(`/api/discover/${job.id}/result`); discoveryKey = key;
@@ -650,7 +651,7 @@ async function prepareStates(url: string, suppliedPlan?: any) {
   const job=await api('/api/states',plan);activeStateJob=job.id;activeJobKind='states';
   while(true){
     const snapshot=await api(`/api/states/${job.id}`);const p=snapshot.progress;
-    if(p){$<HTMLProgressElement>('progress').value=Math.round((p.completed+p.failed+(p.merged||0))/p.total*100);status(`${captureStopped?'正在停止':'正在捕获'} ${Math.min(p.index+1,p.total)} / ${p.total}：${p.name} · 完成 ${p.completed}，失败 ${p.failed}`);}
+    if(p){$<HTMLProgressElement>('progress').value=Math.round((p.completed+p.failed+(p.merged||0))/p.total*100);status(`${captureStopped?'正在停止':p.phase==='pages'?'正在捕获页面':p.phase==='icons'?'正在整理图标':'正在捕获组件'} ${Math.min(p.index+1,p.total)} / ${p.total}：${p.name} · 完成 ${p.completed}，失败 ${p.failed}`);}
     if(snapshot.status!=='running'){
       if(snapshot.status==='failed')throw new Error(snapshot.error||'状态捕获失败');
       const result=await api(`/api/states/${job.id}/result`);stateReport=result.report;

@@ -15,7 +15,7 @@ export function validateDiscoveryRequest(input) {
     return value;
   };
   if (input.outputMode !== undefined && !['design', 'states'].includes(input.outputMode)) throw new Error('输出方式无效');
-  const dataSamples = input.dataSamples ?? 2;
+  const dataSamples = input.dataSamples ?? 0;
   if (!Number.isSafeInteger(dataSamples) || dataSamples < 0 || dataSamples > 10) throw new Error('数据样本数需要为 0–10');
   const maxDepth = budget('maxDepth', 4), maxActions = budget('maxActions', 300), timeoutMs = budget('timeoutMs', 180000, 1000);
   if (input.sampling !== undefined && !['representative', 'all'].includes(input.sampling)) throw new Error('探索取样方式无效');

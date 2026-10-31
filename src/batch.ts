@@ -16,10 +16,10 @@ export class ImportBatch {
     const existing = this.page.children.filter(n => n.visible); const originX = existing.length ? existing.reduce((right, node) => Math.max(right, node.x + node.width), -Infinity) + 160 : Math.round(api.viewport.center.x);
     type Unit = { width: number; height: number; minX: number; minY: number; entries: { index: number; x: number; y: number }[]; groups?: DesignGroup[] };
     const units: Unit[] = [], canvases = new Map<string, Unit>();
-    const organized=designLayout(plan.map(p=>p.canvas||!this.smartLayout&&p.artifact?.kind!=='component'?{...p,design:undefined}:p)); let designUnit:Unit|undefined;
+    const organized=designLayout(plan.map(p=>p.canvas||!this.smartLayout&&!['component','icon'].includes(p.artifact?.kind||'')?{...p,design:undefined}:p)); let designUnit:Unit|undefined;
     plan.forEach((p, index) => {
       const c = p.canvas;
-      if (!c && p.design && (this.smartLayout || p.artifact?.kind === 'component')) {
+      if (!c && p.design && (this.smartLayout || ['component','icon'].includes(p.artifact?.kind||''))) {
         if(!designUnit){designUnit={width:organized.width,height:organized.height,minX:0,minY:0,entries:[],groups:organized.groups};units.push(designUnit);}
         const pos=organized.positions.get(index)!;designUnit.entries.push({index,x:pos.x,y:pos.y});this.groupForIndex.set(index,pos.groupId);return;
       }

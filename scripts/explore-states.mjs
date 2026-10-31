@@ -8,13 +8,13 @@ import { designOutput } from './design-output.mjs';
 import { inspectState } from './interaction-inspector.mjs';
 
 const binding = o => JSON.stringify([o.url, o.width, o.height, o.selector, o.outputMode, o.dataSamples]);
-const initialWork = url => ({ name: '当前页面', url, steps: [], keys: [], depth: 0, kind: '入口', path: [] });
+const initialWork = url => ({ name: '当前页面', url, steps: [], keys: [], depth: 0, kind: '入口', path: [], pagePriority: 0 });
 export async function exploreStates(browser, options, { signal, onProgress, checkpoint } = {}) {
   if (checkpoint && checkpoint.binding !== binding(options)) throw new Error('入口、视口、捕获区域或输出方式已改变，请重新探索');
   const source = await openCaptureSource(options.url);
   const state = checkpoint || {
     binding: binding(options), pages: [], queue: [initialWork(options.url)], deferred: [], works: [], failedWork: [],
-    fingerprints: [], actionKeys: [], globalActions: [], listedLocal: false, title: '交互状态', rounds: 0, elapsedMs: 0,
+    navigation: {}, fingerprints: [], actionKeys: [], globalActions: [], listedLocal: false, title: '交互状态', rounds: 0, elapsedMs: 0,
     metrics: { scanned: 0, attempted: 0, duplicates: 0, rescanned: 0, failed: 0, skippedControls: 0, blockedRequests: 0, skippedByReason: { restricted: 0, sampling: 0, duplicate: 0 }, errors: [], skipped: [] }
   };
   const { pages, queue, metrics } = state;
@@ -52,10 +52,11 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
   try {
     while (queue.length && (options.maxPages === null || pages.length - baseline.found < options.maxPages)
       && (options.maxActions === null || metrics.attempted - baseline.attempted < options.maxActions) && !signal?.aborted && !timedOut) {
-      const work = queue.shift();
+      let index=0;if(designMode)for(let i=1;i<queue.length;i++){if((queue[i].pagePriority??2)<(queue[index].pagePriority??2))index=i;if((queue[index].pagePriority??2)===0)break;}
+      const work = queue.splice(index,1)[0];
       if (options.maxDepth !== null && work.depth > options.maxDepth) { state.deferred.push(work); continue; }
       let timer, finished = false, pageTimedOut = false;
-      onProgress?.({ status: 'exploring', name: work.name, found: pages.length, scanned: metrics.scanned, attempted: metrics.attempted, remaining: queue.length + state.deferred.length + 1, depth: work.depth, round: state.rounds + 1 });
+      onProgress?.({ status: 'exploring', name: work.name, found: pages.length, scanned: metrics.scanned, attempted: metrics.attempted, remaining: queue.length + state.deferred.length + 1, depth: work.depth, phase: designMode && (work.pagePriority??2) < 2 ? 'pages' : 'components', navigationFound:Object.values(state.navigation).filter(n=>n.visited).length,navigationTotal:Object.keys(state.navigation).length, round: state.rounds + 1 });
       try {
         if (signal?.aborted || timedOut) break;
         context = await browser.newContext({ viewport: { width: options.width, height: options.height }, reducedMotion: 'reduce', locale: 'zh-CN', serviceWorkers: 'block', acceptDownloads: false }); closing = null;
@@ -85,7 +86,8 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
         const designSnapshot = designMode ? await inspectDesign(page, options.selector) : null;
         if (signal?.aborted || timedOut) break;
         finished = true; metrics.attempted++; metrics.scanned++;
-        const observationKey = designSnapshot ? createHash('sha256').update(JSON.stringify([current.fingerprint,designSnapshot.identity,designSnapshot.layout,designSnapshot.regions.map(r=>r.state)])).digest('hex') : current.fingerprint;
+        for (const nav of current.structure.primaryNavigation || []) {const item=state.navigation[nav.key] ||= {name:nav.name,visited:false};if(nav.selected)item.visited=true;}
+        const observationKey = designSnapshot ? createHash('sha256').update(JSON.stringify([current.fingerprint,designSnapshot.identity,designSnapshot.layout,designSnapshot.regions.map(r=>r.state),[...new Set((designSnapshot.icons||[]).map(i=>i.hash))].sort()])).digest('hex') : current.fingerprint;
         const known = fingerprints.has(observationKey);
         if (known && !work.revisit) { metrics.duplicates++; continue; }
         const path = work.path.length ? work.path : [current.heading || current.title || '初始页面'];
@@ -99,7 +101,8 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
           entry = { id: `state-${pages.length + 1}`, name: name.slice(0, 120), url: work.url, destination: source.toSourceURL(page.url()), steps: [...work.steps, { type: 'wait', ms: 180 }], checked: true, via: current.dialog ? '弹窗 / 表单' : work.kind, depth: work.depth, path: path.join(' → ').slice(0, 500), fingerprint: current.fingerprint, ...(designSnapshot?{observationKey}:{}) };
           entry.design = inferOrganization({ url: entry.destination, entryURL: options.url, heading: current.heading, title: current.title, dialog: current.dialog, viewFingerprint: current.viewFingerprint, ...current.structure, scrolls: current.scrolls, name: entry.name, actionKind: work.kind, triggerFamily: work.family, featureName: work.featureName, parent: work.parentDesign, parentURL: work.parentURL });
           if (designSnapshot) {
-            if (entry.design.level === 'secondary') designSnapshot.identity = entry.design.projectId + ':' + entry.design.moduleId + ':' + entry.design.pageId;
+            const pageId = entry.design.level==='feature' ? entry.design.parentPageId : entry.design.pageId;
+            if (entry.design.level!=='unclassified' && pageId) designSnapshot.identity = entry.design.projectId + ':' + entry.design.moduleId + ':' + pageId;
             entry.designSnapshot = designSnapshot;
           }
           pages.push(entry); state.works.push({ ...work, revisit: undefined, fingerprint: observationKey, sampling: options.sampling });
@@ -115,16 +118,16 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
             continue;
           }
           actionKeys.add(key); if (candidate.global) globalActions.add(candidate.key);
-          const next = { url: work.url, name: candidate.name, steps: [...work.steps, ...candidate.steps.map(step => ({ ...step, timeoutMs: 2500 })), { type: 'wait', ms: 160 }], keys: [...work.keys, candidate.key], depth: work.depth + 1, kind: candidate.kind, path: [...path, candidate.name], parentDesign: entry.design, parentURL: entry.destination, family: candidate.family, featureName: candidate.featureName };
+          const next = { url: work.url, name: candidate.name, steps: [...work.steps, ...candidate.steps.map(step => ({ ...step, timeoutMs: 2500 })), { type: 'wait', ms: 160 }], keys: [...work.keys, candidate.key], depth: work.depth + 1, kind: candidate.kind, path: [...path, candidate.name], parentDesign: entry.design, parentURL: entry.destination, family: candidate.family, featureName: candidate.featureName, pagePriority:candidate.pagePriority??2, navKey:candidate.navKey };
           if (options.maxDepth !== null && next.depth > options.maxDepth) state.deferred.push(next);
-          else queue[['表单', '校验'].includes(candidate.kind) ? 'unshift' : 'push'](next);
+          else queue[!designMode && ['表单', '校验'].includes(candidate.kind) ? 'unshift' : 'push'](next);
         }
         if (!state.listedLocal && source.local) {
           state.listedLocal = true;
           const listing = await source.listPages();
           for (const url of listing.files) {
             if (url === options.url.split(/[?#]/)[0]) continue;
-            queue.push({ ...initialWork(url), name: decodeURIComponent(new URL(url).pathname.split('/').pop()), kind: '本地文件' });
+            queue.push({ ...initialWork(url), name: decodeURIComponent(new URL(url).pathname.split('/').pop()), kind: '本地文件',pagePriority:1 });
           }
         }
       } catch (error) {
@@ -152,6 +155,8 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
     limited: remaining > 0 || timedOut, cancelled: !!signal?.aborted, exhaustive: false, remaining, queued: queue.length, depthDeferred: state.deferred.length,
     retryableFailures: state.failedWork.length, canResume: remaining > 0 || state.failedWork.length > 0 || options.sampling !== 'all' && metrics.skippedByReason.sampling > 0,
     stopReasons, rounds: state.rounds, elapsedMs: state.elapsedMs, sampling: options.sampling,
+    navigation:{total:Object.keys(state.navigation).length,verified:Object.values(state.navigation).filter(n=>n.visited).length,pending:Object.values(state.navigation).filter(n=>!n.visited).map(n=>n.name)},
+    pageQueueRemaining:queue.filter(w=>(w.pagePriority??2)<2).length+state.deferred.filter(w=>(w.pagePriority??2)<2).length,
     limits: { states: options.maxPages, actions: options.maxActions, depth: options.maxDepth, timeoutMs: options.timeoutMs },
     round: { attempted: metrics.attempted - baseline.attempted, found: pages.length - baseline.found, failed: metrics.failed - baseline.failed, elapsedMs: Date.now() - started },
     pending: [...queue.slice(0, 100), ...state.deferred.slice(0, Math.max(0, 100 - queue.length))].map(({ name, depth, path }) => ({ name, depth, path: path.join(' → ').slice(0, 500) })),
@@ -161,6 +166,6 @@ export async function exploreStates(browser, options, { signal, onProgress, chec
   if (projection) { report.outputMode = 'design'; report.designSummary = projection.summary; report.found = projection.pages.length; }
   else report.outputMode = 'states';
   const snapshotPages = structuredClone(projection?.pages || pages);
-  const states = snapshotPages.map(({ id, name, url, steps, fingerprint, design, artifact, selector }) => ({ id, name, url, steps, design, ...(artifact ? {artifact} : {}), expectedFingerprint: fingerprint, group: artifact?.kind === 'component' ? '组件状态' : '交互探索', selector: selector || options.selector }));
+  const states = snapshotPages.map(({ id, name, url, steps, fingerprint, design, artifact, selector }) => ({ id, name, url, steps, design, ...(artifact ? {artifact} : {}), expectedFingerprint: fingerprint, group: artifact?.kind === 'icon' ? '图标库' : artifact?.kind === 'component' ? '组件状态' : '交互探索', selector: selector || options.selector }));
   return { plan: { schemaVersion: 1, name: state.title, url: options.url, viewport: { width: options.width, height: options.height }, selector: options.selector, captureMode: 'viewport', states }, pages: snapshotPages, report, checkpoint: state };
 }

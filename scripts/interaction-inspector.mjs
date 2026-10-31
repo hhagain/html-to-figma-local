@@ -24,13 +24,16 @@ export function inspectInteractiveDOM({ local = false, sampling = 'representativ
   const scope = dialogs.at(-1) || document.body;
   const heading = text(scope.querySelector('h1,h2,[role="heading"]') || scope).slice(0, 70);
   const controls = [...scope.querySelectorAll('button,a[href],summary,[role="button"],[role="tab"],input,select,textarea,[data-action],[onclick]')].filter(visible);
-  const primaryControls = [...document.querySelectorAll('header nav [role="tab"], header nav a, [data-primary-nav] button, [data-primary-nav] a, nav[aria-label*="主要"] [role="tab"], nav[aria-label*="主导航"] a, footer nav a')].filter(visible);
-  const primary = primaryControls.find(el => el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-current') === 'page');
-  const structure = { primary: primary ? { name: text(primary), key: primary.getAttribute('data-id') || primary.getAttribute('href') || primary.id || text(primary) } : null, hasPrimaryNavigation: primaryControls.length >= 2 };
+  const selected = el => el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-current') === 'page' || el.getAttribute('aria-pressed') === 'true' || /(?:^|\s)(?:active|is-active|selected)(?:$|\s)/.test(String(el.className));
+  const navigation = el => !!el.closest('nav,[role="navigation"],[data-primary-nav],header,footer,aside') || /^(?:tab|route|page|navigate|navigation)$/i.test(el.getAttribute('data-action') || '') || el.matches('[data-route],[data-page],[data-tab]');
+  const primaryControls = [...document.querySelectorAll('header nav button,header nav a,nav [role="tab"],[data-primary-nav] button,[data-primary-nav] a,nav[aria-label*="主要"] button,nav[aria-label*="主要"] a,nav[aria-label*="主导航"] button,nav[aria-label*="主导航"] a,footer nav button,footer nav a,[role="tablist"] [role="tab"],[data-action="tab"],[data-route],[data-page],[data-tab]')].filter(el => visible(el) && (!el.closest('main section,main article,[role="region"]') || el.closest('[data-primary-nav]')) && !el.closest('form,[role="dialog"],[aria-modal="true"]'));
+  const primarySet = new Set(primaryControls), primary = primaryControls.find(selected);
+  const navKey = el => el.getAttribute('data-id') || el.getAttribute('href') || el.id || text(el);
+  const structure = { primary: primary ? { name: text(primary), key: navKey(primary) } : null, hasPrimaryNavigation: primaryControls.length >= 2, primaryNavigation: primaryControls.map(el=>({name:text(el),key:navKey(el),selected:selected(el)})) };
   const candidates = [], skipped = [], families = new Map();
   const add = candidate => {
     const count = families.get(candidate.family) || 0;
-    if (!all && count >= (candidate.sampleLimit || 2)) { skipped.push({ name: candidate.name, reason: '同类控件仅取代表样本', category: 'sampling' }); return; }
+    if (!all && !candidate.primary && count >= (candidate.sampleLimit || 2)) { skipped.push({ name: candidate.name, reason: '同类控件仅取代表样本', category: 'sampling' }); return; }
     families.set(candidate.family, count + 1); candidates.push(candidate);
   };
   const unsafe = /删除|清空|注销|重置|退出登录|支付|确认购买|确认提交|确认保存|转账成功|恢复备份|启用授权|允许.*麦克风|授权|\b(?:delete|remove|destroy|clear|reset|logout|signout|checkout|purchase|confirm|commit|consent|grant)\b/i;
@@ -73,14 +76,17 @@ export function inspectInteractiveDOM({ local = false, sampling = 'representativ
       if (url.origin !== location.origin) { skipped.push({ name, reason: '跨站页面' }); continue; }
       if (href.startsWith('#') && !/^#!?\//.test(href) && !el.hasAttribute('data-action') && role !== 'tab') continue;
     }
-    if (el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-current') === 'page') continue;
+    if (selected(el) && (primarySet.has(el) || el.getAttribute('role')==='tab')) continue;
     const family = role === 'tab' ? 'tab:' + name : action || (el.tagName === 'A' ? 'link:' + name : css.replace(/:nth-of-type\(\d+\)/g, ''));
     const key = 'click:' + (action ? action + ':' + (el.getAttribute('data-id') || name) : css);
-    const kind = role === 'tab' || el.closest('nav,[role=navigation]') ? '导航' : dialogs.length ? '弹窗操作' : /详情|查看|明细/.test(name) ? '详情' : '交互';
+    const isPrimary = primarySet.has(el), isNavigation = isPrimary || navigation(el);
+    const recordEntry = /^(?:transaction|record|detail|account|recurrence|plan|item|asset|hs-bill|subscription)(?:-|$)/i.test(action);
+    const dataControl = /period|month|year|day|date|filter|sort|range/i.test(action) || el.hasAttribute('aria-expanded') || el.tagName==='SUMMARY';
+    const kind = isNavigation ? '导航' : dialogs.length ? '弹窗操作' : (/详情|查看|明细/.test(name)||recordEntry) ? '详情' : '交互';
     const steps = [{ type: 'click', selector: css }];
     if (el.hasAttribute('aria-selected')) steps.push({ type: 'wait', selector: css + '[aria-selected="true"]' });
     const region=el.closest('section,[role=region]');const featureName=region?.querySelector('h2,h3,[role=heading]');
-    add({ name, kind, family, key, steps,featureName:featureName?text(featureName):undefined, global: role === 'tab' || !!el.closest('header,footer'), priority: role === 'tab' ? 0 : /设置|添加|新增|详情|筛选|展开|编辑|分析|手动|记一笔/.test(name) ? 1 : /prev|next|period|month/.test(action) ? 4 : 2 });
+    add({ name, kind, family, key, steps,featureName:featureName?text(featureName):undefined, primary:isPrimary, navKey:isPrimary?navKey(el):undefined, pagePriority: isPrimary ? 0 : !dialogs.length && !dataControl && (isNavigation || recordEntry || el.tagName==='A' || /详情|查看|明细|设置|管理|账户|分析|更多/.test(name)) ? 1 : 2, global: isPrimary || role === 'tab' || !!el.closest('header,footer'), priority: isPrimary || role === 'tab' ? 0 : /设置|添加|新增|详情|筛选|展开|编辑|分析|手动|记一笔/.test(name) ? 1 : /prev|next|period|month/.test(action) ? 4 : 2 });
   }
   for (const form of scope.querySelectorAll('form')) {
     const fields = [...form.querySelectorAll('input,textarea')].filter(el => visible(el) && !el.disabled && !el.readOnly && !['hidden','file','password','checkbox','radio','submit','button'].includes(el.type));
@@ -100,7 +106,7 @@ export function inspectInteractiveDOM({ local = false, sampling = 'representativ
   while (el && count++ < 12000) {
     if (visible(el) && !el.matches('script,style,link,meta')) {
       const ownText = [...el.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join(' ').trim().replace(/\s+/g, ' ').replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, '<time>');
-      if (ownText || el.matches('input,select,textarea,button,[role=tab]')) signatureParts.push([el.tagName, ownText.slice(0, 300), el.matches('input,select,textarea') ? el.type === 'password' ? '<password>' : el.value : '', el.checked || '', el.getAttribute('aria-selected') || '', el.getAttribute('aria-expanded') || ''].join('|'));
+      if (ownText || el.matches('input,select,textarea,button,[role=tab]')) signatureParts.push([el.tagName, ownText.slice(0, 300), el.matches('input,select,textarea') ? el.type === 'password' ? '<password>' : el.value : '', el.checked || '', el.getAttribute('aria-selected') || el.getAttribute('aria-pressed') || '', el.getAttribute('aria-expanded') || ''].join('|'));
     }
     el = walker.nextNode();
   }
@@ -117,7 +123,7 @@ export function inspectInteractiveDOM({ local = false, sampling = 'representativ
   const scrolls = scrollCandidates.map(el => ({container: selector(el),x: el.scrollLeft,y: el.scrollTop}));
   if (!scrolls.length) scrolls.push({container:'document',x:window.scrollX,y:window.scrollY});
   candidates.sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
-  return { title: document.title.slice(0, 100), heading, dialog: dialogs.length > 0, structure, scrolls, viewSignature, signature: signatureParts.join('\n'), candidates: all ? candidates : candidates.slice(0, 45), skipped: [...skipped, ...(!all && candidates.length > 45 ? [{ name: '控件数量', reason: '每个状态取前 45 个候选动作', category: 'sampling', count: candidates.length - 45 }] : [])] };
+  return { title: document.title.slice(0, 100), heading, dialog: dialogs.length > 0, structure, scrolls, viewSignature, signature: signatureParts.join('\n'), candidates: all ? candidates : [...candidates.filter(c=>c.primary),...candidates.filter(c=>!c.primary).slice(0,Math.max(0,45-candidates.filter(c=>c.primary).length))], skipped: [...skipped, ...(!all && candidates.length > 45 ? [{ name: '控件数量', reason: '每个状态取前 45 个候选动作', category: 'sampling', count: candidates.length - 45 }] : [])] };
 }
 export async function inspectState(page, local, { sampling = 'representative' } = {}) {
   const state = await page.evaluate(inspectInteractiveDOM, { local, sampling });

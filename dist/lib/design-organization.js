@@ -117,7 +117,13 @@ function designLayout(pages) {
         }
         let x = 80, y = 112, rowHeight = 0, maxRight = 80;
         const local = /* @__PURE__ */ new Map();
-        for (const view of views.values()) {
+        if (pages[s.indices[0]].artifact?.kind === "icon") {
+          const columns = Math.min(12, s.indices.length);
+          s.indices.forEach((i, n) => local.set(i, { x: 80 + n % columns * 96, y: 112 + Math.floor(n / columns) * 96 }));
+          maxRight = 80 + columns * 96 - 24;
+          y = 112 + Math.floor((s.indices.length - 1) / columns) * 96;
+          rowHeight = 64;
+        } else for (const view of views.values()) {
           view.sort((a, b) => pages[a].design.scroll.y - pages[b].design.scroll.y || pages[a].design.scroll.x - pages[b].design.scroll.x || a - b);
           const viewWidth = view.reduce((sum, i) => sum + pages[i].width, 0) + 24 * Math.max(0, view.length - 1);
           const viewHeight = view.reduce((max, i) => Math.max(max, pages[i].height), 0);
@@ -137,7 +143,7 @@ function designLayout(pages) {
         }
         const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
         for (const [i, p] of local) positions.set(i, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
-        groups.push({ id, name: `${pages[s.indices[0]].artifact?.kind === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+        groups.push({ id, name: pages[s.indices[0]].artifact?.kind === "icon" ? "\u56FE\u6807\u5E93" : `${pages[s.indices[0]].artifact?.kind === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
         sectionY += sectionHeight + 160;
         columnWidth = Math.max(columnWidth, sectionWidth);
       }

@@ -38,7 +38,13 @@
           }
           let x = 80, y = 112, rowHeight = 0, maxRight = 80;
           const local = /* @__PURE__ */ new Map();
-          for (const view of views.values()) {
+          if (pages[s.indices[0]].artifact?.kind === "icon") {
+            const columns = Math.min(12, s.indices.length);
+            s.indices.forEach((i2, n) => local.set(i2, { x: 80 + n % columns * 96, y: 112 + Math.floor(n / columns) * 96 }));
+            maxRight = 80 + columns * 96 - 24;
+            y = 112 + Math.floor((s.indices.length - 1) / columns) * 96;
+            rowHeight = 64;
+          } else for (const view of views.values()) {
             view.sort((a, b) => pages[a].design.scroll.y - pages[b].design.scroll.y || pages[a].design.scroll.x - pages[b].design.scroll.x || a - b);
             const viewWidth = view.reduce((sum, i2) => sum + pages[i2].width, 0) + 24 * Math.max(0, view.length - 1);
             const viewHeight = view.reduce((max, i2) => Math.max(max, pages[i2].height), 0);
@@ -58,7 +64,7 @@
           }
           const sectionWidth = maxRight + 80, sectionHeight = y + rowHeight + 80;
           for (const [i2, p] of local) positions.set(i2, { x: columnX + p.x, y: sectionY + p.y, groupId: id });
-          groups.push({ id, name: `${pages[s.indices[0]].artifact?.kind === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
+          groups.push({ id, name: pages[s.indices[0]].artifact?.kind === "icon" ? "\u56FE\u6807\u5E93" : `${pages[s.indices[0]].artifact?.kind === "component" ? "\u7EC4\u4EF6\u72B6\u6001" : PAGE_LEVELS[s.design.level]} \xB7 ${s.design.moduleName}${s.design.pageName === s.design.moduleName ? "" : " / " + s.design.pageName}`, x: columnX, y: sectionY, width: sectionWidth, height: sectionHeight, indices: [...views.values()].flat() });
           sectionY += sectionHeight + 160;
           columnWidth = Math.max(columnWidth, sectionWidth);
         }
@@ -205,7 +211,7 @@
   // src/design-artifact.ts
   function validArtifact(value) {
     const v = value;
-    return !!v && typeof v === "object" && !Array.isArray(v) && ["page", "component"].includes(v.kind) && typeof v.familyId === "string" && /^[\w-]{1,200}$/.test(v.familyId) && ["familyName", "stateName", "reason"].every((k) => typeof v[k] === "string" && v[k].length > 0 && v[k].length <= 500) && Number.isSafeInteger(v.sampleCount) && v.sampleCount >= 1;
+    return !!v && typeof v === "object" && !Array.isArray(v) && ["page", "component", "icon"].includes(v.kind) && typeof v.familyId === "string" && /^[\w-]{1,200}$/.test(v.familyId) && ["familyName", "stateName", "reason"].every((k) => typeof v[k] === "string" && v[k].length > 0 && v[k].length <= 500) && Number.isSafeInteger(v.sampleCount) && v.sampleCount >= 1;
   }
 
   // src/schema.ts
@@ -8163,7 +8169,7 @@
       message("OPEN_DESKTOP_ASSISTANT_DOWNLOAD");
     }
   });
-  var outputUnit = () => preparedBundle?.pages.some((p) => p.source.artifact?.kind === "component") ? "\u9879" : "\u9875";
+  var outputUnit = () => preparedBundle?.pages.some((p) => ["component", "icon"].includes(p.source.artifact?.kind || "")) ? "\u9879" : "\u9875";
   var tab = "file";
   var source = "";
   var sourceName = "";
@@ -8360,9 +8366,9 @@
   function renderPageList() {
     if (!preparedBundle) return;
     $("page-list-section").hidden = preparedBundle.pages.length < 2 && !(smartLayout() && preparedBundle.pages[0]?.source.design);
-    $("page-list-title").textContent = `${preparedBundle.pages.some((p) => p.source.artifact?.kind === "component") ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
+    $("page-list-title").textContent = `${preparedBundle.pages.some((p) => ["component", "icon"].includes(p.source.artifact?.kind || "")) ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
     const rows = document.createDocumentFragment();
-    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas || !smartLayout() && p.source.artifact?.kind !== "component" ? void 0 : p.source.design, artifact: p.source.artifact })));
+    const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas || !smartLayout() && !["component", "icon"].includes(p.source.artifact?.kind || "") ? void 0 : p.source.design, artifact: p.source.artifact })));
     const grouped = new Set(organization.groups.flatMap((g) => g.indices)), ordered = [...organization.groups.flatMap((g) => g.indices), ...preparedBundle.pages.map((_, i2) => i2).filter((i2) => !grouped.has(i2))];
     const heads = new Map(organization.groups.map((g) => [g.indices[0], g]));
     ordered.forEach((i2) => {
@@ -8396,7 +8402,7 @@
           renderPageList();
         });
         heading.append(name);
-        if (page.source.artifact?.kind !== "component") heading.append(level);
+        if (!["component", "icon"].includes(page.source.artifact?.kind || "")) heading.append(level);
         rows.append(heading);
       }
       const row = document.createElement("div");
@@ -8412,7 +8418,7 @@
       box.addEventListener("change", () => {
         pageStates[i2].selected = box.checked;
         refreshImportAction();
-        $("page-list-title").textContent = `${preparedBundle.pages.some((p) => p.source.artifact?.kind === "component") ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
+        $("page-list-title").textContent = `${preparedBundle.pages.some((p) => ["component", "icon"].includes(p.source.artifact?.kind || "")) ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
       });
       const title = document.createElement("span");
       title.textContent = `${String(i2 + 1).padStart(3, "0")}  ${page.name}`;
@@ -9260,7 +9266,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!discovery) return;
     $("discovery-intro").hidden = true;
     $("discovery-results").hidden = false;
-    $("discovery-title").textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F \xB7 ${discovery.report.designSummary.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001` : `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
+    $("discovery-title").textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F \xB7 ${discovery.report.designSummary.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001 \xB7 ${discovery.report.designSummary.iconAssets || 0} \u4E2A\u56FE\u6807` : `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
     const count = () => {
       $("discovery-count").textContent = `\u5DF2\u9009\u62E9 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`;
       refreshPrepareAction();
@@ -9299,7 +9305,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         detail.title = page.design.reason;
       }
       if (page.artifact) {
-        detail.textContent = `${page.artifact.kind === "component" ? "\u7EC4\u4EF6\u53D8\u4F53" : "\u9875\u9762\u6A21\u677F"} \xB7 ${page.artifact.familyName} \xB7 ${page.artifact.stateName}${page.artifact.sampleCount > 1 ? ` \xB7 \u5408\u5E76 ${page.artifact.sampleCount} \u4E2A\u6570\u636E\u72B6\u6001` : ""}`;
+        detail.textContent = `${page.artifact.kind === "icon" ? "\u56FE\u6807" : page.artifact.kind === "component" ? "\u7EC4\u4EF6\u53D8\u4F53" : "\u9875\u9762\u6A21\u677F"} \xB7 ${page.artifact.familyName} \xB7 ${page.artifact.stateName}${page.artifact.sampleCount > 1 ? ` \xB7 \u5408\u5E76 ${page.artifact.sampleCount} \u4E2A\u6570\u636E\u72B6\u6001` : ""}`;
         detail.title = page.artifact.reason;
       }
       copy.append(name, detail);
@@ -9314,7 +9320,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const stopped = (report.stopReasons || []).map((reason) => reasons[reason] || reason).join("\uFF1B");
       const skipped = report.skippedByReason;
       const design = report.designSummary;
-      $("discovery-summary").textContent = `${design ? `\u8BBE\u8BA1\u7A3F\u8F93\u51FA\uFF1A${design.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F\u3001${design.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001\uFF0C\u5F52\u5E76 ${design.wholePagesAvoided} \u6B21\u6574\u9875\u91CD\u590D\u3002\u5DF2\u89C2\u5BDF ${design.observedStates} \u4E2A\u4E0D\u540C\u6570\u636E/\u4EA4\u4E92\u72B6\u6001` : `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001`}\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+      $("discovery-summary").textContent = `${design ? `\u8BBE\u8BA1\u7A3F\u8F93\u51FA\uFF1A${design.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F\u3001${design.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001\u3001${design.iconAssets || 0} \u4E2A\u56FE\u6807\uFF0C\u5F52\u5E76 ${design.wholePagesAvoided} \u6B21\u6574\u9875\u91CD\u590D\u3002\u5DF2\u89C2\u5BDF ${design.observedStates} \u4E2A\u4E0D\u540C\u6570\u636E/\u4EA4\u4E92\u72B6\u6001` : `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001`}\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${report.navigation ? `\u4E3B\u5BFC\u822A\u5DF2\u9A8C\u8BC1 ${report.navigation.verified}/${report.navigation.total}\u3002${report.navigation.pending?.length ? `\u5F85\u63A2\u7D22\uFF1A${report.navigation.pending.join("\u3001")}\u3002` : ""}` : ""}${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
     }
     const canResume = report.mode === "interactions" && !!discovery.session?.canResume;
     $("continue-exploration").hidden = !canResume;
@@ -9342,12 +9348,17 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!resume) clearDiscovery();
     status(resume ? "\u6B63\u5728\u6062\u590D\u63A2\u7D22\u8FDB\u5EA6\u2026" : "\u6B63\u5728\u6253\u5F00\u5165\u53E3\u5E76\u53D1\u73B0\u9875\u9762\u2026");
     const key = requestKey();
+    if (settings.outputMode === "design" && $("state-input-mode").value === "explore") {
+      const health = await api("/api/health");
+      const version2 = /^(\d+)\.(\d+)/.exec(health.version || "");
+      if (!version2 || Number(version2[1]) === 0 && Number(version2[2]) < 14) throw new Error("\u8BF7\u5C06\u684C\u9762\u52A9\u624B\u66F4\u65B0\u5230 v0.14.0 \u6216\u4EE5\u4E0A\uFF0C\u5E76\u5148\u4ECE\u83DC\u5355\u680F\u9000\u51FA\u65E7\u52A9\u624B\u540E\u91CD\u5F00\u65B0\u7248\u3002");
+    }
     const job = await api("/api/discover", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", exploreInteractions: $("state-input-mode").value === "explore", ...settings, ...resumeId ? { resumeId } : {} });
     activeStateJob = job.id;
     activeJobKind = "discover";
     while (true) {
       const snapshot = await api(`/api/discover/${job.id}`), p = snapshot.progress;
-      if (p) status(`${captureStopped ? "\u6B63\u5728\u505C\u6B62\u63A2\u7D22" : p.status === "exploring" ? "\u6B63\u5728\u63A2\u7D22\u4EA4\u4E92" : "\u6B63\u5728\u53D1\u73B0\u9875\u9762"}\uFF1A\u5DF2\u627E\u5230 ${p.found || 0} \u9875 \xB7 \u5DF2\u68C0\u67E5 ${p.scanned || 0} \u9875 \xB7 ${p.name || ""}${p.attempted !== void 0 ? ` \xB7 \u5DF2\u5C1D\u8BD5 ${p.attempted} \u6B21` : ""}`);
+      if (p) status(`${captureStopped ? "\u6B63\u5728\u505C\u6B62\u63A2\u7D22" : p.status === "exploring" ? p.phase === "pages" ? "\u6B63\u5728\u4F18\u5148\u53D1\u73B0\u9875\u9762" : "\u6B63\u5728\u63A2\u7D22\u7EC4\u4EF6\u72B6\u6001" : "\u6B63\u5728\u53D1\u73B0\u9875\u9762"}\uFF1A\u5DF2\u627E\u5230 ${p.found || 0} \u9875 \xB7 \u5DF2\u68C0\u67E5 ${p.scanned || 0} \u9875 \xB7 ${p.name || ""}${p.attempted !== void 0 ? ` \xB7 \u5DF2\u5C1D\u8BD5 ${p.attempted} \u6B21` : ""}`);
       if (snapshot.status !== "running") {
         if (snapshot.error) throw new Error(snapshot.error);
         discovery = await api(`/api/discover/${job.id}/result`);
@@ -9439,7 +9450,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const p = snapshot.progress;
       if (p) {
         $("progress").value = Math.round((p.completed + p.failed + (p.merged || 0)) / p.total * 100);
-        status(`${captureStopped ? "\u6B63\u5728\u505C\u6B62" : "\u6B63\u5728\u6355\u83B7"} ${Math.min(p.index + 1, p.total)} / ${p.total}\uFF1A${p.name} \xB7 \u5B8C\u6210 ${p.completed}\uFF0C\u5931\u8D25 ${p.failed}`);
+        status(`${captureStopped ? "\u6B63\u5728\u505C\u6B62" : p.phase === "pages" ? "\u6B63\u5728\u6355\u83B7\u9875\u9762" : p.phase === "icons" ? "\u6B63\u5728\u6574\u7406\u56FE\u6807" : "\u6B63\u5728\u6355\u83B7\u7EC4\u4EF6"} ${Math.min(p.index + 1, p.total)} / ${p.total}\uFF1A${p.name} \xB7 \u5B8C\u6210 ${p.completed}\uFF0C\u5931\u8D25 ${p.failed}`);
       }
       if (snapshot.status !== "running") {
         if (snapshot.status === "failed") throw new Error(snapshot.error || "\u72B6\u6001\u6355\u83B7\u5931\u8D25");

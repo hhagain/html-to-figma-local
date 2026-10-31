@@ -91,8 +91,8 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
     for(let i=0;i<plan.states.length;i++) {
       if(signal?.aborted) break;
       const state=plan.states[i], start=Date.now(); let blocked=0;
-      onProgress?.({status:'running',index:i,total:plan.states.length,name:state.name,completed:report.completed,failed:report.failed,merged:report.merged});
-      const record={index:i,id:state.id,name:state.name,group:state.group,url:state.url,status:'running',nodes:0,blockedRequests:0,durationMs:0};
+      onProgress?.({status:'running',phase:state.artifact?.kind==='icon'?'icons':state.artifact?.kind==='component'?'components':'pages',index:i,total:plan.states.length,name:state.name,completed:report.completed,failed:report.failed,merged:report.merged});
+      const record={index:i,kind:state.artifact?.kind||'page',id:state.id,name:state.name,group:state.group,url:state.url,status:'running',nodes:0,blockedRequests:0,durationMs:0};
       let timer;
       try {
         activeContext=await browser.newContext({viewport:plan.viewport,deviceScaleFactor:1,colorScheme:'light',reducedMotion:'reduce',serviceWorkers:'block',locale:'zh-CN'});
@@ -127,7 +127,7 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
         const actual=await inspectState(page,source.local);
         if(state.expectedFingerprint){if(actual.fingerprint!==state.expectedFingerprint)throw new Error('页面与探索时的状态不同，请重新探索；可能有异步数据或随机内容');}
         let viewFingerprint=actual.viewFingerprint,scrollNormalization=null;
-        const longPage = plan.longPage && state.artifact?.kind !== 'component';
+        const longPage = plan.longPage && !['component','icon'].includes(state.artifact?.kind);
         if(longPage){
           // Compare content at a common scroll origin, excluding sticky copies and viewport effects.
           // State replay is already verified above; input/filter values and newly loaded rows remain.
@@ -141,13 +141,13 @@ export async function captureStates(browser, rawPlan, {signal,onProgress,onState
           previous.document.source.longPage.mergedStateIds.push(state.id);record.status='merged';record.mergedInto=previous.id;record.pageIndex=previous.pageIndex;record.url=source.toSourceURL(page.url());report.merged++;report.total=plan.states.length-report.merged;continue;
         }
         const options={url:page.url(),width:plan.viewport.width,height:plan.viewport.height,selector:state.selector};
-        const result=await captureLoadedPage(page,context,options,{viewportOnly:state.captureMode==='viewport'&&state.artifact?.kind!=='component',longPage,name:`${String(i+1).padStart(3,'0')} · ${state.group} · ${state.name}`,source});
+        const result=await captureLoadedPage(page,context,options,{viewportOnly:state.captureMode==='viewport'&&!['component','icon'].includes(state.artifact?.kind),longPage,name:`${String(i+1).padStart(3,'0')} · ${state.group} · ${state.name}`,source});
         if(previous&&previous.viewFingerprint!==viewFingerprint)result.document.diagnostics.push({code:'LONG_PAGE_CONTENT_CHANGED',message:'滚动后内容发生变化，保留独立长页以避免丢失新内容',count:1});
         const sourceURL=source.toSourceURL(page.url());
         const design=inferOrganization({url:sourceURL,entryURL:plan.url,heading:actual.heading,title:actual.title,dialog:actual.dialog,viewFingerprint:actual.viewFingerprint,...actual.structure,scrolls:actual.scrolls,name:state.name,actionKind:state.steps.some(s=>s.type==='scroll')?'滚动':'',parent:state.design,explicitGroup:!['交互探索','自动发现','页面状态'].includes(state.group)?state.group:undefined});
         result.document.source.design=state.design?{...state.design,scroll:design.scroll}:design;
         if(longPage){const scroll=result.document.source.design.scroll;if(scrollNormalization?.primaryScrolls.includes(scroll.container)||scroll.container==='document'&&scrollNormalization?.documentReset){result.document.source.design.scroll={...scroll,x:0,y:0};if(result.document.source.design.kind==='scroll')result.document.source.design.kind='state';}result.document.name=`${String(i+1).padStart(3,'0')} · ${result.document.source.design.pageName} · ${result.document.source.design.stateName} · 长页`;}
-        if(state.artifact){result.document.source.artifact=state.artifact;if(state.artifact.kind==='component')result.document.name=`组件 · ${state.artifact.familyName} · ${state.artifact.stateName}`;}
+        if(state.artifact){result.document.source.artifact=state.artifact;if(state.artifact.kind==='component')result.document.name=`组件 · ${state.artifact.familyName} · ${state.artifact.stateName}`;else if(state.artifact.kind==='icon')result.document.name=`图标 · ${state.artifact.familyName}`;}
         result.document.source.state={id:state.id,name:state.name,group:state.group,stepCount:(state.setup?plan.setup.length:0)+state.steps.length};
         if(blocked) result.document.diagnostics.push({code:'NETWORK_BLOCKED',message:`隔离捕获阻止了 ${blocked} 个写请求或跨站跳转；请核对该状态是否完整`,count:1});
         builder.add(result.document);
