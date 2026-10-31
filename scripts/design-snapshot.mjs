@@ -60,7 +60,8 @@ export function inspectDesignDOM({ selector = 'body' } = {}) {
     if (el.namespaceURI?.includes('svg')) return 'svg:' + compress([...el.querySelectorAll('circle,path,rect,polyline,polygon,line,text')].map(n => n.tagName)).join(',');
     const tag = el.tagName.toLowerCase(), control = el.matches('button,summary,[role="button"],[role="tab"],label,legend,h1,h2,h3');
     const own = clean([...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join(' '));
-    const text = mode === 'value' ? own : control && !el.closest('[role="list"],ul,ol,tbody,[class*="list"],[class*="rail"],[class*="chart"]') ? normalize(own) : own ? '<text>' : '';
+    const dataBound = el.hasAttribute('data-id') || el.matches('h1,h2,h3,[role="listitem"],[role="option"]') || !!el.closest('[role="list"],ul,ol,tbody,[class*="list"],[class*="rail"],[class*="chart"]');
+    const text = mode === 'value' ? own : control && !dataBound ? normalize(own) : own ? '<text>' : '';
     const signature = [tag,el.getAttribute('role') || '',el.getAttribute('type') || '',text];
     if (mode === 'state') signature.push(status(el));
     if (mode === 'shape' || mode === 'page') {const s=getComputedStyle(el);signature.push(s.display,s.flexDirection,s.gridTemplateColumns==='none'?'':String(s.gridTemplateColumns.split(/\s+/).length));}
