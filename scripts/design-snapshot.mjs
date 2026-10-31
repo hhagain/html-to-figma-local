@@ -109,7 +109,7 @@ export function inspectDesignDOM({ selector = 'body' } = {}) {
   const visibleIcon=el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);if(!r.width||!r.height||s.display==='none'||s.visibility==='hidden'||el.closest('[hidden]'))return false;for(let p=el.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS'&&!p.open&&!p.querySelector(':scope > summary')?.contains(el))return false;return true;};
   const icons=[];
   for(const el of root.querySelectorAll('svg,img')){
-    if(!visibleIcon(el)||!iconHost(el)||el.closest('[hidden]')||el.tagName==='IMG'&&!/icon|logo|symbol|glyph/i.test(el.className+' '+(el.getAttribute('alt')||'')))continue;
+    if(!visibleIcon(el)||!iconHost(el)||el.closest('[hidden]')||el.tagName==='IMG'&&!/icon|logo|symbol|glyph|brand|标志|图标/i.test(el.className+' '+(el.parentElement?.className||'')+' '+(el.getAttribute('alt')||'')))continue;
     if(el.namespaceURI?.includes('svg')&&(el.querySelector('text')||el.closest('svg')!==el))continue;
     const r=el.getBoundingClientRect();if(r.width<4||r.height<4)continue;
     const name=clean(el.getAttribute('aria-label')||el.querySelector('title')?.textContent||el.getAttribute('data-icon')||el.getAttribute('data-lucide')||el.getAttribute('alt')||el.getAttribute('id')||'');

@@ -123,7 +123,8 @@ export function inspectInteractiveDOM({ local = false, sampling = 'representativ
   const scrolls = scrollCandidates.map(el => ({container: selector(el),x: el.scrollLeft,y: el.scrollTop}));
   if (!scrolls.length) scrolls.push({container:'document',x:window.scrollX,y:window.scrollY});
   candidates.sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
-  return { title: document.title.slice(0, 100), heading, dialog: dialogs.length > 0, structure, scrolls, viewSignature, signature: signatureParts.join('\n'), candidates: all ? candidates : [...candidates.filter(c=>c.primary),...candidates.filter(c=>!c.primary).slice(0,Math.max(0,45-candidates.filter(c=>c.primary).length))], skipped: [...skipped, ...(!all && candidates.length > 45 ? [{ name: '控件数量', reason: '每个状态取前 45 个候选动作', category: 'sampling', count: candidates.length - 45 }] : [])] };
+  const emitted=all?candidates:[...candidates.filter(c=>c.primary),...candidates.filter(c=>!c.primary).slice(0,Math.max(0,45-candidates.filter(c=>c.primary).length))];
+  return { title: document.title.slice(0, 100), heading, dialog: dialogs.length > 0, structure, scrolls, viewSignature, signature: signatureParts.join('\n'), candidates: emitted, skipped: [...skipped, ...(!all && candidates.length > emitted.length ? [{ name: '控件数量', reason: '每个状态取前 45 个候选动作', category: 'sampling', count: candidates.length - emitted.length }] : [])] };
 }
 export async function inspectState(page, local, { sampling = 'representative' } = {}) {
   const state = await page.evaluate(inspectInteractiveDOM, { local, sampling });
