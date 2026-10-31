@@ -36,8 +36,8 @@ export function inspectDesignDOM({ selector = 'body' } = {}) {
   });
   const dialogs = candidates.filter(el => el.matches('[role="dialog"],dialog[open],[aria-modal="true"]'));
   const activeDialog=dialogs[0]||null;
-  const scoped=activeDialog?candidates.filter(el=>activeDialog.contains(el)&&el!==activeDialog):candidates;
-  const atomic=el=>el.matches('details,fieldset,[data-h2f-component],[role="listitem"],[role="radiogroup"],li,[class*="list-row"]');
+  const scoped=activeDialog?candidates.filter(el=>el!==activeDialog&&(activeDialog.contains(el)||dialogs.some(dialog=>dialog!==activeDialog&&dialog.contains(el)))):candidates;
+  const atomic=el=>dialogs.includes(el)&&el!==activeDialog||el.matches('details,fieldset,[data-h2f-component],[role="listitem"],[role="radiogroup"],li,[class*="list-row"]');
   const regions=scoped.filter(el=>!scoped.some(parent=>parent!==el&&parent.contains(el)&&atomic(parent)))
     .filter(el=>atomic(el)||!scoped.some(child=>child!==el&&el.contains(child)));
   if(activeDialog&&!regions.length)regions.push(activeDialog);
