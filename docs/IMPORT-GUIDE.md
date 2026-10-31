@@ -2,11 +2,11 @@
 
 ## 已经安装过开发插件
 
-如果原插件指向本项目目录中的 `manifest.json`，关闭并重新运行 **HTML to Figma · Local** 即可。底部显示 **v0.14.0** 表示加载了新版。
+如果原插件指向本项目目录中的 `manifest.json`，关闭并重新运行 **HTML to Figma · Local** 即可。底部显示 **v0.15.0** 表示加载了新版。
 
 ## 使用 ZIP 安装
 
-1. 完整解压 `html-to-figma-local-0.14.0.zip` 到固定目录。
+1. 完整解压 `html-to-figma-local-0.15.0.zip` 到固定目录。
 2. 在 Figma 桌面端选择 **Plugins → Development → Import plugin from manifest…**。
 3. 选择解压目录中的 `manifest.json`。
 4. 从 **Plugins → Development → HTML to Figma · Local** 运行。
@@ -54,3 +54,7 @@
 ## 不使用终端的网页捕获
 
 安装并打开 macOS 捕获助手，在 Figma 插件的“网页链接”中点击“连接桌面助手”。核对配对码并确认一次，后续自动重连。见 `DESKTOP-ASSISTANT.md`。
+
+## 手动操作原 HTML 并选择导出页面
+
+更新到 v0.15.0 后，在“网页链接 → 多状态捕获”中选择“手动操作原网页并标记”。无需 JSON 清单，详见 [手动标记使用说明](MANUAL-CAPTURE.md)。

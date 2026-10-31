@@ -1,5 +1,371 @@
 "use strict";
 (() => {
+  // src/manual-capture.ts
+  var $ = (id) => document.getElementById(id);
+  function setupManualCapture(config) {
+    let session2 = null, timer = null, live = false, pending = false, disposed = false;
+    let events = Promise.resolve(), signature = "", fit = true, scale = 1, dragging = false, lastMove = 0, composing = false;
+    const extras = $("manual-extras"), layout = $("manual-layout");
+    try {
+      const saved = JSON.parse(localStorage.getItem("h2f-manual-options") || "null");
+      if (typeof saved?.collectExtras === "boolean") extras.checked = saved.collectExtras;
+      if (["selection", "smart"].includes(saved?.layout)) layout.value = saved.layout;
+    } catch {
+    }
+    const options = () => ({ collectExtras: extras.checked, layout: layout.value });
+    const tell = (text, error = false) => {
+      $("manual-browser-status").textContent = text;
+      config.status(text, error);
+    };
+    const request = (action, body, timeout = 6e4) => config.request(`/api/manual/${session2.id}/${action}`, body, timeout);
+    function zoom() {
+      if (!session2) return;
+      const host = $("manual-viewport"), surface2 = $("manual-surface");
+      if (fit) scale = Math.max(0.1, Math.min(1, (host.clientWidth - 26) / session2.viewport.width));
+      surface2.style.width = `${session2.viewport.width * scale}px`;
+      surface2.style.height = `${session2.viewport.height * scale}px`;
+      $("manual-fit").setAttribute("aria-pressed", String(fit));
+      $("manual-actual").setAttribute("aria-pressed", String(!fit && scale === 1));
+    }
+    function showLive(value) {
+      live = value;
+      document.body.classList.toggle("manual-active", value);
+      document.body.classList.toggle("manual-result", !value && !!session2);
+      $("manual-browser").hidden = !value;
+      $("preview-stage").hidden = value;
+      $("manual-resume").hidden = !session2 || value;
+      if (value) {
+        for (const id of ["preview-controls", "preview-zoom-controls", "preview-caption", "preview-shortcuts"]) $(id).hidden = true;
+        zoom();
+        void poll();
+      } else if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    }
+    function render(value) {
+      session2 = value;
+      extras.checked = value.options.collectExtras;
+      layout.value = value.options.layout;
+      $("manual-session").hidden = false;
+      $("manual-count").textContent = `${value.selectedIds.length} / ${value.marks.length}`;
+      $("manual-location").textContent = value.url;
+      $("manual-location").title = value.url;
+      const next = JSON.stringify(value.marks);
+      if (signature !== next) {
+        signature = next;
+        const rows = value.marks.map((mark) => {
+          const row = document.createElement("div");
+          row.className = "manual-mark-row";
+          row.dataset.markId = mark.id;
+          row.dataset.selected = String(mark.selected);
+          const box = document.createElement("input");
+          box.type = "checkbox";
+          box.checked = mark.selected;
+          box.setAttribute("aria-label", `\u5BFC\u51FA ${mark.name}`);
+          box.addEventListener("change", () => void update({ id: mark.id, selected: box.checked }));
+          const order = document.createElement("span");
+          order.className = "manual-order";
+          order.textContent = mark.order ? String(mark.order).padStart(2, "0") : "\u2014";
+          const name = document.createElement("input");
+          name.type = "text";
+          name.value = mark.name;
+          name.maxLength = 150;
+          name.setAttribute("aria-label", `\u91CD\u547D\u540D ${mark.name}`);
+          name.addEventListener("change", () => void update({ id: mark.id, name: name.value }));
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "text-button";
+          remove.textContent = "\xD7";
+          remove.setAttribute("aria-label", `\u5220\u9664\u6807\u8BB0 ${mark.name}`);
+          remove.addEventListener("click", () => void update({ id: mark.id, remove: true }));
+          const scope = document.createElement("select");
+          scope.setAttribute("aria-label", `${mark.name} \u7684\u6355\u83B7\u8303\u56F4`);
+          for (const [value2, text] of [["viewport", "\u5F53\u524D\u9875\u9762"], ["long", "\u5B8C\u6574\u957F\u9875"]]) {
+            const option = document.createElement("option");
+            option.value = value2;
+            option.textContent = text;
+            option.disabled = value2 === "long" && !mark.longAvailable;
+            scope.append(option);
+          }
+          scope.value = mark.mode;
+          scope.addEventListener("change", () => void update({ id: mark.id, mode: scope.value }));
+          row.append(box, order, name, remove, scope);
+          if (mark.longError) {
+            const note = document.createElement("small");
+            note.textContent = `\u957F\u9875\u4E0D\u53EF\u7528\uFF1A${mark.longError}`;
+            row.append(note);
+          }
+          return row;
+        });
+        $("manual-marks").replaceChildren(...rows);
+      }
+      $("manual-selection-help").textContent = layout.value === "selection" ? "\u6309\u52FE\u9009\u987A\u5E8F\u5BFC\u51FA\uFF0C\u91CD\u65B0\u52FE\u9009\u4F1A\u6392\u5230\u6700\u540E\u3002" : "\u6309\u6240\u5C5E\u9875\u9762\u548C\u529F\u80FD\u5206\u7EC4\uFF1B\u7EC4\u4EF6\u3001\u56FE\u6807\u5206\u522B\u96C6\u4E2D\u6392\u7248\u3002";
+      const dialog = value.dialog;
+      $("manual-dialog").hidden = !dialog;
+      if (dialog) {
+        $("manual-dialog-message").textContent = dialog.message;
+        $("manual-dialog-text").hidden = dialog.type !== "prompt";
+        if (document.activeElement !== $("manual-dialog-text")) $("manual-dialog-text").value = dialog.defaultValue;
+      }
+      config.changed();
+    }
+    async function poll() {
+      if (!session2 || !live || disposed || pending) return;
+      const current2 = session2.id;
+      try {
+        const frame2 = await request("frame", void 0, 45e3);
+        if (!live || session2?.id !== current2) return;
+        render(frame2);
+        if (frame2.image) {
+          $("manual-image").src = frame2.image;
+          zoom();
+        }
+        const native = $("manual-native-select");
+        $("manual-select-panel").hidden = !frame2.select;
+        if (frame2.select) {
+          const key = JSON.stringify(frame2.select.options);
+          if (native.dataset.options !== key) {
+            native.dataset.options = key;
+            native.replaceChildren(...frame2.select.options.map((o) => {
+              const option = document.createElement("option");
+              option.value = o.value;
+              option.textContent = o.label;
+              option.disabled = o.disabled;
+              return option;
+            }));
+          }
+          native.value = frame2.select.value;
+        }
+        $("manual-browser-status").textContent = frame2.warning || `\u539F\u7F51\u9875\u6B63\u5728\u8FD0\u884C \xB7 \u5DF2\u8BB0\u5F55 ${frame2.observed} \u4E2A\u72B6\u6001 \xB7 \u5DF2\u52FE\u9009 ${frame2.selectedIds.length} \u9875`;
+      } catch (error) {
+        if (session2?.id === current2) tell(String(error.message), true);
+      } finally {
+        if (live && session2?.id === current2 && !disposed) timer = setTimeout(() => void poll(), 500);
+      }
+    }
+    function enqueue(body) {
+      if (!session2 || pending || !live) return;
+      const current2 = session2.id;
+      events = events.catch(() => {
+      }).then(async () => {
+        if (session2?.id !== current2) return;
+        const result = await request("input", body, 2e4);
+        if (result.clipboard !== void 0) await navigator.clipboard.writeText(result.clipboard);
+      }).catch((error) => tell(error.message, true));
+    }
+    async function update(body) {
+      if (!session2) return;
+      try {
+        await events;
+        render(await request("update", body));
+        config.edited();
+      } catch (error) {
+        tell(error.message, true);
+        signature = "";
+        render(session2);
+      }
+    }
+    async function command(fn) {
+      if (pending) return;
+      pending = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      $("manual-surface").setAttribute("aria-busy", "true");
+      for (const el of document.querySelectorAll("#manual-panel button,#manual-panel input,#manual-panel select")) el.disabled = true;
+      try {
+        await events;
+        return await fn();
+      } catch (error) {
+        tell(error.message, true);
+        throw error;
+      } finally {
+        pending = false;
+        $("manual-surface").setAttribute("aria-busy", "false");
+        for (const el of document.querySelectorAll("#manual-panel button,#manual-panel input,#manual-panel select")) el.disabled = false;
+        config.changed();
+        if (live) timer = setTimeout(() => void poll(), 300);
+      }
+    }
+    $("manual-mark").addEventListener("click", () => void command(async () => {
+      config.edited();
+      tell("\u6B63\u5728\u4FDD\u5B58\u5F53\u524D\u72B6\u6001\u4E0E\u957F\u9875\u5FEB\u7167\u2026");
+      const mode2 = document.querySelector('input[name="manual-scope"]:checked').value;
+      render(await request("mark", { name: $("manual-name").value, mode: mode2 }, 9e4));
+      $("manual-name").value = "";
+      tell(`\u5DF2\u6807\u8BB0 ${session2.marks[session2.marks.length - 1].name}\uFF0C\u53EF\u7EE7\u7EED\u64CD\u4F5C\u539F\u7F51\u9875\u3002`);
+    }).catch(() => {
+    }));
+    function saveOptions() {
+      try {
+        localStorage.setItem("h2f-manual-options", JSON.stringify(options()));
+      } catch {
+      }
+      if (session2) void update({ options: options() });
+    }
+    extras.addEventListener("change", saveOptions);
+    layout.addEventListener("change", saveOptions);
+    $("manual-resume").addEventListener("click", () => {
+      config.edited();
+      showLive(true);
+    });
+    const surface = $("manual-surface"), keyboard = $("manual-keyboard");
+    const point = (event) => {
+      const r = surface.getBoundingClientRect();
+      return { x: Math.max(0, Math.min(session2.viewport.width - 1, (event.clientX - r.left) / scale)), y: Math.max(0, Math.min(session2.viewport.height - 1, (event.clientY - r.top) / scale)) };
+    };
+    const button = (event) => event.button === 2 ? "right" : event.button === 1 ? "middle" : "left";
+    surface.addEventListener("pointerdown", (event) => {
+      if (!session2 || pending) return;
+      event.preventDefault();
+      keyboard.focus({ preventScroll: true });
+      dragging = true;
+      surface.setPointerCapture(event.pointerId);
+      enqueue({ type: "down", ...point(event), button: button(event), clickCount: event.detail === 2 ? 2 : 1 });
+    });
+    surface.addEventListener("pointerup", (event) => {
+      if (!session2 || !dragging) return;
+      event.preventDefault();
+      enqueue({ type: "up", ...point(event), button: button(event), clickCount: event.detail === 2 ? 2 : 1 });
+      dragging = false;
+      if (surface.hasPointerCapture(event.pointerId)) surface.releasePointerCapture(event.pointerId);
+    });
+    surface.addEventListener("pointercancel", (event) => {
+      if (dragging && session2) enqueue({ type: "up", ...point(event), button: "left" });
+      dragging = false;
+    });
+    surface.addEventListener("pointermove", (event) => {
+      if (!session2 || pending || Date.now() - lastMove < 90) return;
+      lastMove = Date.now();
+      enqueue({ type: "move", ...point(event) });
+    });
+    surface.addEventListener("contextmenu", (event) => event.preventDefault());
+    surface.addEventListener("wheel", (event) => {
+      if (!session2 || pending) return;
+      event.preventDefault();
+      if (event.ctrlKey || event.metaKey) {
+        fit = false;
+        scale = Math.max(0.1, Math.min(3, scale * Math.exp(-event.deltaY * 2e-3)));
+        zoom();
+        return;
+      }
+      const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? session2.viewport.height : 1;
+      enqueue({ type: "wheel", ...point(event), deltaX: Math.max(-1e4, Math.min(1e4, event.deltaX * multiplier)), deltaY: Math.max(-1e4, Math.min(1e4, event.deltaY * multiplier)) });
+    }, { passive: false });
+    keyboard.addEventListener("compositionstart", () => {
+      composing = true;
+    });
+    keyboard.addEventListener("compositionend", () => {
+      composing = false;
+      if (keyboard.value) {
+        enqueue({ type: "text", text: keyboard.value });
+        keyboard.value = "";
+      }
+    });
+    keyboard.addEventListener("input", () => {
+      if (!composing && keyboard.value) {
+        enqueue({ type: "text", text: keyboard.value });
+        keyboard.value = "";
+      }
+    });
+    keyboard.addEventListener("paste", (event) => {
+      event.preventDefault();
+      enqueue({ type: "text", text: event.clipboardData?.getData("text/plain") || "" });
+    });
+    keyboard.addEventListener("keydown", (event) => {
+      if (composing || event.isComposing || event.key === "Process" || event.keyCode === 229) return;
+      if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) return;
+      if (["Meta", "Control", "Alt", "Shift", "CapsLock"].includes(event.key)) return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") return;
+      event.preventDefault();
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+        enqueue({ type: "copy" });
+        return;
+      }
+      const key = [event.ctrlKey ? "Control" : "", event.metaKey ? "Meta" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : "", event.key === " " ? "Space" : event.key].filter(Boolean).join("+");
+      enqueue({ type: "key", key });
+      if (event.key === "Escape") keyboard.blur();
+    });
+    for (const action of ["back", "forward", "reload"]) $(`manual-${action}`).addEventListener("click", () => enqueue({ type: action }));
+    $("manual-native-select").addEventListener("change", () => enqueue({ type: "select", value: $("manual-native-select").value }));
+    for (const action of ["accept", "cancel"]) $(`manual-dialog-${action}`).addEventListener("click", () => enqueue({ type: "dialog", accept: action === "accept", text: $("manual-dialog-text").value }));
+    $("manual-actual").addEventListener("click", () => {
+      fit = false;
+      scale = 1;
+      zoom();
+    });
+    $("manual-fit").addEventListener("click", () => {
+      fit = true;
+      zoom();
+    });
+    new ResizeObserver(zoom).observe($("manual-viewport"));
+    $("manual-plugin-help").hidden = !config.plugin;
+    async function close() {
+      if (!session2) return;
+      const previous = session2;
+      showLive(false);
+      try {
+        await config.request(`/api/manual/${previous.id}/close`, {}, 3e4);
+      } finally {
+        session2 = null;
+        signature = "";
+        document.body.classList.remove("manual-result");
+        $("manual-session").hidden = true;
+        config.changed();
+      }
+    }
+    $("manual-close").addEventListener("click", () => void close().catch((error) => tell(error.message, true)));
+    window.addEventListener("beforeunload", () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+    });
+    return {
+      get active() {
+        return !!session2;
+      },
+      get count() {
+        return session2?.selectedIds.length || 0;
+      },
+      get working() {
+        return pending;
+      },
+      async prepare(raw) {
+        if (config.plugin) {
+          config.openWorkbench(raw);
+          return;
+        }
+        if (!session2) {
+          await command(async () => {
+            const health = await config.request("/api/health");
+            const version2 = /^(\d+)\.(\d+)/.exec(health.version || "");
+            if (!version2 || Number(version2[1]) === 0 && Number(version2[2]) < 15) throw new Error("\u624B\u52A8\u6807\u8BB0\u9700\u8981 v0.15.0 \u6216\u4EE5\u4E0A\u52A9\u624B\uFF0C\u8BF7\u9000\u51FA\u65E7\u52A9\u624B\u540E\u6253\u5F00\u65B0\u7248\u3002");
+            const active = await config.request("/api/manual/active");
+            render(active.session || await config.request("/api/manual", { ...raw, options: options() }, 9e4));
+            showLive(true);
+            tell("\u539F\u7F51\u9875\u5DF2\u6253\u5F00\u3002\u81EA\u884C\u64CD\u4F5C\u540E\uFF0C\u70B9\u51FB\u201C\u6807\u8BB0\u5F53\u524D\u72B6\u6001\u201D\u3002");
+          });
+          return;
+        }
+        await command(async () => {
+          tell("\u6B63\u5728\u751F\u6210\u52FE\u9009\u9875\u9762\u4E0E\u8BBE\u8BA1\u7D20\u6750\u2026");
+          const result = await request("export", {}, 9e4);
+          showLive(false);
+          config.prepared(result);
+        });
+      },
+      close,
+      sync(visible) {
+        $("manual-panel").hidden = !visible;
+        if (!visible) {
+          document.body.classList.remove("manual-result");
+          if (live) showLive(false);
+        }
+      }
+    };
+  }
+
   // src/design-organization.ts
   var PAGE_LEVELS = { primary: "\u4E00\u7EA7\u9875\u9762", secondary: "\u4E8C\u7EA7\u9875\u9762", feature: "\u529F\u80FD\u9875\u9762", unclassified: "\u5F85\u786E\u8BA4\u9875\u9762" };
   function validOrganization(v) {
@@ -346,6 +712,11 @@
     }
     if (!rootEl) throw new Error(`\u6CA1\u6709\u627E\u5230\u9009\u62E9\u5668\uFF1A${selector}`);
     await Promise.race([doc.fonts?.ready, new Promise((resolve) => setTimeout(resolve, 2500))]);
+    const keyedElements = /* @__PURE__ */ new Map();
+    for (const key of options.captureKeys || []) {
+      const el = doc.querySelector(key);
+      if (el) keyedElements.set(el, key);
+    }
     const diagnostics = [], assets = [];
     const warn = (code, message2, node) => addDiagnostic(diagnostics, code, message2, node);
     const colorCanvas = doc.createElement("canvas");
@@ -536,6 +907,7 @@
       if (rect.width <= 0 && rect.height <= 0 && cs.display !== "contents") return null;
       const name = el.getAttribute("aria-label") || el.getAttribute("data-pencil-name") || el.id || `${el.tagName.toLowerCase()}${el.classList.length ? "." + el.classList[0] : ""}`;
       const n = base(el.tagName.toLowerCase() === "svg" ? "svg" : "frame", name, rect, parent);
+      if (keyedElements.has(el)) n.captureKey = keyedElements.get(el);
       n.opacity = Math.max(0, Math.min(1, Number(cs.opacity) || 1));
       const bg = color(cs.backgroundColor);
       if (bg.a) n.fills.push({ type: "solid", color: bg });
@@ -8158,12 +8530,12 @@
   }
 
   // src/ui.ts
-  var $ = (id) => document.getElementById(id);
-  var input = (id) => $(id);
+  var $2 = (id) => document.getElementById(id);
+  var input = (id) => $2(id);
   var plugin = window.parent !== window;
   document.body.classList.toggle("is-plugin", plugin);
-  $("download-assistant").hidden = !plugin;
-  $("download-assistant").addEventListener("click", (event) => {
+  $2("download-assistant").hidden = !plugin;
+  $2("download-assistant").addEventListener("click", (event) => {
     if (plugin) {
       event.preventDefault();
       message("OPEN_DESKTOP_ASSISTANT_DOWNLOAD");
@@ -8218,30 +8590,46 @@
   var discovery = null;
   var discoveryKey = "";
   var discoverySelection = [];
-  var autoStates = () => tab === "url" && $("url-mode").value === "states" && $("state-input-mode").value !== "recipe";
+  var manualMode = () => tab === "url" && $2("url-mode").value === "states" && $2("state-input-mode").value === "manual";
+  var autoStates = () => tab === "url" && $2("url-mode").value === "states" && !["recipe", "manual"].includes($2("state-input-mode").value);
+  var manual = setupManualCapture({ plugin, request: handoffAPI, status, changed: refreshPrepareAction, edited: invalidate, prepared: (result) => {
+    showBundle(result.bundle);
+    showRemotePreviews(result.previewImages[0], void 0, [], result.previewImages);
+    stateReport = result.report;
+    $2("download-state-report").hidden = false;
+    status(`\u5DF2\u751F\u6210 ${result.report.selectedPages} \u4E2A\u9875\u9762\u3001${result.report.components} \u4E2A\u7EC4\u4EF6\u3001${result.report.icons} \u4E2A\u56FE\u6807\u3002`);
+  }, openWorkbench: (raw) => {
+    const url = new URL(service);
+    url.search = new URLSearchParams({ capture: "manual", url: raw.url, width: String(raw.width), selector: raw.selector }).toString();
+    message("OPEN_CAPTURE_WORKBENCH", { url: url.href });
+    status("\u8BF7\u5728\u6253\u5F00\u7684\u5DE5\u4F5C\u53F0\u4E2D\u64CD\u4F5C\u539F\u7F51\u9875\u5E76\u6807\u8BB0\uFF0C\u751F\u6210\u540E\u53EF\u76F4\u63A5\u5BFC\u5165 Figma\u3002");
+  } });
   function requestKey() {
-    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $("state-input-mode").value, $("exploration-output").value, $("exploration-data-samples").value]);
+    return JSON.stringify([input("page-url").value.trim(), viewportWidth(), input("selector").value.trim(), $2("state-input-mode").value, $2("exploration-output").value, $2("exploration-data-samples").value]);
   }
   function refreshPrepareAction() {
-    const label = busy ? "\u5904\u7406\u4E2D\u2026" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary ? "\u9879" : "\u9875"}\uFF09` : $("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
-    $("prepare-label").textContent = label;
-    $("prepare").disabled = busy || autoStates() && !!discovery && !discoverySelection.some(Boolean);
+    const label = busy || manual.working ? "\u5904\u7406\u4E2D\u2026" : manualMode() ? plugin ? "\u5728\u52A9\u624B\u5DE5\u4F5C\u53F0\u4E2D\u624B\u52A8\u6807\u8BB0" : manual.active ? `\u751F\u6210\u8BBE\u8BA1\u7A3F\uFF08${manual.count} \u9875\uFF09` : "\u6253\u5F00\u539F\u7F51\u9875\uFF0C\u5F00\u59CB\u6807\u8BB0" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary ? "\u9879" : "\u9875"}\uFF09` : $2("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
+    $2("prepare-label").textContent = label;
+    $2("prepare").disabled = busy || manual.working || manualMode() && manual.active && !manual.count || autoStates() && !!discovery && !discoverySelection.some(Boolean);
   }
   function clearDiscovery() {
     discovery = null;
     discoveryKey = "";
     discoverySelection = [];
-    $("discovery-results").hidden = true;
-    $("discovery-intro").hidden = false;
+    $2("discovery-results").hidden = true;
+    $2("discovery-intro").hidden = false;
     refreshPrepareAction();
   }
   function syncStateInput() {
-    const automatic = $("state-input-mode").value !== "recipe";
-    $("state-auto-panel").hidden = !automatic;
-    $("state-recipe-panel").hidden = automatic;
-    $("exploration-options").hidden = $("state-input-mode").value !== "explore";
-    $("design-output-options").hidden = $("state-input-mode").value !== "explore";
-    $("discovery-intro").textContent = $("state-input-mode").value === "explore" ? "\u81EA\u52A8\u6253\u5F00\u8BE6\u60C5\u3001\u5F39\u7A97\u548C\u8868\u5355\uFF0C\u8BB0\u5F55\u53EF\u91CD\u653E\u7684\u4EA4\u4E92\u72B6\u6001\uFF0C\u518D\u52FE\u9009\u6355\u83B7\u3002\u65E0\u9700\u51C6\u5907 JSON\u3002" : "\u8BC6\u522B\u5BFC\u822A\u6807\u7B7E\u3001\u9875\u9762\u94FE\u63A5\u548C\u672C\u5730 HTML\u3002\u6B64\u6A21\u5F0F\u4E0D\u63A2\u7D22\u8BE6\u60C5\u548C\u5F39\u7A97\u3002";
+    const selected = $2("state-input-mode").value, automatic = ["auto", "explore"].includes(selected);
+    $2("state-auto-panel").hidden = !automatic;
+    $2("state-recipe-panel").hidden = selected !== "recipe";
+    manual.sync(manualMode());
+    $2("long-page-option").hidden = tab !== "url" || manualMode();
+    $2("smart-layout-option").hidden = manualMode();
+    $2("exploration-options").hidden = selected !== "explore";
+    $2("design-output-options").hidden = selected !== "explore";
+    $2("discovery-intro").textContent = selected === "explore" ? "\u81EA\u52A8\u6253\u5F00\u8BE6\u60C5\u3001\u5F39\u7A97\u548C\u8868\u5355\uFF0C\u8BB0\u5F55\u53EF\u91CD\u653E\u7684\u4EA4\u4E92\u72B6\u6001\uFF0C\u518D\u52FE\u9009\u6355\u83B7\u3002\u65E0\u9700\u51C6\u5907 JSON\u3002" : "\u8BC6\u522B\u5BFC\u822A\u6807\u7B7E\u3001\u9875\u9762\u94FE\u63A5\u548C\u672C\u5730 HTML\u3002\u6B64\u6A21\u5F0F\u4E0D\u63A2\u7D22\u8BE6\u60C5\u548C\u5F39\u7A97\u3002";
     refreshPrepareAction();
   }
   var assistantCredentials = null;
@@ -8249,10 +8637,10 @@
   var session = window.__LOCAL_SESSION__;
   if (session?.token) {
     input("service-token").value = session.token;
-    $("pairing-code").textContent = session.token;
-    $("local-pairing").hidden = false;
-    $("connection-label").textContent = "\u672C\u5730\u670D\u52A1\u5DF2\u8FDE\u63A5";
-    $("connection-dot").classList.add("connected");
+    $2("pairing-code").textContent = session.token;
+    $2("local-pairing").hidden = false;
+    $2("connection-label").textContent = "\u672C\u5730\u670D\u52A1\u5DF2\u8FDE\u63A5";
+    $2("connection-dot").classList.add("connected");
   }
   var smartLayout = () => input("smart-layout").checked;
   var longPage = () => input("long-page").checked;
@@ -8276,45 +8664,46 @@
     if (plugin) window.parent.postMessage({ pluginMessage: { type, ...content } }, "*");
   }
   function status(text, error = false) {
-    $("status").textContent = text;
-    $("status").classList.toggle("error", error);
+    $2("status").textContent = text;
+    $2("status").classList.toggle("error", error);
   }
   function setBusy(value, importing2 = false) {
     busy = value;
     for (const el of document.querySelectorAll("button,input,textarea,select")) {
       if (el.id !== "cancel") el.disabled = value;
     }
-    $("progress-wrap").hidden = !value;
-    $("cancel").hidden = !value || handoffSending || handoffReceiving;
-    if (value) $("progress").removeAttribute("value");
-    $("state-plan-panel").setAttribute("aria-busy", String(value));
+    $2("progress-wrap").hidden = !value;
+    $2("cancel").hidden = !value || handoffSending || handoffReceiving;
+    if (value) $2("progress").removeAttribute("value");
+    $2("state-plan-panel").setAttribute("aria-busy", String(value));
     refreshPrepareAction();
     refreshPreviewControls();
     refreshZoomControls();
     refreshHandoffControls();
   }
   function invalidate() {
+    if (!manualMode() && manual.active) void manual.close().catch((error) => status(errorText(error), true));
     outgoingHandoff = null;
     sendRequestId = "";
     sendSignature = "";
     incomingHandoff = null;
-    $("handoff-send-status").hidden = true;
+    $2("handoff-send-status").hidden = true;
     resetPreview();
     prepared = null;
     preparedBundle = null;
     stateReport = null;
-    $("download-state-report").hidden = true;
+    $2("download-state-report").hidden = true;
     pageStates = [];
-    $("page-list-section").hidden = true;
-    $("report").hidden = true;
-    $("ready-actions").hidden = true;
-    $("prepare").hidden = false;
+    $2("page-list-section").hidden = true;
+    $2("report").hidden = true;
+    $2("ready-actions").hidden = true;
+    $2("prepare").hidden = false;
     refreshPrepareAction();
   }
   function updateWarnings(diagnostics) {
-    $("warnings").hidden = diagnostics.length === 0;
-    $("warning-title").textContent = `${diagnostics.length} \u9879\u8F6C\u6362\u8BF4\u660E`;
-    $("warning-list").replaceChildren(...diagnostics.map((d) => {
+    $2("warnings").hidden = diagnostics.length === 0;
+    $2("warning-title").textContent = `${diagnostics.length} \u9879\u8F6C\u6362\u8BF4\u660E`;
+    $2("warning-list").replaceChildren(...diagnostics.map((d) => {
       const li = document.createElement("li");
       li.textContent = `${d.message}${(d.count || 1) > 1 ? `\uFF08${d.count} \u5904\uFF09` : ""}`;
       return li;
@@ -8337,23 +8726,23 @@
       for (const key of ["nodes", "texts", "images", "vectors"]) sum[key] += s[key];
       return sum;
     }, { nodes: 0, texts: 0, images: 0, vectors: 0 });
-    $("report").hidden = false;
-    $("ready-actions").hidden = false;
-    $("prepare").hidden = true;
-    $("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} ${outputUnit()}` : "\u5DF2\u51C6\u5907\u597D";
-    $("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : bundle.pages.some((p) => p.source.design) ? smartLayout() ? "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4 \xB7 " : "\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
-    $("stat-nodes").textContent = String(stats.nodes);
-    $("stat-text").textContent = String(stats.texts);
-    $("stat-image").textContent = String(stats.images);
-    $("stat-svg").textContent = String(stats.vectors);
-    $("preview-size").textContent = bundle.pages.length > 1 ? `${bundle.pages.length} ${outputUnit()}` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)}`;
+    $2("report").hidden = false;
+    $2("ready-actions").hidden = false;
+    $2("prepare").hidden = true;
+    $2("report-title").textContent = bundle.pages.length > 1 ? `\u5DF2\u51C6\u5907\u597D ${bundle.pages.length} ${outputUnit()}` : "\u5DF2\u51C6\u5907\u597D";
+    $2("report-summary").textContent = bundle.pages.length > 1 ? `${bundle.name} \xB7 ${bundle.pages.some((p) => p.source.canvas) ? "\u4FDD\u7559\u539F\u753B\u5E03\u6392\u5E03 \xB7 " : bundle.pages.some((p) => p.source.design) ? smartLayout() ? "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4 \xB7 " : "\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217 \xB7 " : ""}\u56FE\u7247\u8D44\u6E90\u5DF2\u8DE8\u9875\u53BB\u91CD` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)} px \xB7 ${prepared.name}`;
+    $2("stat-nodes").textContent = String(stats.nodes);
+    $2("stat-text").textContent = String(stats.texts);
+    $2("stat-image").textContent = String(stats.images);
+    $2("stat-svg").textContent = String(stats.vectors);
+    $2("preview-size").textContent = bundle.pages.length > 1 ? `${bundle.pages.length} ${outputUnit()}` : `${Math.round(prepared.root.width)} \xD7 ${Math.round(prepared.root.height)}`;
     const diagnostics = bundle.pages.flatMap((page) => page.diagnostics).slice(0, 100);
     diagnostics.push(...bundle.errors.map((error) => ({ code: "PAGE_CAPTURE_FAILED", message: `${error.name}\uFF1A${error.message}` })));
     updateWarnings(diagnostics);
     renderPageList();
-    $("import").textContent = plugin ? `\u5BFC\u5165\u5230 Figma${bundle.pages.length > 1 ? `\uFF08${bundle.pages.length} ${outputUnit()}\uFF09` : ""}` : "\u4E0B\u8F7D Figma \u6570\u636E";
-    $("download").hidden = !plugin;
-    $("send-handoff").hidden = plugin;
+    $2("import").textContent = plugin ? `\u5BFC\u5165\u5230 Figma${bundle.pages.length > 1 ? `\uFF08${bundle.pages.length} ${outputUnit()}\uFF09` : ""}` : "\u4E0B\u8F7D Figma \u6570\u636E";
+    $2("download").hidden = !plugin;
+    $2("send-handoff").hidden = plugin;
     refreshHandoffControls();
     const missing = bundle.assets.filter((a) => !a.base64).length;
     status(missing ? `${missing} \u4E2A\u5171\u4EAB\u56FE\u7247\u8D44\u6E90\u672A\u80FD\u8BFB\u53D6\uFF0C\u5BFC\u5165\u65F6\u5C06\u4FDD\u7559\u5360\u4F4D\u3002` : plugin ? "\u5185\u5BB9\u5DF2\u5C31\u7EEA\uFF0C\u591A\u9875\u4F1A\u9010\u9875\u5BFC\u5165\uFF1B\u53D6\u6D88\u65F6\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684\u9875\u9762\u3002" : "\u9009\u62E9\u9875\u9762\u540E\u70B9\u51FB\u201C\u53D1\u9001\u5230 Figma \u63D2\u4EF6\u201D\uFF0C\u5728\u63D2\u4EF6\u5185\u63A5\u6536\u5E76\u5BFC\u5165\u3002\u4E5F\u53EF\u4EE5\u4E0B\u8F7D\u6570\u636E\u3002");
@@ -8365,11 +8754,11 @@
   }
   function renderPageList() {
     if (!preparedBundle) return;
-    $("page-list-section").hidden = preparedBundle.pages.length < 2 && !(smartLayout() && preparedBundle.pages[0]?.source.design);
-    $("page-list-title").textContent = `${preparedBundle.pages.some((p) => ["component", "icon"].includes(p.source.artifact?.kind || "")) ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
+    $2("page-list-section").hidden = preparedBundle.pages.length < 2 && !(smartLayout() && preparedBundle.pages[0]?.source.design);
+    $2("page-list-title").textContent = `${preparedBundle.pages.some((p) => ["component", "icon"].includes(p.source.artifact?.kind || "")) ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
     const rows = document.createDocumentFragment();
     const organization = designLayout(preparedBundle.pages.map((p) => ({ name: p.name, width: p.root.width, height: p.root.height, design: p.source.canvas || !smartLayout() && !["component", "icon"].includes(p.source.artifact?.kind || "") ? void 0 : p.source.design, artifact: p.source.artifact })));
-    const grouped = new Set(organization.groups.flatMap((g) => g.indices)), ordered = [...organization.groups.flatMap((g) => g.indices), ...preparedBundle.pages.map((_, i2) => i2).filter((i2) => !grouped.has(i2))];
+    const grouped = new Set(organization.groups.flatMap((g) => g.indices)), ordered = smartLayout() ? [...organization.groups.flatMap((g) => g.indices), ...preparedBundle.pages.map((_, i2) => i2).filter((i2) => !grouped.has(i2))] : preparedBundle.pages.map((_, i2) => i2);
     const heads = new Map(organization.groups.map((g) => [g.indices[0], g]));
     ordered.forEach((i2) => {
       const page = preparedBundle.pages[i2], group = heads.get(i2);
@@ -8418,7 +8807,7 @@
       box.addEventListener("change", () => {
         pageStates[i2].selected = box.checked;
         refreshImportAction();
-        $("page-list-title").textContent = `${preparedBundle.pages.some((p) => ["component", "icon"].includes(p.source.artifact?.kind || "")) ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
+        $2("page-list-title").textContent = `${preparedBundle.pages.some((p) => ["component", "icon"].includes(p.source.artifact?.kind || "")) ? "\u8BBE\u8BA1\u7A3F\u6E05\u5355" : "\u9875\u9762\u5217\u8868"} \xB7 ${pageStates.filter((p) => p.selected).length} / ${pageStates.length}`;
       });
       const title = document.createElement("span");
       title.textContent = `${String(i2 + 1).padStart(3, "0")}  ${page.name}`;
@@ -8451,13 +8840,13 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       }
       rows.append(row);
     });
-    $("page-list").replaceChildren(rows);
+    $2("page-list").replaceChildren(rows);
     refreshImportAction();
   }
   function resetPreview() {
     previewSpace = false;
     releasePreviewPan();
-    $("preview-stage").classList.remove("pan-ready");
+    $2("preview-stage").classList.remove("pan-ready");
     previewRevision++;
     previewController?.abort();
     previewController = null;
@@ -8469,25 +8858,25 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     hasRemotePreview = false;
     previewFit = true;
     previewZoom = 1;
-    $("preview-zoom-controls").hidden = true;
-    $("preview-stage").classList.remove("zoomable");
-    $("preview-controls").hidden = true;
-    $("preview-caption").hidden = true;
-    $("preview-message").hidden = true;
-    $("preview-stage").setAttribute("aria-busy", "false");
-    $("preview-empty").hidden = false;
-    $("frame-container").hidden = true;
-    const image = $("remote-preview");
+    $2("preview-zoom-controls").hidden = true;
+    $2("preview-stage").classList.remove("zoomable");
+    $2("preview-controls").hidden = true;
+    $2("preview-caption").hidden = true;
+    $2("preview-message").hidden = true;
+    $2("preview-stage").setAttribute("aria-busy", "false");
+    $2("preview-empty").hidden = false;
+    $2("frame-container").hidden = true;
+    const image = $2("remote-preview");
     image.hidden = true;
     image.removeAttribute("src");
-    $("preview-size").textContent = "\u7B49\u5F85\u5185\u5BB9";
+    $2("preview-size").textContent = "\u7B49\u5F85\u5185\u5BB9";
   }
   function refreshPreviewControls() {
     const total = hasRemotePreview ? preparedBundle?.pages.length || 0 : 0;
-    $("preview-controls").hidden = total < 2;
-    $("preview-prev").disabled = busy || previewPageIndex === 0;
-    $("preview-next").disabled = busy || previewPageIndex >= total - 1;
-    $("preview-page").disabled = busy || total < 2;
+    $2("preview-controls").hidden = total < 2;
+    $2("preview-prev").disabled = busy || previewPageIndex === 0;
+    $2("preview-next").disabled = busy || previewPageIndex >= total - 1;
+    $2("preview-page").disabled = busy || total < 2;
   }
   function cachePreview(index, url) {
     previewImages.delete(index);
@@ -8512,7 +8901,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       option.textContent = page.name;
       return option;
     });
-    $("preview-page").replaceChildren(...options);
+    $2("preview-page").replaceChildren(...options);
     void selectPreviewPage(0);
     renderPageList();
   }
@@ -8524,17 +8913,17 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     previewController = localController;
     previewPageIndex = index;
     const page = preparedBundle.pages[index];
-    $("preview-page").value = String(index);
-    $("preview-size").textContent = `${index + 1} / ${preparedBundle.pages.length} ${outputUnit()}`;
-    $("preview-caption").textContent = `${page.name} \xB7 ${Math.round(page.root.width)} \xD7 ${Math.round(page.root.height)} px`;
-    $("preview-caption").hidden = false;
-    $("preview-empty").hidden = true;
-    $("frame-container").hidden = true;
-    $("remote-preview").hidden = true;
-    $("preview-message").hidden = false;
-    $("preview-message-text").textContent = `\u6B63\u5728\u52A0\u8F7D\u7B2C ${index + 1} ${outputUnit()}\u9884\u89C8\u2026`;
-    $("preview-retry").hidden = true;
-    $("preview-stage").setAttribute("aria-busy", "true");
+    $2("preview-page").value = String(index);
+    $2("preview-size").textContent = `${index + 1} / ${preparedBundle.pages.length} ${outputUnit()}`;
+    $2("preview-caption").textContent = `${page.name} \xB7 ${Math.round(page.root.width)} \xD7 ${Math.round(page.root.height)} px`;
+    $2("preview-caption").hidden = false;
+    $2("preview-empty").hidden = true;
+    $2("frame-container").hidden = true;
+    $2("remote-preview").hidden = true;
+    $2("preview-message").hidden = false;
+    $2("preview-message-text").textContent = `\u6B63\u5728\u52A0\u8F7D\u7B2C ${index + 1} ${outputUnit()}\u9884\u89C8\u2026`;
+    $2("preview-retry").hidden = true;
+    $2("preview-stage").setAttribute("aria-busy", "true");
     refreshPreviewControls();
     document.querySelectorAll(".page-row").forEach((row, i2) => {
       row.dataset.previewActive = String(i2 === index);
@@ -8566,44 +8955,44 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       if (localController.signal.aborted) throw new Error("\u9884\u89C8\u52A0\u8F7D\u8D85\u65F6");
       cachePreview(index, url);
       objectURL = null;
-      const target = $("remote-preview");
+      const target = $2("remote-preview");
       target.src = url;
       target.alt = `\u7B2C ${index + 1} ${outputUnit()}\uFF1A${page.name}`;
       target.dataset.pageIndex = String(index);
       target.hidden = false;
       applyPreviewZoom(true);
-      $("preview-message").hidden = true;
+      $2("preview-message").hidden = true;
     } catch (error) {
       if (revision !== previewRevision) return;
-      $("preview-message-text").textContent = localController.signal.aborted ? "\u9884\u89C8\u52A0\u8F7D\u8D85\u65F6\uFF0C\u8BF7\u91CD\u8BD5\u3002" : errorText(error);
-      $("preview-retry").hidden = false;
+      $2("preview-message-text").textContent = localController.signal.aborted ? "\u9884\u89C8\u52A0\u8F7D\u8D85\u65F6\uFF0C\u8BF7\u91CD\u8BD5\u3002" : errorText(error);
+      $2("preview-retry").hidden = false;
     } finally {
       clearTimeout(timer);
       if (objectURL) URL.revokeObjectURL(objectURL);
       if (revision === previewRevision) {
-        $("preview-stage").setAttribute("aria-busy", "false");
+        $2("preview-stage").setAttribute("aria-busy", "false");
         previewController = null;
       }
     }
   }
-  $("preview-prev").addEventListener("click", () => {
+  $2("preview-prev").addEventListener("click", () => {
     void selectPreviewPage(previewPageIndex - 1);
   });
-  $("preview-next").addEventListener("click", () => {
+  $2("preview-next").addEventListener("click", () => {
     void selectPreviewPage(previewPageIndex + 1);
   });
-  $("preview-page").addEventListener("change", () => {
-    void selectPreviewPage(Number($("preview-page").value));
+  $2("preview-page").addEventListener("change", () => {
+    void selectPreviewPage(Number($2("preview-page").value));
   });
-  $("preview-retry").addEventListener("click", () => {
+  $2("preview-retry").addEventListener("click", () => {
     void selectPreviewPage(previewPageIndex);
   });
   function refreshImportAction() {
     refreshHandoffControls();
     if (!preparedBundle || preparedBundle.pages.length < 2) return;
     const selected = pageStates.filter((p) => p.selected).length, remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
-    $("import").disabled = busy || !selected || plugin && !remaining;
-    $("import").textContent = !plugin ? "\u4E0B\u8F7D Figma \u6570\u636E" : !remaining && selected ? "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165" : `\u5BFC\u5165\u5230 Figma\uFF08${remaining} ${outputUnit()}\uFF09`;
+    $2("import").disabled = busy || !selected || plugin && !remaining;
+    $2("import").textContent = !plugin ? "\u4E0B\u8F7D Figma \u6570\u636E" : !remaining && selected ? "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165" : `\u5BFC\u5165\u5230 Figma\uFF08${remaining} ${outputUnit()}\uFF09`;
   }
   function setPageState(index, state, detail) {
     if (!pageStates[index]) return;
@@ -8622,7 +9011,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     message("IMPORT_PAGE", { id: batchId, index: queuePosition, document: hydratePage(preparedBundle, index) });
   }
   function switchTab(next) {
-    $("long-page-option").hidden = next !== "url";
+    $2("long-page-option").hidden = next !== "url";
     tab = next;
     document.querySelectorAll("[data-tab]").forEach((btn) => {
       const active = btn.dataset.tab === next;
@@ -8630,10 +9019,11 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       btn.setAttribute("aria-selected", String(active));
       btn.tabIndex = active ? 0 : -1;
     });
-    for (const key of ["file", "code", "url"]) $(`${key}-panel`).hidden = key !== next;
-    $("advanced").hidden = next === "url";
-    $("split-options").hidden = next === "url";
+    for (const key of ["file", "code", "url"]) $2(`${key}-panel`).hidden = key !== next;
+    $2("advanced").hidden = next === "url";
+    $2("split-options").hidden = next === "url";
     invalidate();
+    syncStateInput();
     status("");
   }
   for (const btn of document.querySelectorAll("[data-tab]")) {
@@ -8644,10 +9034,10 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const tabs = ["file", "code", "url"];
       const next = event.key === "Home" ? 0 : event.key === "End" ? 2 : (tabs.indexOf(tab) + (event.key === "ArrowRight" ? 1 : 2)) % 3;
       switchTab(tabs[next]);
-      $(`${tabs[next]}-tab`).focus();
+      $2(`${tabs[next]}-tab`).focus();
     });
   }
-  var drop = $("drop-zone");
+  var drop = $2("drop-zone");
   drop.addEventListener("click", () => input("file-input").click());
   for (const type of ["dragenter", "dragover"]) drop.addEventListener(type, (event) => {
     event.preventDefault();
@@ -8675,7 +9065,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       if (files.reduce((n, f) => n + f.size, 0) > 128 * 1024 * 1024) throw new Error("\u6240\u9009\u6587\u4EF6\u603B\u91CF\u8D85\u8FC7 128 MB\uFF0C\u8BF7\u5206\u6279\u5BFC\u5165");
       if (files.some((f) => !/\.(html?|json)$/i.test(f.name))) throw new Error("\u8BF7\u9009\u62E9 HTML \u6216\u672C\u63D2\u4EF6\u5BFC\u51FA\u7684 JSON \u6587\u4EF6");
       sourceName = files.length === 1 ? files[0].name : `${files.length} \u4E2A HTML / \u6570\u636E\u6587\u4EF6`;
-      $("file-label").textContent = sourceName;
+      $2("file-label").textContent = sourceName;
       if (files.length === 1) {
         const file = files[0];
         const text = await file.text();
@@ -8745,22 +9135,22 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     return Math.round(width);
   }
   function previewDimensions() {
-    const image = $("remote-preview");
+    const image = $2("remote-preview");
     if (!image.hidden && image.naturalWidth) return { width: image.naturalWidth, height: image.naturalHeight, kind: "image" };
-    if (frame && !$("frame-container").hidden) return { width: Number(frame.dataset.viewportWidth || 1440), height: 900, kind: "html" };
+    if (frame && !$2("frame-container").hidden) return { width: Number(frame.dataset.viewportWidth || 1440), height: 900, kind: "html" };
     return null;
   }
   function refreshZoomControls() {
     const dimensions = previewDimensions(), enabled = !!dimensions && !plugin;
-    $("preview-zoom-controls").hidden = !enabled;
-    $("preview-shortcuts").hidden = !enabled;
-    $("preview-zoom-out").disabled = busy || !enabled || previewZoom <= 0.1;
-    $("preview-zoom-in").disabled = busy || !enabled || previewZoom >= 4;
-    $("preview-zoom-actual").disabled = busy || !enabled;
-    $("preview-zoom-fit").disabled = busy || !enabled;
-    $("preview-zoom-value").textContent = `${Math.round(previewZoom * 100)}%`;
-    $("preview-zoom-fit").setAttribute("aria-pressed", String(previewFit));
-    $("preview-zoom-actual").setAttribute("aria-pressed", String(!previewFit && previewZoom === 1));
+    $2("preview-zoom-controls").hidden = !enabled;
+    $2("preview-shortcuts").hidden = !enabled;
+    $2("preview-zoom-out").disabled = busy || !enabled || previewZoom <= 0.1;
+    $2("preview-zoom-in").disabled = busy || !enabled || previewZoom >= 4;
+    $2("preview-zoom-actual").disabled = busy || !enabled;
+    $2("preview-zoom-fit").disabled = busy || !enabled;
+    $2("preview-zoom-value").textContent = `${Math.round(previewZoom * 100)}%`;
+    $2("preview-zoom-fit").setAttribute("aria-pressed", String(previewFit));
+    $2("preview-zoom-actual").setAttribute("aria-pressed", String(!previewFit && previewZoom === 1));
   }
   function applyPreviewZoom(reset2 = false, previousZoom = previewZoom) {
     const dimensions = previewDimensions();
@@ -8768,17 +9158,17 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       refreshZoomControls();
       return;
     }
-    const stage = $("preview-stage");
+    const stage = $2("preview-stage");
     stage.classList.add("zoomable");
     const style = getComputedStyle(stage), paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight), paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
     const centerX = (stage.scrollLeft + stage.clientWidth / 2) / previousZoom, centerY = (stage.scrollTop + stage.clientHeight / 2) / previousZoom;
     if (previewFit) previewZoom = Math.max(0.01, Math.min(1, (stage.clientWidth - paddingX) / dimensions.width, (stage.clientHeight - paddingY) / dimensions.height));
     if (dimensions.kind === "image") {
-      const image = $("remote-preview");
+      const image = $2("remote-preview");
       image.style.width = `${dimensions.width * previewZoom}px`;
       image.style.height = `${dimensions.height * previewZoom}px`;
     } else if (frame) {
-      const host = $("frame-container");
+      const host = $2("frame-container");
       host.style.width = `${dimensions.width * previewZoom}px`;
       host.style.height = `${dimensions.height * previewZoom}px`;
       frame.style.height = `${dimensions.height}px`;
@@ -8800,18 +9190,18 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     applyPreviewZoom(false, previous);
   }
   var zoomSteps = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
-  $("preview-zoom-in").addEventListener("click", () => setPreviewZoom(zoomSteps.find((z) => z > previewZoom + 1e-3) || 4));
-  $("preview-zoom-out").addEventListener("click", () => setPreviewZoom([...zoomSteps].reverse().find((z) => z < previewZoom - 1e-3) || 0.1));
-  $("preview-zoom-actual").addEventListener("click", () => setPreviewZoom(1));
-  $("preview-zoom-fit").addEventListener("click", () => setPreviewZoom("fit"));
-  $("remote-preview").addEventListener("load", () => applyPreviewZoom(true));
+  $2("preview-zoom-in").addEventListener("click", () => setPreviewZoom(zoomSteps.find((z) => z > previewZoom + 1e-3) || 4));
+  $2("preview-zoom-out").addEventListener("click", () => setPreviewZoom([...zoomSteps].reverse().find((z) => z < previewZoom - 1e-3) || 0.1));
+  $2("preview-zoom-actual").addEventListener("click", () => setPreviewZoom(1));
+  $2("preview-zoom-fit").addEventListener("click", () => setPreviewZoom("fit"));
+  $2("remote-preview").addEventListener("load", () => applyPreviewZoom(true));
   function previewIsEditing(target) {
     return !!target?.closest?.('input,textarea,select,[contenteditable="true"]');
   }
   function handlePreviewWheel(event, embeddedFrame) {
     if (!event.metaKey && !event.ctrlKey || busy || !previewDimensions() || plugin) return;
     event.preventDefault();
-    const target = !$("remote-preview").hidden ? $("remote-preview") : $("frame-container"), stage = $("preview-stage");
+    const target = !$2("remote-preview").hidden ? $2("remote-preview") : $2("frame-container"), stage = $2("preview-stage");
     const bounds = target.getBoundingClientRect(), frameBounds = embeddedFrame?.getBoundingClientRect();
     const x = frameBounds ? frameBounds.left + event.clientX * previewZoom : event.clientX, y = frameBounds ? frameBounds.top + event.clientY * previewZoom : event.clientY;
     const localX = (x - bounds.left) / previewZoom, localY = (y - bounds.top) / previewZoom;
@@ -8822,60 +9212,60 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     stage.scrollTop += next.top + localY * previewZoom - y;
   }
   function handlePreviewKeyDown(event) {
-    if (event.code !== "Space" || previewIsEditing(event.target) || busy || !previewDimensions() || plugin || !previewHovered && !$("preview-stage").contains(document.activeElement)) return;
+    if (event.code !== "Space" || previewIsEditing(event.target) || busy || !previewDimensions() || plugin || !previewHovered && !$2("preview-stage").contains(document.activeElement)) return;
     event.preventDefault();
     previewSpace = true;
-    $("preview-stage").classList.add("pan-ready");
+    $2("preview-stage").classList.add("pan-ready");
   }
   function handlePreviewKeyUp(event) {
     if (event.code === "Space") {
       previewSpace = false;
-      $("preview-stage").classList.remove("pan-ready");
+      $2("preview-stage").classList.remove("pan-ready");
       releasePreviewPan();
     }
   }
   function releasePreviewPan() {
     const pan = previewPan;
     previewPan = null;
-    const stage = $("preview-stage");
+    const stage = $2("preview-stage");
     stage.classList.remove("panning");
     if (pan && stage.hasPointerCapture(pan.pointer)) stage.releasePointerCapture(pan.pointer);
   }
-  $("preview-stage").addEventListener("pointerenter", () => {
+  $2("preview-stage").addEventListener("pointerenter", () => {
     previewHovered = true;
   });
-  $("preview-stage").addEventListener("pointerleave", () => {
+  $2("preview-stage").addEventListener("pointerleave", () => {
     previewHovered = false;
   });
-  $("preview-stage").addEventListener("wheel", (event) => handlePreviewWheel(event), { passive: false });
+  $2("preview-stage").addEventListener("wheel", (event) => handlePreviewWheel(event), { passive: false });
   document.addEventListener("keydown", handlePreviewKeyDown);
   document.addEventListener("keyup", handlePreviewKeyUp);
   window.addEventListener("blur", () => {
     previewSpace = false;
-    $("preview-stage").classList.remove("pan-ready");
+    $2("preview-stage").classList.remove("pan-ready");
     releasePreviewPan();
   });
-  $("preview-stage").addEventListener("pointerdown", (event) => {
+  $2("preview-stage").addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || !previewSpace || !previewDimensions()) return;
     event.preventDefault();
-    const stage = $("preview-stage");
+    const stage = $2("preview-stage");
     stage.focus({ preventScroll: true });
     stage.setPointerCapture(event.pointerId);
     previewPan = { pointer: event.pointerId, x: event.clientX, y: event.clientY, left: stage.scrollLeft, top: stage.scrollTop };
     stage.classList.add("panning");
   });
-  $("preview-stage").addEventListener("pointermove", (event) => {
+  $2("preview-stage").addEventListener("pointermove", (event) => {
     if (!previewPan || event.pointerId !== previewPan.pointer) return;
     event.preventDefault();
-    const stage = $("preview-stage");
+    const stage = $2("preview-stage");
     stage.scrollLeft = previewPan.left - (event.clientX - previewPan.x);
     stage.scrollTop = previewPan.top - (event.clientY - previewPan.y);
   });
-  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) $("preview-stage").addEventListener(type, releasePreviewPan);
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) $2("preview-stage").addEventListener(type, releasePreviewPan);
   function fitPreview() {
     applyPreviewZoom();
   }
-  new ResizeObserver(fitPreview).observe($("preview-stage"));
+  new ResizeObserver(fitPreview).observe($2("preview-stage"));
   async function prepareHTML(html, filename = sourceName, builder = new BundleBuilder(filename.replace(/\.html?$/i, "") || "HTML \u9875\u9762")) {
     if (!html.trim()) throw new Error("\u8BF7\u5148\u9009\u62E9 HTML \u6587\u4EF6\u6216\u7C98\u8D34 HTML \u4EE3\u7801");
     const width = viewportWidth();
@@ -8890,11 +9280,11 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     frame.style.border = "0";
     frame.style.boxSizing = "content-box";
     frame.dataset.viewportWidth = String(width);
-    const target = plugin ? $("capture-host") : $("frame-container");
+    const target = plugin ? $2("capture-host") : $2("frame-container");
     target.replaceChildren(frame);
     if (!plugin) {
-      $("preview-empty").hidden = true;
-      $("remote-preview").hidden = true;
+      $2("preview-empty").hidden = true;
+      $2("remote-preview").hidden = true;
       target.hidden = false;
     }
     const currentFrame = frame;
@@ -8920,7 +9310,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       if (captureStopped) break;
       const page = pages[i2];
       status(`\u6B63\u5728\u89E3\u6790 ${filename || "HTML"} \xB7 \u7B2C ${i2 + 1} / ${pages.length} \u9875\u2026`);
-      $("progress").value = Math.round(i2 / pages.length * 100);
+      $2("progress").value = Math.round(i2 / pages.length * 100);
       try {
         const captured = await captureDOM(doc, { selector: page.selector, name: pages.length > 1 ? page.name : doc.title || filename.replace(/\.html?$/i, "") || "HTML \u9875\u9762" });
         if (page.canvas) captured.source.canvas = page.canvas;
@@ -8953,19 +9343,19 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       throw e;
     }
   }
-  $("connect").addEventListener("click", async () => {
+  $2("connect").addEventListener("click", async () => {
     try {
       await api("/api/health");
-      $("connection-dot").classList.add("connected");
-      $("connection-label").textContent = "\u672C\u5730\u670D\u52A1\u5DF2\u8FDE\u63A5";
+      $2("connection-dot").classList.add("connected");
+      $2("connection-label").textContent = "\u672C\u5730\u670D\u52A1\u5DF2\u8FDE\u63A5";
       status("\u672C\u5730\u670D\u52A1\u8FDE\u63A5\u6210\u529F\u3002");
       message("SETTINGS", { settings: { mode: mode(), smartLayout: smartLayout(), longPage: longPage(), token: input("service-token").value } });
     } catch (e) {
-      $("connection-dot").classList.remove("connected");
+      $2("connection-dot").classList.remove("connected");
       status(errorText(e), true);
     }
   });
-  $("prepare").addEventListener("click", async () => {
+  $2("prepare").addEventListener("click", async () => {
     invalidate();
     captureStopped = false;
     importing = false;
@@ -8975,7 +9365,11 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     try {
       if (tab === "url") {
         const url = normalizeCaptureAddress(input("page-url").value);
-        if ($("url-mode").value === "states") {
+        if (manualMode()) {
+          await manual.prepare({ url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body" });
+          return;
+        }
+        if ($2("url-mode").value === "states") {
           if (autoStates()) {
             if (!discovery || discoveryKey !== requestKey()) {
               await discoverAutomaticPages(url);
@@ -9011,7 +9405,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         const data2 = JSON.parse(await sourceFiles[0].text());
         if (isBundle(data2)) showBundle(data2);
         else showPrepared(data2);
-      } else showBundle(await prepareHTML(tab === "code" ? $("html-code").value : source));
+      } else showBundle(await prepareHTML(tab === "code" ? $2("html-code").value : source));
       if (captureStopped) status("\u89E3\u6790\u5DF2\u505C\u6B62\uFF0C\u5DF2\u5B8C\u6210\u7684\u9875\u9762\u53EF\u7EE7\u7EED\u5BFC\u5165\u3002");
     } catch (e) {
       status(errorText(e) === "This operation was aborted" ? "\u6355\u83B7\u5DF2\u53D6\u6D88\u3002" : errorText(e), true);
@@ -9023,13 +9417,13 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       renderDiscovery();
     }
   });
-  $("demo").addEventListener("click", async () => {
+  $2("demo").addEventListener("click", async () => {
     switchTab("file");
     sourceFiles = [];
     captureStopped = false;
     source = dashboard_default;
     sourceName = "dashboard.html";
-    $("file-label").textContent = "dashboard.html \xB7 \u5185\u7F6E\u793A\u4F8B";
+    $2("file-label").textContent = "dashboard.html \xB7 \u5185\u7F6E\u793A\u4F8B";
     input("base-url").value = "";
     input("selector").value = "body";
     setBusy(true);
@@ -9070,7 +9464,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     setTimeout(() => URL.revokeObjectURL(url), 2e3);
     if (!plugin) status("\u5DF2\u4E0B\u8F7D\u6355\u83B7\u6570\u636E\u3002\u8BF7\u5728 Figma \u4E2D\u8FD0\u884C\u63D2\u4EF6\uFF0C\u5E76\u62D6\u5165\u6B64\u6587\u4EF6\u3002");
   }
-  $("download").addEventListener("click", download);
+  $2("download").addEventListener("click", download);
   function importPrepared() {
     if (!prepared || !preparedBundle) return;
     if (!plugin) {
@@ -9098,8 +9492,8 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       status(`\u5F00\u59CB\u5BFC\u5165 ${queue.length} ${outputUnit()}\u2026`);
     }
   }
-  $("import").addEventListener("click", importPrepared);
-  $("cancel").addEventListener("click", () => {
+  $2("import").addEventListener("click", importPrepared);
+  $2("cancel").addEventListener("click", () => {
     captureStopped = true;
     if (activeStateJob) {
       void api(`/api/${activeJobKind}/${activeStateJob}/cancel`, {}).catch((e) => status(errorText(e), true));
@@ -9107,23 +9501,23 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (importing) message("CANCEL");
     status(importing ? "\u6B63\u5728\u53D6\u6D88\u5F53\u524D\u9875\uFF0C\u5DF2\u5B8C\u6210\u7684\u9875\u9762\u4F1A\u4FDD\u7559\u2026" : "\u6B63\u5728\u505C\u6B62\u89E3\u6790\u2026");
   });
-  $("select-all-pages").addEventListener("click", () => {
+  $2("select-all-pages").addEventListener("click", () => {
     pageStates.forEach((p) => {
       p.selected = true;
     });
     renderPageList();
   });
-  $("select-no-pages").addEventListener("click", () => {
+  $2("select-no-pages").addEventListener("click", () => {
     pageStates.forEach((p) => {
       p.selected = false;
     });
     renderPageList();
   });
-  for (const id of ["viewport-width", "selector", "base-url", "page-url", "html-code", "split-pages", "page-selector", "state-plan", "url-mode"]) $(id).addEventListener("input", invalidate);
+  for (const id of ["viewport-width", "selector", "base-url", "page-url", "html-code", "split-pages", "page-selector", "state-plan", "url-mode"]) $2(id).addEventListener("input", invalidate);
   for (const radio of document.querySelectorAll('input[name="mode"]')) radio.addEventListener("change", () => {
     document.querySelectorAll(".mode-card").forEach((card) => card.classList.toggle("selected", !!card.querySelector("input")?.checked));
   });
-  $("copy-token").addEventListener("click", async () => {
+  $2("copy-token").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(input("service-token").value);
       status("\u5DF2\u590D\u5236\u8FDE\u63A5\u7801\u3002");
@@ -9153,7 +9547,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     } else if (msg.type === "BATCH_READY" && msg.id === batchId) {
       sendNextPage();
     } else if (msg.type === "PAGE_PROGRESS" && msg.id === batchId) {
-      $("progress").value = Math.round((queuePosition + msg.done / msg.total) / queue.length * 100);
+      $2("progress").value = Math.round((queuePosition + msg.done / msg.total) / queue.length * 100);
     } else if (msg.type === "PAGE_COMPLETE" && msg.id === batchId) {
       const index = queue[msg.index];
       setPageState(index, msg.result.nodeId ? "complete" : "failed", msg.result.nodeId ? `\u5B8C\u6210 \xB7 ${msg.result.result.nodes} \u5C42` : msg.result.error);
@@ -9167,21 +9561,21 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       importing = false;
       setBusy(false);
       renderPageList();
-      $("report-title").textContent = msg.result.cancelled ? "\u6279\u6B21\u5DF2\u505C\u6B62" : msg.result.total > 1 ? "\u591A\u9875\u5BFC\u5165\u5B8C\u6210" : "\u5DF2\u5BFC\u5165 Figma";
+      $2("report-title").textContent = msg.result.cancelled ? "\u6279\u6B21\u5DF2\u505C\u6B62" : msg.result.total > 1 ? "\u591A\u9875\u5BFC\u5165\u5B8C\u6210" : "\u5DF2\u5BFC\u5165 Figma";
       status(`\u672C\u6B21\u5B8C\u6210 ${msg.result.completed} / ${msg.result.total} ${outputUnit()}\uFF0C\u5931\u8D25 ${msg.result.failed} ${outputUnit()}\u3002${msg.result.cancelled ? "\u5DF2\u5B8C\u6210\u9875\u9762\u4FDD\u7559\uFF0C\u53EF\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59\u9875\u9762\u3002" : outputUnit() === "\u9879" ? "\u9875\u9762\u6A21\u677F\u4E0E\u7EC4\u4EF6\u5DF2\u5206\u522B\u521B\u5EFA\u3002" : "\u6BCF\u9875\u5DF2\u521B\u5EFA\u72EC\u7ACB Frame\u3002"}`);
       const remaining = pageStates.filter((p) => p.selected && p.state !== "complete").length;
-      $("import").textContent = remaining ? `\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59 ${remaining} ${outputUnit()}` : "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165";
-      $("import").disabled = remaining === 0;
+      $2("import").textContent = remaining ? `\u7EE7\u7EED\u5BFC\u5165\u5269\u4F59 ${remaining} ${outputUnit()}` : "\u6240\u9009\u9875\u9762\u5DF2\u5168\u90E8\u5BFC\u5165";
+      $2("import").disabled = remaining === 0;
       void reportHandoffProgress(msg.result.cancelled ? "cancelled" : msg.result.failed ? "partial" : "complete", pageStates.filter((p) => p.state === "complete").length, pageStates.filter((p) => p.state === "failed").length);
       updateWarnings(msg.result.results.flatMap((r) => r.error ? [{ code: "PAGE_FAILED", message: `${r.name}\uFF1A${r.error}` }] : r.result?.diagnostics || []).slice(0, 100));
     } else if (msg.type === "PROGRESS") {
-      $("progress").value = Math.round(msg.done / msg.total * 100);
+      $2("progress").value = Math.round(msg.done / msg.total * 100);
       status(`\u6B63\u5728\u521B\u5EFA\u56FE\u5C42 ${msg.done} / ${msg.total}\u2026`);
     } else if (msg.type === "COMPLETE") {
       importing = false;
       setBusy(false);
       if (pageStates[0]) pageStates[0].state = "complete";
-      $("report-title").textContent = "\u5DF2\u5BFC\u5165 Figma";
+      $2("report-title").textContent = "\u5DF2\u5BFC\u5165 Figma";
       status(`\u5DF2\u521B\u5EFA ${msg.result.nodes} \u4E2A\u56FE\u5C42${msg.result.autoLayouts ? `\uFF0C\u5176\u4E2D ${msg.result.autoLayouts} \u4E2A Auto Layout \u5BB9\u5668` : ""}\u3002\u53EF\u4EE5\u5728 Figma \u4E2D\u64A4\u9500\u672C\u6B21\u5BFC\u5165\u3002`);
       void reportHandoffProgress("complete", 1, 0);
       updateWarnings(msg.result.diagnostics || []);
@@ -9192,22 +9586,22 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       status(msg.message || "\u5BFC\u5165\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", true);
     }
   };
-  $("url-mode").addEventListener("change", () => {
-    $("state-plan-panel").hidden = $("url-mode").value !== "states";
+  $2("url-mode").addEventListener("change", () => {
+    $2("state-plan-panel").hidden = $2("url-mode").value !== "states";
     invalidate();
     syncStateInput();
   });
-  $("state-input-mode").addEventListener("change", () => {
+  $2("state-input-mode").addEventListener("change", () => {
     invalidate();
     clearDiscovery();
     syncStateInput();
   });
-  $("exploration-output").addEventListener("change", () => {
+  $2("exploration-output").addEventListener("change", () => {
     invalidate();
     clearDiscovery();
-    $("design-data-options").hidden = $("exploration-output").value !== "design";
+    $2("design-data-options").hidden = $2("exploration-output").value !== "design";
   });
-  $("exploration-data-samples").addEventListener("change", () => {
+  $2("exploration-data-samples").addEventListener("change", () => {
     invalidate();
     clearDiscovery();
   });
@@ -9219,29 +9613,29 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       return value === 0 ? null : value;
     };
     const minutes = integer("exploration-minutes", "\u63A2\u7D22\u65F6\u957F");
-    return { outputMode: $("exploration-output").value, dataSamples: Number($("exploration-data-samples").value), maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
+    return { outputMode: $2("exploration-output").value, dataSamples: Number($2("exploration-data-samples").value), maxDepth: integer("exploration-depth", "\u63A2\u7D22\u6DF1\u5EA6"), maxActions: integer("exploration-actions", "\u5C1D\u8BD5\u6B21\u6570"), maxPages: integer("exploration-states", "\u72B6\u6001\u6570"), timeoutMs: minutes === null ? null : minutes * 6e4, sampling: $2("exploration-sampling").value, retryFailures: input("exploration-retry").checked };
   }
   function updateExplorationSettings(save = true) {
     const describe = (id, unit, unlimited) => Number(input(id).value) ? `${input(id).value} ${unit}` : unlimited;
-    $("exploration-budget-label").textContent = `${describe("exploration-minutes", "\u5206\u949F", "\u4E0D\u9650\u65F6\u957F")} \xB7 ${describe("exploration-actions", "\u6B21", "\u4E0D\u9650\u6B21\u6570")} \xB7 ${describe("exploration-depth", "\u5C42", "\u4E0D\u9650\u6DF1\u5EA6")}`;
+    $2("exploration-budget-label").textContent = `${describe("exploration-minutes", "\u5206\u949F", "\u4E0D\u9650\u65F6\u957F")} \xB7 ${describe("exploration-actions", "\u6B21", "\u4E0D\u9650\u6B21\u6570")} \xB7 ${describe("exploration-depth", "\u5C42", "\u4E0D\u9650\u6DF1\u5EA6")}`;
     if (save) try {
       localStorage.setItem("h2f-exploration-options", JSON.stringify(Object.fromEntries(explorationFields.map((id) => [id, id === "exploration-retry" ? input(id).checked : input(id).value]))));
     } catch {
     }
   }
-  for (const id of explorationFields) $(id).addEventListener("change", () => {
-    $("exploration-preset").value = "custom";
+  for (const id of explorationFields) $2(id).addEventListener("change", () => {
+    $2("exploration-preset").value = "custom";
     updateExplorationSettings();
   });
-  $("exploration-preset").addEventListener("change", () => {
+  $2("exploration-preset").addEventListener("change", () => {
     const presets = { recommended: [4, 300, 3, "representative"], deep: [10, 3e3, 30, "all"], unlimited: [0, 0, 0, "all"] };
-    const preset = presets[$("exploration-preset").value];
+    const preset = presets[$2("exploration-preset").value];
     if (!preset) return;
     ["exploration-depth", "exploration-actions", "exploration-minutes"].forEach((id, i2) => {
       input(id).value = String(preset[i2]);
     });
     input("exploration-states").value = "0";
-    $("exploration-sampling").value = preset[3];
+    $2("exploration-sampling").value = preset[3];
     updateExplorationSettings();
   });
   try {
@@ -9251,24 +9645,24 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         if (id === "exploration-retry" && typeof saved[id] === "boolean") input(id).checked = saved[id];
         else if (typeof saved[id] === "string") input(id).value = saved[id];
       }
-      $("exploration-preset").value = "custom";
+      $2("exploration-preset").value = "custom";
     }
   } catch {
   }
   updateExplorationSettings(false);
-  for (const id of ["page-url", "viewport-width", "selector"]) $(id).addEventListener("input", clearDiscovery);
-  $("rediscover-pages").addEventListener("click", () => {
+  for (const id of ["page-url", "viewport-width", "selector"]) $2(id).addEventListener("input", clearDiscovery);
+  $2("rediscover-pages").addEventListener("click", () => {
     clearDiscovery();
     invalidate();
-    $("prepare").click();
+    $2("prepare").click();
   });
   function renderDiscovery() {
     if (!discovery) return;
-    $("discovery-intro").hidden = true;
-    $("discovery-results").hidden = false;
-    $("discovery-title").textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F \xB7 ${discovery.report.designSummary.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001 \xB7 ${discovery.report.designSummary.iconAssets || 0} \u4E2A\u56FE\u6807` : `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
+    $2("discovery-intro").hidden = true;
+    $2("discovery-results").hidden = false;
+    $2("discovery-title").textContent = discovery.report.designSummary ? `${discovery.report.designSummary.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F \xB7 ${discovery.report.designSummary.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001 \xB7 ${discovery.report.designSummary.iconAssets || 0} \u4E2A\u56FE\u6807` : `${discovery.report.mode === "interactions" ? "\u5DF2\u63A2\u7D22" : "\u53D1\u73B0"} ${discovery.pages.length} \u4E2A${discovery.report.mode === "interactions" ? "\u72B6\u6001" : "\u9875\u9762"}`;
     const count = () => {
-      $("discovery-count").textContent = `\u5DF2\u9009\u62E9 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`;
+      $2("discovery-count").textContent = `\u5DF2\u9009\u62E9 ${discoverySelection.filter(Boolean).length} / ${discovery.pages.length}`;
       refreshPrepareAction();
     };
     const rows = document.createDocumentFragment();
@@ -9312,31 +9706,31 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       row.append(checkbox, copy);
       rows.append(row);
     });
-    $("discovery-list").replaceChildren(rows);
+    $2("discovery-list").replaceChildren(rows);
     const report = discovery.report;
-    $("discovery-summary").textContent = `${report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62\u3002" : ""}\u5DF2\u9A8C\u8BC1 ${discovery.pages.filter((p) => p.checked).length} \u9875${report.errors.length ? `\uFF0C${report.errors.length} \u9875\u65E0\u6CD5\u6253\u5F00` : ""}\u3002${report.limited ? "\u8FBE\u5230\u626B\u63CF\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\uFF0C\u5269\u4F59\u5019\u9009\u9875\u4F1A\u5728\u6355\u83B7\u65F6\u9A8C\u8BC1\u3002" : "\u52FE\u9009\u9875\u9762\u540E\u70B9\u51FB\u201C\u5F00\u59CB\u6355\u83B7\u201D\u3002"}`;
+    $2("discovery-summary").textContent = `${report.cancelled ? "\u53D1\u73B0\u5DF2\u505C\u6B62\u3002" : ""}\u5DF2\u9A8C\u8BC1 ${discovery.pages.filter((p) => p.checked).length} \u9875${report.errors.length ? `\uFF0C${report.errors.length} \u9875\u65E0\u6CD5\u6253\u5F00` : ""}\u3002${report.limited ? "\u8FBE\u5230\u626B\u63CF\u8303\u56F4\u6216\u65F6\u95F4\u4E0A\u9650\uFF0C\u5269\u4F59\u5019\u9009\u9875\u4F1A\u5728\u6355\u83B7\u65F6\u9A8C\u8BC1\u3002" : "\u52FE\u9009\u9875\u9762\u540E\u70B9\u51FB\u201C\u5F00\u59CB\u6355\u83B7\u201D\u3002"}`;
     if (report.mode === "interactions") {
       const reasons = { time: "\u672C\u8F6E\u65F6\u957F\u5DF2\u7528\u5B8C", actions: "\u672C\u8F6E\u5C1D\u8BD5\u6B21\u6570\u5DF2\u7528\u5B8C", states: "\u672C\u8F6E\u65B0\u589E\u72B6\u6001\u6570\u5DF2\u8FBE\u5230\u4E0A\u9650", depth: "\u90E8\u5206\u52A8\u4F5C\u8D85\u8FC7\u63A2\u7D22\u6DF1\u5EA6", cancelled: "\u5DF2\u624B\u52A8\u505C\u6B62", queue: "\u53EF\u63A2\u7D22\u961F\u5217\u5DF2\u5904\u7406" };
       const stopped = (report.stopReasons || []).map((reason) => reasons[reason] || reason).join("\uFF1B");
       const skipped = report.skippedByReason;
       const design = report.designSummary;
-      $("discovery-summary").textContent = `${design ? `\u8BBE\u8BA1\u7A3F\u8F93\u51FA\uFF1A${design.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F\u3001${design.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001\u3001${design.iconAssets || 0} \u4E2A\u56FE\u6807\uFF0C\u5F52\u5E76 ${design.wholePagesAvoided} \u6B21\u6574\u9875\u91CD\u590D\u3002\u5DF2\u89C2\u5BDF ${design.observedStates} \u4E2A\u4E0D\u540C\u6570\u636E/\u4EA4\u4E92\u72B6\u6001` : `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001`}\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${report.navigation ? `\u4E3B\u5BFC\u822A\u5DF2\u9A8C\u8BC1 ${report.navigation.verified}/${report.navigation.total}\u3002${report.navigation.pending?.length ? `\u5F85\u63A2\u7D22\uFF1A${report.navigation.pending.join("\u3001")}\u3002` : ""}` : ""}${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
+      $2("discovery-summary").textContent = `${design ? `\u8BBE\u8BA1\u7A3F\u8F93\u51FA\uFF1A${design.pageTemplates} \u4E2A\u9875\u9762\u6A21\u677F\u3001${design.componentStates} \u4E2A\u7EC4\u4EF6\u72B6\u6001\u3001${design.iconAssets || 0} \u4E2A\u56FE\u6807\uFF0C\u5F52\u5E76 ${design.wholePagesAvoided} \u6B21\u6574\u9875\u91CD\u590D\u3002\u5DF2\u89C2\u5BDF ${design.observedStates} \u4E2A\u4E0D\u540C\u6570\u636E/\u4EA4\u4E92\u72B6\u6001` : `\u5DF2\u8BB0\u5F55 ${discovery.pages.length} \u4E2A\u4E0D\u540C\u72B6\u6001`}\uFF0C\u7D2F\u8BA1\u5C1D\u8BD5 ${report.attempted} \u6B21\uFF0C\u5408\u5E76 ${report.duplicates} \u6B21\u91CD\u590D\uFF0C\u5931\u8D25 ${report.failed ?? report.errors.length} \u6B21\u3002${report.navigation ? `\u4E3B\u5BFC\u822A\u5DF2\u9A8C\u8BC1 ${report.navigation.verified}/${report.navigation.total}\u3002${report.navigation.pending?.length ? `\u5F85\u63A2\u7D22\uFF1A${report.navigation.pending.join("\u3001")}\u3002` : ""}` : ""}${stopped ? stopped + "\u3002" : ""}${report.remaining ? `\u4ECD\u6709 ${report.remaining} \u4E2A\u5019\u9009\u52A8\u4F5C\u5F85\u63A2\u7D22\uFF08\u5176\u4E2D ${report.depthDeferred || 0} \u4E2A\u53D7\u6DF1\u5EA6\u9650\u5236\uFF09\uFF1B\u5019\u9009\u52A8\u4F5C\u6570\u4E0D\u7B49\u4E8E\u65B0\u589E\u9875\u9762\u6570\u3002` : ""}${skipped ? `\u7D2F\u8BA1\u8DF3\u8FC7\uFF1A\u53D7\u9650\u63A7\u4EF6 ${skipped.restricted || 0} \u4E2A\u3001\u91C7\u6837\u7701\u7565 ${skipped.sampling || 0} \u4E2A\u3001\u91CD\u590D\u8DEF\u5F84 ${skipped.duplicate || 0} \u4E2A\u3002` : `\u8DF3\u8FC7 ${report.skippedControls} \u4E2A\u63A7\u4EF6\u3002`}\u4E0D\u4EE3\u8868\u5168\u90E8\u4EA4\u4E92\u5DF2\u8986\u76D6\u3002`;
     }
     const canResume = report.mode === "interactions" && !!discovery.session?.canResume;
-    $("continue-exploration").hidden = !canResume;
-    $("continue-exploration").disabled = busy;
-    $("exploration-resume-help").hidden = !canResume;
-    $("exploration-resume-help").textContent = `\u5DF2\u4FDD\u7559\u63A2\u7D22\u8FDB\u5EA6\u3002\u53EF\u63D0\u9AD8\u6DF1\u5EA6\u3001\u5EF6\u957F\u65F6\u957F\u6216\u5207\u6362\u4E3A\u904D\u5386\u63A7\u4EF6\u540E\u7EE7\u7EED\uFF1B\u5DF2\u52FE\u9009\u72B6\u6001\u4F1A\u4FDD\u7559\u3002${report.depthDeferred ? "\u5F53\u524D\u6DF1\u5EA6\u4E0D\u53D8\u65F6\uFF0C\u8FD9\u90E8\u5206\u52A8\u4F5C\u4ECD\u4F1A\u4FDD\u7559\u5F85\u63A2\u7D22\u3002" : ""}`;
+    $2("continue-exploration").hidden = !canResume;
+    $2("continue-exploration").disabled = busy;
+    $2("exploration-resume-help").hidden = !canResume;
+    $2("exploration-resume-help").textContent = `\u5DF2\u4FDD\u7559\u63A2\u7D22\u8FDB\u5EA6\u3002\u53EF\u63D0\u9AD8\u6DF1\u5EA6\u3001\u5EF6\u957F\u65F6\u957F\u6216\u5207\u6362\u4E3A\u904D\u5386\u63A7\u4EF6\u540E\u7EE7\u7EED\uFF1B\u5DF2\u52FE\u9009\u72B6\u6001\u4F1A\u4FDD\u7559\u3002${report.depthDeferred ? "\u5F53\u524D\u6DF1\u5EA6\u4E0D\u53D8\u65F6\uFF0C\u8FD9\u90E8\u5206\u52A8\u4F5C\u4ECD\u4F1A\u4FDD\u7559\u5F85\u63A2\u7D22\u3002" : ""}`;
     count();
   }
-  $("discovery-select-all").addEventListener("click", () => {
+  $2("discovery-select-all").addEventListener("click", () => {
     if (discovery) {
       discoverySelection = discovery.pages.map((p) => !p.error);
       invalidate();
       renderDiscovery();
     }
   });
-  $("discovery-clear").addEventListener("click", () => {
+  $2("discovery-clear").addEventListener("click", () => {
     discoverySelection.fill(false);
     invalidate();
     renderDiscovery();
@@ -9348,12 +9742,12 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     if (!resume) clearDiscovery();
     status(resume ? "\u6B63\u5728\u6062\u590D\u63A2\u7D22\u8FDB\u5EA6\u2026" : "\u6B63\u5728\u6253\u5F00\u5165\u53E3\u5E76\u53D1\u73B0\u9875\u9762\u2026");
     const key = requestKey();
-    if (settings.outputMode === "design" && $("state-input-mode").value === "explore") {
+    if (settings.outputMode === "design" && $2("state-input-mode").value === "explore") {
       const health = await api("/api/health");
       const version2 = /^(\d+)\.(\d+)/.exec(health.version || "");
       if (!version2 || Number(version2[1]) === 0 && Number(version2[2]) < 14) throw new Error("\u8BF7\u5C06\u684C\u9762\u52A9\u624B\u66F4\u65B0\u5230 v0.14.0 \u6216\u4EE5\u4E0A\uFF0C\u5E76\u5148\u4ECE\u83DC\u5355\u680F\u9000\u51FA\u65E7\u52A9\u624B\u540E\u91CD\u5F00\u65B0\u7248\u3002");
     }
-    const job = await api("/api/discover", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", exploreInteractions: $("state-input-mode").value === "explore", ...settings, ...resumeId ? { resumeId } : {} });
+    const job = await api("/api/discover", { url, width: viewportWidth(), height: 900, selector: input("selector").value.trim() || "body", exploreInteractions: $2("state-input-mode").value === "explore", ...settings, ...resumeId ? { resumeId } : {} });
     activeStateJob = job.id;
     activeJobKind = "discover";
     while (true) {
@@ -9371,7 +9765,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
-  $("continue-exploration").addEventListener("click", async () => {
+  $2("continue-exploration").addEventListener("click", async () => {
     if (busy || !discovery?.session?.canResume) return;
     captureStopped = false;
     invalidate();
@@ -9394,40 +9788,40 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 2e3);
   }
-  $("download-discovery-report").addEventListener("click", () => {
+  $2("download-discovery-report").addEventListener("click", () => {
     if (discovery) downloadDiscoveryFile({ ...discovery.report, states: discovery.pages.map(({ name, path, via, depth }) => ({ name, path, via, depth })) }, "interaction-exploration-report.json");
   });
-  $("download-generated-plan").addEventListener("click", () => {
+  $2("download-generated-plan").addEventListener("click", () => {
     if (discovery) downloadDiscoveryFile({ ...discovery.plan, states: discovery.plan.states.filter((_, i2) => discoverySelection[i2]) }, "discovered-states.json");
   });
-  $("load-demo-states").addEventListener("click", () => {
+  $2("load-demo-states").addEventListener("click", () => {
     invalidate();
     clearDiscovery();
-    $("state-input-mode").value = "recipe";
+    $2("state-input-mode").value = "recipe";
     syncStateInput();
-    $("state-plan").value = JSON.stringify(multi_app_admin_states_default, null, 2);
+    $2("state-plan").value = JSON.stringify(multi_app_admin_states_default, null, 2);
     input("page-url").value = multi_app_admin_states_default.url;
     input("viewport-width").value = String(multi_app_admin_states_default.viewport.width);
-    $("state-plan-label").textContent = `\u793A\u4F8B\u6E05\u5355 \xB7 ${multi_app_admin_states_default.states.length} \u4E2A\u72B6\u6001`;
+    $2("state-plan-label").textContent = `\u793A\u4F8B\u6E05\u5355 \xB7 ${multi_app_admin_states_default.states.length} \u4E2A\u72B6\u6001`;
     status("\u5DF2\u8F7D\u5165\u793A\u4F8B\u72B6\u6001\u6E05\u5355\u3002\u8FDE\u63A5\u672C\u5730\u670D\u52A1\u540E\u70B9\u51FB\u89E3\u6790\uFF0C\u9010\u4E2A\u6355\u83B7\u4EA4\u4E92\u72B6\u6001\u3002");
   });
-  $("choose-state-plan").addEventListener("click", () => input("state-plan-file").click());
+  $2("choose-state-plan").addEventListener("click", () => input("state-plan-file").click());
   input("state-plan-file").addEventListener("change", async () => {
     const file = input("state-plan-file").files?.[0];
     if (!file) return;
     invalidate();
     clearDiscovery();
-    $("state-input-mode").value = "recipe";
+    $2("state-input-mode").value = "recipe";
     syncStateInput();
     try {
       if (file.size > 2 * 1024 * 1024) throw new Error("\u72B6\u6001\u6E05\u5355\u6700\u591A 2 MB");
       const text = await file.text();
       const plan = JSON.parse(text);
       if (!Array.isArray(plan.states)) throw new Error("\u72B6\u6001\u6E05\u5355\u9700\u8981 states \u6570\u7EC4");
-      $("state-plan").value = text;
+      $2("state-plan").value = text;
       input("page-url").value = plan.url || "";
       input("viewport-width").value = String(plan.viewport?.width || 1440);
-      $("state-plan-label").textContent = `${file.name} \xB7 ${plan.states.length} \u4E2A\u72B6\u6001`;
+      $2("state-plan-label").textContent = `${file.name} \xB7 ${plan.states.length} \u4E2A\u72B6\u6001`;
     } catch (e) {
       status(errorText(e), true);
     }
@@ -9435,7 +9829,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
   async function prepareStates(url, suppliedPlan) {
     let plan;
     try {
-      plan = suppliedPlan || JSON.parse($("state-plan").value);
+      plan = suppliedPlan || JSON.parse($2("state-plan").value);
     } catch {
       throw new Error("\u8BF7\u5148\u8F7D\u5165\u72B6\u6001\u6E05\u5355\uFF0C\u6216\u7C98\u8D34\u6709\u6548\u7684 JSON");
     }
@@ -9449,7 +9843,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       const snapshot = await api(`/api/states/${job.id}`);
       const p = snapshot.progress;
       if (p) {
-        $("progress").value = Math.round((p.completed + p.failed + (p.merged || 0)) / p.total * 100);
+        $2("progress").value = Math.round((p.completed + p.failed + (p.merged || 0)) / p.total * 100);
         status(`${captureStopped ? "\u6B63\u5728\u505C\u6B62" : p.phase === "pages" ? "\u6B63\u5728\u6355\u83B7\u9875\u9762" : p.phase === "icons" ? "\u6B63\u5728\u6574\u7406\u56FE\u6807" : "\u6B63\u5728\u6355\u83B7\u7EC4\u4EF6"} ${Math.min(p.index + 1, p.total)} / ${p.total}\uFF1A${p.name} \xB7 \u5B8C\u6210 ${p.completed}\uFF0C\u5931\u8D25 ${p.failed}`);
       }
       if (snapshot.status !== "running") {
@@ -9460,14 +9854,14 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
           showBundle(result.bundle);
           showRemotePreviews(result.preview, job.id, result.previews || []);
         }
-        $("download-state-report").hidden = false;
+        $2("download-state-report").hidden = false;
         status(`\u72B6\u6001\u6355\u83B7${result.report.cancelled ? "\u5DF2\u505C\u6B62" : "\u5B8C\u6210"}\uFF1A\u6210\u529F ${result.report.completed} / ${result.report.total}\uFF0C\u5931\u8D25 ${result.report.failed}\u3002${result.report.merged ? `\u5408\u5E76 ${result.report.merged} \u4E2A\u6EDA\u52A8\u5206\u6BB5\u3002` : ""}${result.report.completed ? "\u53EF\u52FE\u9009\u9875\u9762\u6216\u7EC4\u4EF6\u540E\u5BFC\u5165 Figma\u3002" : "\u8BF7\u4E0B\u8F7D\u62A5\u544A\u68C0\u67E5\u5931\u8D25\u539F\u56E0\u3002"}`, !result.report.completed);
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 700));
     }
   }
-  $("download-state-report").addEventListener("click", () => {
+  $2("download-state-report").addEventListener("click", () => {
     if (!stateReport) return;
     const blob = new Blob([JSON.stringify(stateReport, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -9487,16 +9881,16 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
   }
   function refreshHandoffControls() {
     const count = pageStates.filter((p) => p.selected).length;
-    $("send-handoff").hidden = plugin || !preparedBundle;
-    $("send-handoff").disabled = busy || !count;
-    $("send-handoff").textContent = `\u53D1\u9001\u5230 Figma \u63D2\u4EF6${count ? `\uFF08${count} ${outputUnit()}\uFF09` : ""}`;
-    $("receive-handoff").disabled = busy || handoffReceiving;
-    $("direct-target").hidden = plugin || !preparedBundle;
-    $("direct-import").hidden = plugin || !preparedBundle;
-    const target = figmaTargets.find((t) => t.id === $("figma-target").value);
-    $("direct-import").disabled = busy || !count || !target || target.busy;
-    $("direct-import").textContent = `${outgoingPhase === "complete" ? "\u518D\u6B21\u5BFC\u5165" : "\u76F4\u63A5\u5BFC\u5165"} Figma${count ? `\uFF08${count} ${outputUnit()}\uFF09` : ""}`;
-    $("figma-target-help").textContent = target ? `${target.documentName} / ${target.pageName}${target.busy ? " \xB7 \u63D2\u4EF6\u6B63\u5728\u5904\u7406\u4EFB\u52A1" : ""}` : "\u8BF7\u5728\u76EE\u6807 Figma \u6587\u4EF6\u4E2D\u6253\u5F00\u63D2\u4EF6\u5E76\u4FDD\u6301\u8FDE\u63A5\u3002";
+    $2("send-handoff").hidden = plugin || !preparedBundle;
+    $2("send-handoff").disabled = busy || !count;
+    $2("send-handoff").textContent = `\u53D1\u9001\u5230 Figma \u63D2\u4EF6${count ? `\uFF08${count} ${outputUnit()}\uFF09` : ""}`;
+    $2("receive-handoff").disabled = busy || handoffReceiving;
+    $2("direct-target").hidden = plugin || !preparedBundle;
+    $2("direct-import").hidden = plugin || !preparedBundle;
+    const target = figmaTargets.find((t) => t.id === $2("figma-target").value);
+    $2("direct-import").disabled = busy || !count || !target || target.busy;
+    $2("direct-import").textContent = `${outgoingPhase === "complete" ? "\u518D\u6B21\u5BFC\u5165" : "\u76F4\u63A5\u5BFC\u5165"} Figma${count ? `\uFF08${count} ${outputUnit()}\uFF09` : ""}`;
+    $2("figma-target-help").textContent = target ? `${target.documentName} / ${target.pageName}${target.busy ? " \xB7 \u63D2\u4EF6\u6B63\u5728\u5904\u7406\u4EFB\u52A1" : ""}` : "\u8BF7\u5728\u76EE\u6807 Figma \u6587\u4EF6\u4E2D\u6253\u5F00\u63D2\u4EF6\u5E76\u4FDD\u6301\u8FDE\u63A5\u3002";
   }
   function selectedBundle() {
     if (!preparedBundle) throw new Error("\u8BF7\u5148\u6355\u83B7\u9875\u9762");
@@ -9510,15 +9904,15 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
   function outgoingStatus(item) {
     outgoingPhase = item.status;
     const labels = { pending: "\u5DF2\u53D1\u9001\u3002\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u70B9\u51FB\u201C\u63A5\u6536\u5E76\u5BFC\u5165\u5F53\u524D\u9875\u9762\u201D\u3002", received: "Figma \u63D2\u4EF6\u5DF2\u63A5\u6536\uFF0C\u6B63\u5728\u51C6\u5907\u5BFC\u5165\u3002", importing: `\u6B63\u5728\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} ${outputUnit()}`, complete: `\u5DF2\u5BFC\u5165 Figma\uFF1A${item.completed} / ${item.pages} ${outputUnit()}`, partial: `\u5BFC\u5165\u7ED3\u675F\uFF1A\u5B8C\u6210 ${item.completed} ${outputUnit()}\uFF0C\u5931\u8D25 ${item.failed} ${outputUnit()}\u3002\u8BF7\u5728 Figma \u4E2D\u68C0\u67E5\u3002`, cancelled: `\u5BFC\u5165\u5DF2\u53D6\u6D88\uFF0C\u4FDD\u7559\u5DF2\u5B8C\u6210\u7684 ${item.completed} ${outputUnit()}\u3002`, failed: "\u5BFC\u5165\u5931\u8D25\uFF0C\u8BF7\u5728 Figma \u63D2\u4EF6\u4E2D\u67E5\u770B\u539F\u56E0\u6216\u91CD\u8BD5\u3002", replaced: "\u8FD9\u6279\u7ED3\u679C\u5DF2\u88AB\u65B0\u53D1\u9001\u7684\u7ED3\u679C\u66FF\u4EE3\u3002" };
-    $("handoff-send-status").hidden = false;
-    $("handoff-send-status").classList.toggle("error", ["failed", "partial"].includes(item.status));
-    $("handoff-send-status").textContent = item.error || (item.autoImport && item.status === "pending" ? `\u5DF2\u8BF7\u6C42\u5BFC\u5165\uFF1A${item.target.documentName} / ${item.target.pageName}\uFF0C\u7B49\u5F85\u63D2\u4EF6\u6267\u884C\u2026` : labels[item.status] || item.status);
+    $2("handoff-send-status").hidden = false;
+    $2("handoff-send-status").classList.toggle("error", ["failed", "partial"].includes(item.status));
+    $2("handoff-send-status").textContent = item.error || (item.autoImport && item.status === "pending" ? `\u5DF2\u8BF7\u6C42\u5BFC\u5165\uFF1A${item.target.documentName} / ${item.target.pageName}\uFF0C\u7B49\u5F85\u63D2\u4EF6\u6267\u884C\u2026` : labels[item.status] || item.status);
     refreshHandoffControls();
   }
   async function sendHandoff(direct = false) {
     if (plugin || busy) return;
     try {
-      const target = direct ? figmaTargets.find((t) => t.id === $("figma-target").value) : null;
+      const target = direct ? figmaTargets.find((t) => t.id === $2("figma-target").value) : null;
       if (direct && !target) throw new Error("\u8BF7\u5148\u9009\u62E9\u5DF2\u8FDE\u63A5\u7684 Figma \u76EE\u6807\u9875\u9762");
       const bundle = selectedBundle(), signature = JSON.stringify([preparedBundle?.createdAt, pageStates.map((p) => p.selected), preparedBundle?.pages.map((p) => p.source.design), smartLayout(), mode(), target?.id, target?.contextVersion]);
       const stableSignature = signature;
@@ -9529,29 +9923,29 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       outgoingHandoff = null;
       handoffSending = true;
       setBusy(true);
-      $("handoff-send-status").hidden = false;
-      $("handoff-send-status").classList.remove("error");
-      $("handoff-send-status").textContent = "\u6B63\u5728\u53D1\u9001\u6240\u9009\u9875\u9762\u5230 Figma \u63D2\u4EF6\u2026";
+      $2("handoff-send-status").hidden = false;
+      $2("handoff-send-status").classList.remove("error");
+      $2("handoff-send-status").textContent = "\u6B63\u5728\u53D1\u9001\u6240\u9009\u9875\u9762\u5230 Figma \u63D2\u4EF6\u2026";
       const sent = await handoffAPI("/api/handoffs", { requestId: sendRequestId, bundle, mode: mode(), ...target ? { targetId: target.id, targetContext: target.contextVersion } : {} }, 6e4);
       outgoingHandoff = sent.id;
       outgoingStatus(sent);
     } catch (error) {
-      $("handoff-send-status").hidden = false;
-      $("handoff-send-status").classList.add("error");
-      $("handoff-send-status").textContent = errorText(error);
+      $2("handoff-send-status").hidden = false;
+      $2("handoff-send-status").classList.add("error");
+      $2("handoff-send-status").textContent = errorText(error);
     } finally {
       handoffSending = false;
       setBusy(false);
       renderPageList();
     }
   }
-  $("send-handoff").addEventListener("click", () => {
+  $2("send-handoff").addEventListener("click", () => {
     void sendHandoff(false);
   });
-  $("direct-import").addEventListener("click", () => {
+  $2("direct-import").addEventListener("click", () => {
     void sendHandoff(true);
   });
-  $("figma-target").addEventListener("change", refreshHandoffControls);
+  $2("figma-target").addEventListener("change", refreshHandoffControls);
   async function pollHandoffs() {
     if (handoffPolling || !input("service-token").value.trim()) return;
     handoffPolling = true;
@@ -9564,10 +9958,10 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
           await receiveHandoff();
           return;
         }
-        $("handoff-inbox").hidden = !handoffCandidate;
+        $2("handoff-inbox").hidden = !handoffCandidate;
         if (handoffCandidate) {
-          $("handoff-title").textContent = "\u684C\u9762\u52A9\u624B\u6709\u65B0\u7684\u6355\u83B7\u7ED3\u679C";
-          $("handoff-description").textContent = `${handoffCandidate.name} \xB7 ${handoffCandidate.pages} ${outputUnit()}`;
+          $2("handoff-title").textContent = "\u684C\u9762\u52A9\u624B\u6709\u65B0\u7684\u6355\u83B7\u7ED3\u679C";
+          $2("handoff-description").textContent = `${handoffCandidate.name} \xB7 ${handoffCandidate.pages} ${outputUnit()}`;
           refreshHandoffControls();
         }
       } else if (!plugin) {
@@ -9575,7 +9969,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         figmaTargets = receivers.targets;
         const key = JSON.stringify(figmaTargets);
         if (key !== targetOptionsKey) {
-          const select = $("figma-target"), previous = select.value;
+          const select = $2("figma-target"), previous = select.value;
           targetOptionsKey = key;
           const empty2 = document.createElement("option");
           empty2.value = "";
@@ -9623,7 +10017,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         radio.checked = true;
         radio.dispatchEvent(new Event("change"));
       }
-      $("handoff-inbox").hidden = true;
+      $2("handoff-inbox").hidden = true;
       handoffCandidate = null;
       handoffReceiving = false;
       setBusy(false);
@@ -9635,7 +10029,7 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
       if (!importing) setBusy(false);
     }
   }
-  $("receive-handoff").addEventListener("click", () => {
+  $2("receive-handoff").addEventListener("click", () => {
     void receiveHandoff();
   });
   function updateFigmaContext(context) {
@@ -9650,24 +10044,24 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     void Promise.resolve().then(pollHandoffs);
     service = url;
     input("service-token").value = credential;
-    $("connection-dot").classList.add("connected");
-    $("connection-label").textContent = "\u684C\u9762\u52A9\u624B\u5DF2\u8FDE\u63A5";
-    $("assistant-pair-code").hidden = true;
-    $("assistant-help").textContent = "\u52A9\u624B\u4FDD\u6301\u8FD0\u884C\uFF0C\u5373\u53EF\u76F4\u63A5\u6355\u83B7\uFF1B\u4E0B\u6B21\u4F1A\u81EA\u52A8\u91CD\u8FDE\u3002";
-    $("connect-assistant").textContent = "\u91CD\u65B0\u68C0\u6D4B";
+    $2("connection-dot").classList.add("connected");
+    $2("connection-label").textContent = "\u684C\u9762\u52A9\u624B\u5DF2\u8FDE\u63A5";
+    $2("assistant-pair-code").hidden = true;
+    $2("assistant-help").textContent = "\u52A9\u624B\u4FDD\u6301\u8FD0\u884C\uFF0C\u5373\u53EF\u76F4\u63A5\u6355\u83B7\uFF1B\u4E0B\u6B21\u4F1A\u81EA\u52A8\u91CD\u8FDE\u3002";
+    $2("connect-assistant").textContent = "\u91CD\u65B0\u68C0\u6D4B";
   }
   async function connectAssistant(interactive) {
     if (assistantConnecting) return;
     assistantConnecting = true;
-    $("connect-assistant").disabled = true;
+    $2("connect-assistant").disabled = true;
     try {
-      if (interactive) $("assistant-help").textContent = "\u6B63\u5728\u67E5\u627E\u5DF2\u6253\u5F00\u7684\u6355\u83B7\u52A9\u624B\u2026";
+      if (interactive) $2("assistant-help").textContent = "\u6B63\u5728\u67E5\u627E\u5DF2\u6253\u5F00\u7684\u6355\u83B7\u52A9\u624B\u2026";
       const found = await discoverAssistant(assistantCredentials?.serviceURL);
       if (!found) {
         if (interactive) {
-          $("connection-dot").classList.remove("connected");
-          $("connection-label").textContent = "\u5C1A\u672A\u8FDE\u63A5\u684C\u9762\u52A9\u624B";
-          $("assistant-help").textContent = "\u8BF7\u5148\u53CC\u51FB\u6253\u5F00 HTML to Figma \u6355\u83B7\u52A9\u624B\uFF0C\u518D\u70B9\u51FB\u8FDE\u63A5\u3002";
+          $2("connection-dot").classList.remove("connected");
+          $2("connection-label").textContent = "\u5C1A\u672A\u8FDE\u63A5\u684C\u9762\u52A9\u624B";
+          $2("assistant-help").textContent = "\u8BF7\u5148\u53CC\u51FB\u6253\u5F00 HTML to Figma \u6355\u83B7\u52A9\u624B\uFF0C\u518D\u70B9\u51FB\u8FDE\u63A5\u3002";
         }
         return;
       }
@@ -9678,38 +10072,38 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
         return;
       }
       if (!interactive) {
-        $("connection-label").textContent = "\u5DF2\u627E\u5230\u684C\u9762\u52A9\u624B";
-        $("assistant-help").textContent = "\u70B9\u51FB\u8FDE\u63A5\uFF0C\u9996\u6B21\u53EA\u9700\u5728\u52A9\u624B\u4E2D\u786E\u8BA4\u4E00\u6B21\u3002";
+        $2("connection-label").textContent = "\u5DF2\u627E\u5230\u684C\u9762\u52A9\u624B";
+        $2("assistant-help").textContent = "\u70B9\u51FB\u8FDE\u63A5\uFF0C\u9996\u6B21\u53EA\u9700\u5728\u52A9\u624B\u4E2D\u786E\u8BA4\u4E00\u6B21\u3002";
         return;
       }
       assistantCredentials || (assistantCredentials = newAssistantCredentials());
       const result = await pairAssistant(found, assistantCredentials, (code) => {
-        $("assistant-pair-code").textContent = code;
-        $("assistant-pair-code").hidden = false;
-        $("assistant-help").textContent = "\u8BF7\u6838\u5BF9\u52A9\u624B\u7A97\u53E3\u4E2D\u7684\u914D\u5BF9\u7801\u4E00\u81F4\uFF0C\u7136\u540E\u70B9\u51FB\u201C\u5141\u8BB8\u8FDE\u63A5\u201D\u3002";
+        $2("assistant-pair-code").textContent = code;
+        $2("assistant-pair-code").hidden = false;
+        $2("assistant-help").textContent = "\u8BF7\u6838\u5BF9\u52A9\u624B\u7A97\u53E3\u4E2D\u7684\u914D\u5BF9\u7801\u4E00\u81F4\uFF0C\u7136\u540E\u70B9\u51FB\u201C\u5141\u8BB8\u8FDE\u63A5\u201D\u3002";
       });
       assistantCredentials = { clientId: result.clientId, credential: result.credential, serviceURL: result.url };
       message("ASSISTANT_SETTINGS", { assistant: assistantCredentials });
       assistantConnected(result.url, result.credential);
       status("\u684C\u9762\u52A9\u624B\u5DF2\u8FDE\u63A5\uFF0C\u53EF\u4EE5\u5F00\u59CB\u6355\u83B7\u3002");
     } catch (error) {
-      $("assistant-help").textContent = errorText(error);
-      $("assistant-pair-code").hidden = true;
+      $2("assistant-help").textContent = errorText(error);
+      $2("assistant-pair-code").hidden = true;
     } finally {
       assistantConnecting = false;
-      $("connect-assistant").disabled = false;
+      $2("connect-assistant").disabled = false;
     }
   }
-  $("connect-assistant").addEventListener("click", () => void connectAssistant(true));
+  $2("connect-assistant").addEventListener("click", () => void connectAssistant(true));
   if (!plugin && session?.token) {
-    $("connect-assistant").hidden = true;
-    $("assistant-help").textContent = "\u5F53\u524D\u5DE5\u4F5C\u53F0\u5DF2\u8FDE\u63A5\u672C\u673A\u6355\u83B7\u670D\u52A1\u3002";
+    $2("connect-assistant").hidden = true;
+    $2("assistant-help").textContent = "\u5F53\u524D\u5DE5\u4F5C\u53F0\u5DF2\u8FDE\u63A5\u672C\u673A\u6355\u83B7\u670D\u52A1\u3002";
   }
   input("smart-layout").addEventListener("change", () => {
     saveCapturePreferences();
     if (preparedBundle) {
-      const text = $("report-summary").textContent || "";
-      $("report-summary").textContent = smartLayout() ? text.replace("\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217", "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4") : text.replace("\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4", "\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217");
+      const text = $2("report-summary").textContent || "";
+      $2("report-summary").textContent = smartLayout() ? text.replace("\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217", "\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4") : text.replace("\u6309\u9875\u9762\u4E0E\u529F\u80FD\u5206\u7EC4", "\u6309\u6355\u83B7\u987A\u5E8F\u6392\u5217");
       renderPageList();
     }
   });
@@ -9718,4 +10112,19 @@ ${PAGE_LEVELS[d.level]} \xB7 ${d.moduleName} / ${d.pageName}
     invalidate();
   });
   message("READY");
+  if (!plugin) {
+    const query = new URLSearchParams(location.search);
+    if (query.get("capture") === "manual") {
+      switchTab("url");
+      $2("url-mode").value = "states";
+      $2("state-plan-panel").hidden = false;
+      $2("state-input-mode").value = "manual";
+      input("page-url").value = query.get("url") || "";
+      const width = Number(query.get("width"));
+      if (width >= 320 && width <= 3840) input("viewport-width").value = String(width);
+      input("selector").value = query.get("selector") || "body";
+      syncStateInput();
+      status("\u70B9\u51FB\u6253\u5F00\u539F\u7F51\u9875\uFF0C\u8FDB\u5165\u624B\u52A8\u64CD\u4F5C\u3002");
+    }
+  }
 })();

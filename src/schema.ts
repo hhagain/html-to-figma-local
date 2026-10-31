@@ -14,7 +14,7 @@ export interface Layout {
   main: 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN'; cross: 'MIN' | 'CENTER' | 'MAX'; eligible: boolean;
 }
 export interface SceneNode {
-  id: string; kind: 'frame' | 'text' | 'svg'; name: string;
+  id: string; kind: 'frame' | 'text' | 'svg'; name: string; captureKey?: string;
   x: number; y: number; width: number; height: number; opacity: number;
   fills: Paint[]; radius?: [number, number, number, number];
   border?: { color: Color; widths: [number, number, number, number]; dashed?: boolean; align?: 'INSIDE' | 'CENTER' | 'OUTSIDE' };

@@ -52,13 +52,17 @@ export async function captureURL(browser, request, { signal } = {}) {
   } finally { clearTimeout(deadline); signal?.removeEventListener('abort', abort); await closeContext(); }
 }
 
-export async function captureLoadedPage(page, context, options, { viewportOnly = false, longPage = false, name, source } = {}) {
+export async function captureLoadedPage(page, context, options, { viewportOnly = false, longPage = false, name, source, preview = true, previewViewport = false } = {}) {
     const expansion=longPage?await expandLongPage(page,options.selector):null;
     try {
     await page.evaluate(async () => { await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]); });
     await page.addScriptTag({ content: await readFile(path.join(project, 'dist/capture.js'), 'utf8') });
-    const document = await page.evaluate(async ({ selector,clipToViewport }) => window.HTMLToFigma.captureDOM(window.document, { selector,clipToViewport }), {...options,clipToViewport:viewportOnly&&!longPage});
-    if (viewportOnly&&!longPage) { document.root.width = options.width; document.root.height = options.height; document.root.clip = true; }
+    const document = await page.evaluate(async ({ selector,clipToViewport,captureKeys }) => window.HTMLToFigma.captureDOM(window.document, { selector,clipToViewport,captureKeys }), {...options,clipToViewport:viewportOnly&&!longPage});
+    if (viewportOnly&&!longPage) {
+      const origin = await page.locator(options.selector).first().evaluate(el => { const r=el.getBoundingClientRect();return {x:r.x,y:r.y}; });
+      for (const child of document.root.children || []) { child.x += origin.x; child.y += origin.y; }
+      delete document.root.layout; document.root.width = options.width; document.root.height = options.height; document.root.clip = true;
+    }
     if (name) document.name = name;
     if(expansion)document.source.longPage={expanded:true,containers:expansion.containers,mergedStateIds:[]};
     let bytes = document.assets.reduce((n, a) => n + (a.base64?.length || 0) * .75, 0);
@@ -96,7 +100,8 @@ export async function captureLoadedPage(page, context, options, { viewportOnly =
     document.stats.missingAssets = document.assets.filter(a => !a.base64).length;
     if (document.diagnostics.length > 200) document.diagnostics = document.diagnostics.slice(0, 200);
     const { validateDocument } = await import('../dist/lib/schema.js'); validateDocument(document);
-    const full = (!viewportOnly||longPage) && document.root.height <= 12000 && document.root.width * document.root.height <= 28000000;
+    if (!preview) return { document, preview: null };
+    const full = !previewViewport && (!viewportOnly||longPage) && document.root.height <= 12000 && document.root.width * document.root.height <= 28000000;
     let screenshot;
     if(longPage&&full&&options.selector!=='body'&&options.selector!=='html'){const clip=await page.locator(options.selector).first().evaluate(el=>{const r=el.getBoundingClientRect();return{x:Math.max(0,r.x+scrollX),y:Math.max(0,r.y+scrollY),width:r.width,height:r.height};});screenshot=await page.screenshot({type:'jpeg',quality:75,fullPage:true,clip,animations:'disabled',timeout:8000});}
     else if (full && options.selector !== 'body' && options.selector !== 'html') screenshot = await page.locator(options.selector).first().screenshot({ type: 'jpeg', quality: 75, animations: 'disabled', timeout: 8000 });

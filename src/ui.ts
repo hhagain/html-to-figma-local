@@ -1,3 +1,4 @@
+import { setupManualCapture } from './manual-capture';
 import { designLayout, PAGE_LEVELS } from './design-organization';
 import { normalizeCaptureAddress } from './capture-address';
 import { captureDOM, embedBrowserAssets } from './capture';
@@ -39,15 +40,23 @@ let incomingHandoff: { id: string; ack: Promise<unknown>; lastProgress: number; 
 let service = !plugin && /^https?:$/.test(location.protocol) && ['127.0.0.1','localhost'].includes(location.hostname) ? location.origin : 'http://127.0.0.1:3847';
 let activeStateJob: string | null = null, activeJobKind: 'states' | 'discover' = 'states', stateReport: any = null;
 let discovery: any = null, discoveryKey = '', discoverySelection: boolean[] = [];
-const autoStates = () => tab === 'url' && $<HTMLSelectElement>('url-mode').value === 'states' && $<HTMLSelectElement>('state-input-mode').value !== 'recipe';
+const manualMode = () => tab === 'url' && $<HTMLSelectElement>('url-mode').value === 'states' && $<HTMLSelectElement>('state-input-mode').value === 'manual';
+const autoStates = () => tab === 'url' && $<HTMLSelectElement>('url-mode').value === 'states' && !['recipe','manual'].includes($<HTMLSelectElement>('state-input-mode').value);
+const manual = setupManualCapture({ plugin, request: handoffAPI, status, changed: refreshPrepareAction, edited: invalidate, prepared: result => { showBundle(result.bundle);showRemotePreviews(result.previewImages[0],undefined,[],result.previewImages);stateReport=result.report;$('download-state-report').hidden=false;status(`已生成 ${result.report.selectedPages} 个页面、${result.report.components} 个组件、${result.report.icons} 个图标。`); }, openWorkbench: raw => { const url=new URL(service);url.search=new URLSearchParams({capture:'manual',url:raw.url,width:String(raw.width),selector:raw.selector}).toString();message('OPEN_CAPTURE_WORKBENCH',{url:url.href});status('请在打开的工作台中操作原网页并标记，生成后可直接导入 Figma。'); } });
 function requestKey() { return JSON.stringify([input('page-url').value.trim(), viewportWidth(), input('selector').value.trim(), $<HTMLSelectElement>('state-input-mode').value, $<HTMLSelectElement>('exploration-output').value, $<HTMLSelectElement>('exploration-data-samples').value]); }
 function refreshPrepareAction() {
-  const label = busy ? '处理中…' : autoStates() ? discovery ? `开始捕获（${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary?'项':'页'}）` : $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '探索交互状态' : '自动发现页面' : '解析并预览';
+  const label = busy || manual.working ? '处理中…' : manualMode() ? plugin ? '在助手工作台中手动标记' : manual.active ? `生成设计稿（${manual.count} 页）` : '打开原网页，开始标记' : autoStates() ? discovery ? `开始捕获（${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary?'项':'页'}）` : $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '探索交互状态' : '自动发现页面' : '解析并预览';
   $('prepare-label').textContent = label;
-  $<HTMLButtonElement>('prepare').disabled = busy || (autoStates() && !!discovery && !discoverySelection.some(Boolean));
+  $<HTMLButtonElement>('prepare').disabled = busy || manual.working || (manualMode() && manual.active && !manual.count) || (autoStates() && !!discovery && !discoverySelection.some(Boolean));
 }
 function clearDiscovery() { discovery = null; discoveryKey = ''; discoverySelection = []; $('discovery-results').hidden = true; $('discovery-intro').hidden = false; refreshPrepareAction(); }
-function syncStateInput() { const automatic = $<HTMLSelectElement>('state-input-mode').value !== 'recipe'; $('state-auto-panel').hidden = !automatic; $('state-recipe-panel').hidden = automatic; $('exploration-options').hidden = $<HTMLSelectElement>('state-input-mode').value !== 'explore'; $('design-output-options').hidden = $<HTMLSelectElement>('state-input-mode').value !== 'explore'; $('discovery-intro').textContent = $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。' : '识别导航标签、页面链接和本地 HTML。此模式不探索详情和弹窗。'; refreshPrepareAction(); }
+function syncStateInput() {
+  const selected=$<HTMLSelectElement>('state-input-mode').value, automatic=['auto','explore'].includes(selected);
+  $('state-auto-panel').hidden=!automatic;$('state-recipe-panel').hidden=selected!=='recipe';manual.sync(manualMode());
+  $('long-page-option').hidden=tab!=='url'||manualMode();$('smart-layout-option').hidden=manualMode();
+  $('exploration-options').hidden=selected!=='explore';$('design-output-options').hidden=selected!=='explore';
+  $('discovery-intro').textContent=selected==='explore'?'自动打开详情、弹窗和表单，记录可重放的交互状态，再勾选捕获。无需准备 JSON。':'识别导航标签、页面链接和本地 HTML。此模式不探索详情和弹窗。';refreshPrepareAction();
+}
 
 let assistantCredentials: AssistantCredentials | null = null, assistantConnecting = false;
 const session = (window as any).__LOCAL_SESSION__ as { token: string } | undefined;
@@ -74,6 +83,7 @@ function setBusy(value: boolean, importing = false) {
   refreshPrepareAction(); refreshPreviewControls(); refreshZoomControls(); refreshHandoffControls();
 }
 function invalidate() {
+  if(!manualMode()&&manual.active)void manual.close().catch(error=>status(errorText(error),true));
   outgoingHandoff = null; sendRequestId = ''; sendSignature = ''; incomingHandoff = null; $('handoff-send-status').hidden = true;
   resetPreview();
   prepared = null; preparedBundle = null; stateReport = null; $('download-state-report').hidden = true; pageStates = []; $('page-list-section').hidden = true; $('report').hidden = true; $('ready-actions').hidden = true;
@@ -114,7 +124,7 @@ function renderPageList() {
   $('page-list-title').textContent = `${preparedBundle.pages.some(p=>['component','icon'].includes(p.source.artifact?.kind||''))?'设计稿清单':'页面列表'} · ${pageStates.filter(p => p.selected).length} / ${pageStates.length}`;
   const rows = document.createDocumentFragment();
   const organization=designLayout(preparedBundle.pages.map(p=>({name:p.name,width:p.root.width,height:p.root.height,design:p.source.canvas||!smartLayout()&&!['component','icon'].includes(p.source.artifact?.kind||'')?undefined:p.source.design,artifact:p.source.artifact})));
-  const grouped=new Set(organization.groups.flatMap(g=>g.indices)),ordered=[...organization.groups.flatMap(g=>g.indices),...preparedBundle.pages.map((_,i)=>i).filter(i=>!grouped.has(i))];
+  const grouped=new Set(organization.groups.flatMap(g=>g.indices)),ordered=smartLayout()?[...organization.groups.flatMap(g=>g.indices),...preparedBundle.pages.map((_,i)=>i).filter(i=>!grouped.has(i))]:preparedBundle.pages.map((_,i)=>i);
   const heads=new Map(organization.groups.map(g=>[g.indices[0],g]));
   ordered.forEach(i => {
     const page=preparedBundle!.pages[i],group=heads.get(i);
@@ -242,7 +252,7 @@ function switchTab(next: string) {
   tab = next;
   document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(btn => { const active = btn.dataset.tab === next; btn.classList.toggle('active', active); btn.setAttribute('aria-selected', String(active)); btn.tabIndex = active ? 0 : -1; });
   for (const key of ['file', 'code', 'url']) $(`${key}-panel`).hidden = key !== next;
-  $('advanced').hidden = next === 'url'; $('split-options').hidden = next === 'url'; invalidate(); status('');
+  $('advanced').hidden = next === 'url'; $('split-options').hidden = next === 'url'; invalidate(); syncStateInput(); status('');
 }
 for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-tab]')) {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab!));
@@ -433,6 +443,7 @@ $('prepare').addEventListener('click', async () => {
   try {
     if (tab === 'url') {
       const url = normalizeCaptureAddress(input('page-url').value);
+      if (manualMode()) { await manual.prepare({url,width:viewportWidth(),height:900,selector:input('selector').value.trim()||'body'});return; }
       if ($<HTMLSelectElement>('url-mode').value === 'states') {
         if (autoStates()) {
           if (!discovery || discoveryKey !== requestKey()) { await discoverAutomaticPages(url); return; }
@@ -785,3 +796,5 @@ if(!plugin && session?.token){$('connect-assistant').hidden=true;$('assistant-he
 input('smart-layout').addEventListener('change',()=>{saveCapturePreferences();if(preparedBundle){const text=$('report-summary').textContent||'';$('report-summary').textContent=smartLayout()?text.replace('按捕获顺序排列','按页面与功能分组'):text.replace('按页面与功能分组','按捕获顺序排列');renderPageList();}});
 input('long-page').addEventListener('change',()=>{saveCapturePreferences();invalidate();});
 message('READY');
+
+if(!plugin){const query=new URLSearchParams(location.search);if(query.get('capture')==='manual'){switchTab('url');$<HTMLSelectElement>('url-mode').value='states';$('state-plan-panel').hidden=false;$<HTMLSelectElement>('state-input-mode').value='manual';input('page-url').value=query.get('url')||'';const width=Number(query.get('width'));if(width>=320&&width<=3840)input('viewport-width').value=String(width);input('selector').value=query.get('selector')||'body';syncStateInput();status('点击打开原网页，进入手动操作。');}}

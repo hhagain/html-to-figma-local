@@ -1,7 +1,7 @@
 import { linearGradient } from './gradient';
 import { solidPathClipSVG } from './clip-path';
 import { SCHEMA_VERSION, LIMITS, addDiagnostic, countScene, type CaptureDocument, type SceneNode, type Color, type Paint, type Asset, type Diagnostic, type Layout } from './schema';
-export interface CaptureOptions { selector?: string; name?: string; maxNodes?: number; clipToViewport?: boolean }
+export interface CaptureOptions { selector?: string; name?: string; maxNodes?: number; clipToViewport?: boolean; captureKeys?: string[] }
 const round = (v: number) => Math.round(v * 100) / 100;
 const px = (v: string) => parseFloat(v) || 0;
 export function splitCSS(value: string, delimiter = ','): string[] {
@@ -23,6 +23,8 @@ export async function captureDOM(doc: Document = document, options: CaptureOptio
   try { rootEl = doc.querySelector(selector); } catch { throw new Error('CSS 选择器格式不正确'); }
   if (!rootEl) throw new Error(`没有找到选择器：${selector}`);
   await Promise.race([doc.fonts?.ready, new Promise(resolve => setTimeout(resolve, 2500))]);
+  const keyedElements = new Map<Element, string>();
+  for (const key of options.captureKeys || []) { const el = doc.querySelector(key); if (el) keyedElements.set(el, key); }
   const diagnostics: Diagnostic[] = [], assets: Asset[] = [];
   const warn = (code: string, message: string, node?: string) => addDiagnostic(diagnostics, code, message, node);
   const colorCanvas = doc.createElement('canvas'); colorCanvas.width = colorCanvas.height = 1;
@@ -174,6 +176,7 @@ export async function captureDOM(doc: Document = document, options: CaptureOptio
     if (rect.width <= 0 && rect.height <= 0 && cs.display !== 'contents') return null;
     const name = el.getAttribute('aria-label') || el.getAttribute('data-pencil-name') || el.id || `${el.tagName.toLowerCase()}${el.classList.length ? '.' + el.classList[0] : ''}`;
     const n = base(el.tagName.toLowerCase() === 'svg' ? 'svg' : 'frame', name, rect, parent);
+    if (keyedElements.has(el)) n.captureKey = keyedElements.get(el);
     n.opacity = Math.max(0, Math.min(1, Number(cs.opacity) || 1));
     const bg = color(cs.backgroundColor); if (bg.a) n.fills.push({ type: 'solid', color: bg });
     const backgrounds = splitCSS(cs.backgroundImage);

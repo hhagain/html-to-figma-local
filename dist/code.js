@@ -720,6 +720,10 @@
   figma.ui.onmessage = async (message) => {
     var _a, _b, _c, _d;
     if (!message || typeof message.type !== "string") return;
+    if (message.type === "OPEN_CAPTURE_WORKBENCH") {
+      if (typeof message.url === "string" && message.url.length < 12e3 && /^http:\/\/(?:127\.0\.0\.1|localhost):(?:384[7-9]|385[01])\/(?:\?[^#\r\n]*)?$/.test(message.url)) figma.openExternal(message.url);
+      return;
+    }
     if (message.type === "OPEN_DESKTOP_ASSISTANT_DOWNLOAD") {
       figma.openExternal("https://github.com/hhagain/html-to-figma-local/releases");
       return;

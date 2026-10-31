@@ -8,11 +8,13 @@ import { captureStates, validateStatePlan } from './state-capture.mjs';
 import { discoverPages, validateDiscoveryRequest } from './discover-pages.mjs';
 import { createPreviewStore } from './preview-store.mjs';
 import { createHandoffStore } from './handoff-store.mjs';
+import { openManualCapture } from './manual-capture.mjs';
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mime = { '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf' };
 export async function createAppServer({ port = 3847, root = path.join(project, 'examples'), token = randomBytes(18).toString('hex'), desktop = null } = {}) {
   const sourceRoot = await realpath(root); let browserPromise, capturing = false;
   const explorations = new Map();
+  let manual = null, manualOwner = null;
   const jobs = new Map(), previews = createPreviewStore(), handoffs = createHandoffStore();
   const pruneJobs = async () => { for (const [id, job] of jobs) if (job.status !== 'running' && jobs.size >= 2) { jobs.delete(id); await previews.forget(id).catch(() => {}); } };
   const readJSON = async (req, limit = 2 * 1024 * 1024) => { const chunks=[];let bytes=0;for await(const chunk of req){bytes+=chunk.length;if(bytes>limit)throw new Error(`请求超过 ${limit/1024/1024} MB，请分批发送`);chunks.push(chunk);}return JSON.parse(Buffer.concat(chunks).toString('utf8')); };
@@ -48,7 +50,35 @@ export async function createAppServer({ port = 3847, root = path.join(project, '
           else if(req.method==='POST'&&handoffRoute[2]){const body=await readJSON(req);const receiver=receiverIdentity(req,body);json(res,200,handoffRoute[2]==='claim'?handoffs.claim(handoffRoute[1],receiver,body.contextVersion):handoffs.progress(handoffRoute[1],receiver,body));}
           else json(res,405,{error:'不支持的传输操作'});
         }catch(error){json(res,409,{error:error.message});}return;}
-        if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: '0.14.0', capturing, desktop: !!desktop }); return; }
+        if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: '0.15.0', capturing, desktop: !!desktop }); return; }
+        if (url.pathname === '/api/manual' && req.method === 'POST') {
+          if (capturing) { json(res,409,{error:'已有捕获任务或手动标记会话正在运行，请先结束当前操作'});return; }
+          let request;try { request=await readJSON(req);validateCaptureRequest(request); } catch(error) { json(res,400,{error:error.message});return; }
+          if (capturing) { json(res,409,{error:'已有捕获任务正在运行'});return; }
+          capturing=true;manualOwner=identity(req);
+          try {
+            browserPromise ||= launchBrowser().catch(error=>{browserPromise=undefined;throw error;});
+            manual=await openManualCapture(await browserPromise,request,{serviceOrigin:`http://${req.headers.host}`});
+            desktop?.onActivity({phase:'capturing',name:'手动操作原网页',completed:0});json(res,201,manual.snapshot());
+          } catch(error) { capturing=false;manualOwner=null;json(res,422,{error:error.message}); }
+          return;
+        }
+        if (url.pathname === '/api/manual/active' && req.method === 'GET') { json(res,200,{session:manual&&manualOwner===identity(req)?manual.snapshot():null});return; }
+        const manualRoute=url.pathname.match(/^\/api\/manual\/([a-f0-9]{24})(?:\/(frame|input|mark|update|export|close))?$/);
+        if (manualRoute) {
+          const session=manual;
+          if(!session||session.id!==manualRoute[1]||manualOwner!==identity(req)){json(res,404,{error:'手动标记会话不存在或不属于此连接'});return;}
+          try {
+            const action=manualRoute[2];
+            if(req.method==='GET'&&!action)json(res,200,session.snapshot());
+            else if(req.method==='GET'&&action==='frame')json(res,200,await session.frame());
+            else if(req.method==='POST'&&['input','mark','update'].includes(action))json(res,200,await session[action](await readJSON(req)));
+            else if(req.method==='POST'&&action==='export')json(res,200,await session.export());
+            else if(req.method==='POST'&&action==='close') { await session.close();if(manual===session){manual=null;manualOwner=null;capturing=false;}desktop?.onActivity({phase:'idle',name:'手动标记已结束'});json(res,200,{closed:true}); }
+            else json(res,405,{error:'不支持的手动操作'});
+          } catch(error) { json(res,422,{error:error.message}); }
+          return;
+        }
         if (url.pathname === '/api/discover' && req.method === 'POST') {
           if (capturing) { json(res,409,{error:'已有发现或捕获任务正在运行，请稍后重试'});return; }
           let request;try{request=validateDiscoveryRequest(await readJSON(req));}catch(error){json(res,400,{error:error.message});return;}
@@ -157,7 +187,7 @@ export async function createAppServer({ port = 3847, root = path.join(project, '
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
   const address = `http://127.0.0.1:${server.address().port}`;
-  const close = async () => { for(const job of jobs.values())job.controller.abort(); if (browserPromise) await (await browserPromise.catch(() => null))?.close(); await Promise.allSettled([...jobs.values()].map(job=>job.task)); await previews.close(); handoffs.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); };
+  const close = async () => { await manual?.close(); for(const job of jobs.values())job.controller.abort(); if (browserPromise) await (await browserPromise.catch(() => null))?.close(); await Promise.allSettled([...jobs.values()].map(job=>job.task)); await previews.close(); handoffs.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); };
   return { server, address, token, close, sourceRoot };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

@@ -23,7 +23,7 @@ await run('xcrun',['clang',...compileArgs,'desktop/src/main.m','-o',path.join(co
 await cp(nodeBinary,path.join(resources,'runtime/node'));await chmod(path.join(resources,'runtime/node'),0o755);
 await cp(browserDirectory,path.join(resources,'browser'),{recursive:true});
 await mkdir(path.join(engine,'scripts'),{recursive:true});
-for(const name of ['browser.mjs','long-page.mjs','capture-source.mjs','discover-pages.mjs','explore-states.mjs','design-snapshot.mjs','design-output.mjs','interaction-inspector.mjs','preview-store.mjs','handoff-store.mjs','server.mjs','state-capture.mjs','desktop-pairing.mjs','desktop-service.mjs'])await cp(path.join(root,'scripts',name),path.join(engine,'scripts',name));
+for(const name of ['browser.mjs','manual-capture.mjs','long-page.mjs','capture-source.mjs','discover-pages.mjs','explore-states.mjs','design-snapshot.mjs','design-output.mjs','interaction-inspector.mjs','preview-store.mjs','handoff-store.mjs','server.mjs','state-capture.mjs','desktop-pairing.mjs','desktop-service.mjs'])await cp(path.join(root,'scripts',name),path.join(engine,'scripts',name));
 for(const name of ['dist','examples'])await cp(path.join(root,name),path.join(engine,name),{recursive:true});
 await cp(path.join(root,'desktop/ui'),path.join(engine,'desktop-ui'),{recursive:true});
 const iconSource=path.join(root,'desktop/resources/app-icon.png');

@@ -149,6 +149,11 @@
     }
     if (!rootEl) throw new Error(`\u6CA1\u6709\u627E\u5230\u9009\u62E9\u5668\uFF1A${selector}`);
     await Promise.race([doc.fonts?.ready, new Promise((resolve) => setTimeout(resolve, 2500))]);
+    const keyedElements = /* @__PURE__ */ new Map();
+    for (const key of options.captureKeys || []) {
+      const el = doc.querySelector(key);
+      if (el) keyedElements.set(el, key);
+    }
     const diagnostics = [], assets = [];
     const warn = (code, message, node) => addDiagnostic(diagnostics, code, message, node);
     const colorCanvas = doc.createElement("canvas");
@@ -339,6 +344,7 @@
       if (rect.width <= 0 && rect.height <= 0 && cs.display !== "contents") return null;
       const name = el.getAttribute("aria-label") || el.getAttribute("data-pencil-name") || el.id || `${el.tagName.toLowerCase()}${el.classList.length ? "." + el.classList[0] : ""}`;
       const n = base(el.tagName.toLowerCase() === "svg" ? "svg" : "frame", name, rect, parent);
+      if (keyedElements.has(el)) n.captureKey = keyedElements.get(el);
       n.opacity = Math.max(0, Math.min(1, Number(cs.opacity) || 1));
       const bg = color(cs.backgroundColor);
       if (bg.a) n.fills.push({ type: "solid", color: bg });
