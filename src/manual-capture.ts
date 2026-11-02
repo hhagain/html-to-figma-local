@@ -21,7 +21,7 @@ export function setupManualCapture(config: {
   const request=(action:string,body?:unknown,timeout=60000)=>config.request(`/api/manual/${session!.id}/${action}`,body,timeout);
   function zoom() {
     if(!session)return;const host=$('manual-viewport'),surface=$('manual-surface');
-    if(fit)scale=Math.max(.1,Math.min(1,(host.clientWidth-26)/session.viewport.width));
+    if(fit)scale=Math.max(.1,Math.min(1,(host.clientWidth-26)/session.viewport.width,(host.clientHeight-26)/session.viewport.height));
     surface.style.width=`${session.viewport.width*scale}px`;surface.style.height=`${session.viewport.height*scale}px`;
     $('manual-fit').setAttribute('aria-pressed',String(fit));$('manual-actual').setAttribute('aria-pressed',String(!fit&&scale===1));
   }

@@ -21,7 +21,7 @@
     function zoom() {
       if (!session2) return;
       const host = $("manual-viewport"), surface2 = $("manual-surface");
-      if (fit) scale = Math.max(0.1, Math.min(1, (host.clientWidth - 26) / session2.viewport.width));
+      if (fit) scale = Math.max(0.1, Math.min(1, (host.clientWidth - 26) / session2.viewport.width, (host.clientHeight - 26) / session2.viewport.height));
       surface2.style.width = `${session2.viewport.width * scale}px`;
       surface2.style.height = `${session2.viewport.height * scale}px`;
       $("manual-fit").setAttribute("aria-pressed", String(fit));
