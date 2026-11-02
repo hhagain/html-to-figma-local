@@ -47,6 +47,7 @@ function requestKey() { return JSON.stringify([input('page-url').value.trim(), v
 function refreshPrepareAction() {
   const label = busy || manual.working ? '处理中…' : manualMode() ? plugin ? '在助手工作台中手动标记' : manual.active ? `生成设计稿（${manual.count} 页）` : '打开原网页，开始标记' : autoStates() ? discovery ? `开始捕获（${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary?'项':'页'}）` : $<HTMLSelectElement>('state-input-mode').value === 'explore' ? '探索交互状态' : '自动发现页面' : '解析并预览';
   $('prepare-label').textContent = label;
+  for(const id of ['page-url','viewport-width','selector'])input(id).disabled=busy||manual.active;
   $<HTMLButtonElement>('prepare').disabled = busy || manual.working || (manualMode() && manual.active && !manual.count) || (autoStates() && !!discovery && !discoverySelection.some(Boolean));
 }
 function clearDiscovery() { discovery = null; discoveryKey = ''; discoverySelection = []; $('discovery-results').hidden = true; $('discovery-intro').hidden = false; refreshPrepareAction(); }

@@ -8610,6 +8610,7 @@
   function refreshPrepareAction() {
     const label = busy || manual.working ? "\u5904\u7406\u4E2D\u2026" : manualMode() ? plugin ? "\u5728\u52A9\u624B\u5DE5\u4F5C\u53F0\u4E2D\u624B\u52A8\u6807\u8BB0" : manual.active ? `\u751F\u6210\u8BBE\u8BA1\u7A3F\uFF08${manual.count} \u9875\uFF09` : "\u6253\u5F00\u539F\u7F51\u9875\uFF0C\u5F00\u59CB\u6807\u8BB0" : autoStates() ? discovery ? `\u5F00\u59CB\u6355\u83B7\uFF08${discoverySelection.filter(Boolean).length} ${discovery.report.designSummary ? "\u9879" : "\u9875"}\uFF09` : $2("state-input-mode").value === "explore" ? "\u63A2\u7D22\u4EA4\u4E92\u72B6\u6001" : "\u81EA\u52A8\u53D1\u73B0\u9875\u9762" : "\u89E3\u6790\u5E76\u9884\u89C8";
     $2("prepare-label").textContent = label;
+    for (const id of ["page-url", "viewport-width", "selector"]) input(id).disabled = busy || manual.active;
     $2("prepare").disabled = busy || manual.working || manualMode() && manual.active && !manual.count || autoStates() && !!discovery && !discoverySelection.some(Boolean);
   }
   function clearDiscovery() {
