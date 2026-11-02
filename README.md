@@ -4,6 +4,12 @@
 
 当前版本：**0.15.0 开发版**。代码已独立实现；参考了 HTML → 布局数据 → Figma 的工作流，没有复制 Neil Studio 的插件代码或界面。
 
+## 下载 v0.15.0
+
+[GitHub 发布页](https://github.com/hhagain/html-to-figma-local/releases/tag/v0.15.0) · [三合一安装包](https://github.com/hhagain/html-to-figma-local/releases/download/v0.15.0/HTML-to-Figma-0.15.0-All-in-One.zip) · [macOS DMG](https://github.com/hhagain/html-to-figma-local/releases/download/v0.15.0/HTML-to-Figma-Capture-0.15.0-mac-arm64.dmg) · [Windows EXE](https://github.com/hhagain/html-to-figma-local/releases/download/v0.15.0/HTML-to-Figma-Capture-0.15.0-win-x64-Setup.exe) · [Windows 便携 ZIP](https://github.com/hhagain/html-to-figma-local/releases/download/v0.15.0/HTML-to-Figma-Capture-0.15.0-win-x64.zip) · [Figma 插件](https://github.com/hhagain/html-to-figma-local/releases/download/v0.15.0/html-to-figma-local-0.15.0.zip)
+
+三合一包包含 macOS 助手、Windows 助手和同版本 Figma 插件。macOS 适用于 Apple Silicon、macOS 14+；Windows 适用于 x64。两个助手均内置运行环境，无需 Node.js 或 npm。升级前退出旧助手，安装新版后关闭并重新运行 Figma 插件。详见 [发布说明](docs/releases/v0.15.0.md) 和 [手动标记指南](docs/MANUAL-CAPTURE.md)。
+
 ## v0.15.0 手动操作原网页并标记
 
 在助手的“网页链接 → 多状态捕获 → 手动操作原网页并标记”中，自行点击、输入、滚动原 HTML，标记并勾选需要的页面。每条标记可独立选择“当前页面”或“完整长页”，保存当时的可编辑图层，切换页面后仍可调整范围。
